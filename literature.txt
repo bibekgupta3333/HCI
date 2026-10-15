@@ -1,0 +1,397 @@
+1
+Do People Trust AI More When It Explains Itself?
+A Literature Review on Explanation Depth, Trust, and Automation Bias in AI Decision
+Interfaces
+Deepthi Reddy Chelladi, Siwani Sah, Bibek Gupta, Afzal Hossain Sohag, Md Shamimul Islam, and
+Mohamed Sylla
+Group 4, CEN5728: Advanced Human-Computer Interaction
+Professor Abdelwahab Hamam, September 2026
+1. Introduction and Problem Statement
+Artificial intelligence now supports decisions in high-stakes areas such as lending, hiring, health
+care, and criminal justice. In consumer lending, automated models screen applications and
+recommend whether a loan should be approved or rejected, but a human reviewer is often still
+responsible for accepting or overriding that recommendation. What the interface shows about the
+AI's reasoning can influence whether people agree with the system, how much they trust it,
+whether they think the outcome is fair, and, most importantly, whether they notice when the
+system is wrong. The stakes are also regulatory. In 2022, the Consumer Financial Protection
+Bureau stated that lenders must give applicants the specific reasons for a denial even when the
+decision comes from a complex “black-box” algorithm [7]. The Bureau withdrew that circular in
+May 2025, but the question it raised, how a lender can explain an algorithmic decision to the
+person affected, remains central to AI in lending.
+A common response to these concerns is explainable AI, the idea that AI systems should
+explain their outputs so people can understand and evaluate them [9]. Much of this work carries
+an unstated assumption that more explanation leads to better, more appropriate trust. Research in
+human factors and HCI suggests that this assumption is too simple. People already have a
+well-documented tendency to over-rely on automated aids [24, 26], and recent experiments
+found that explanations increased acceptance of AI recommendations whether those
+recommendations were right or wrong [1]. An explanation may make a wrong decision sound
+more convincing instead of making the error easier to catch.
+The problem our project addresses is that it remains unclear how the depth of an explanation
+affects user behavior and perception when the AI is sometimes incorrect. By depth we mean a
+range from no explanation (Condition A, a black box), to a fixed written reason (Condition B, a
+static explanation), to an interactive breakdown the user can explore factor by factor (Condition
+C). Most prior studies compare the presence of an explanation to its absence, or compare
+different explanation algorithms, and fewer compare formats that differ in both depth and
+interactivity within the same task while also including deliberately incorrect AI decisions. This
+review supports a within-subjects study of loan decisions using these three conditions. Sections 3
+to 7 review trust in automation, human-centered XAI, the effects of explanations on reliance,
+explanation depth and interactivity, and fairness perceptions. Section 8 discusses methodological
+implications, and Section 9 states the research gap and our hypotheses.
+2. Scope and Criteria for Inclusion
+We searched the ACM Digital Library, IEEE Xplore, Google Scholar, and the journal Human
+Factors using combinations of “trust in automation,” “automation bias,” “overreliance,”
+2
+“explainable AI user study,” “interactive explanation,” and “algorithmic fairness perception,”
+and followed the reference lists of the most relevant papers. A source was included if it (a) is a
+foundational or highly cited work that defines a concept central to our study, such as trust,
+automation bias, or explanation; (b) is a peer-reviewed empirical study measuring how
+explanations affect trust, reliance, decision accuracy, or fairness judgments; or (c) provides a
+validated instrument or method we plan to use. We gave priority to CHI, IUI, CSCW, FAccT, and
+Human Factors, where most empirical work on human-AI decision making appears, and
+excluded papers that proposed interpretability algorithms without any human evaluation, except
+SHAP, which directly shapes how feature-based explanations are shown to users. The final set
+contains 29 sources published between 1978 and 2023. Older sources were kept when they
+introduced ideas, such as automation bias or placebic explanation, that newer AI studies still
+build on.
+3. Trust in Automation and Automation Bias
+3.1 Trust and Appropriate Reliance
+Lee and See [19] provide the definition of trust most often used in this area: an attitude that an
+automated agent will help a person reach their goals in a situation of uncertainty and
+vulnerability. Their most important contribution for our project is calibration. The goal of good
+design is not maximum trust but trust that matches what the system can actually do. When trust
+exceeds the system's capability, people misuse the automation, and when it falls short, they
+disuse it. This extends the taxonomy of Parasuraman and Riley [24], who separated appropriate
+use of automation from misuse, disuse, and abuse. Together, these papers explain why our study
+measures agreement on correct and incorrect AI decisions separately, since high agreement is
+only good when it is concentrated on the correct cases.
+Hoff and Bashir [13] reviewed 127 empirical studies and organized the factors that shape
+trust into three layers: dispositional trust (a general tendency to trust automation), situational
+trust (the context and task), and learned trust (what a person learns from interacting with a
+particular system). Design features such as transparency fall under learned trust, which is exactly
+where explanation depth sits. The model also warns that individual differences add noise, one
+reason a within-subjects design is attractive. Learned trust changes quickly. Dzindolet et al. [10]
+found that people start with a positive bias toward automated aids, that seeing the aid err lowers
+trust sharply, and that telling people why the aid might err increased trust and reliance even
+though its accuracy had not changed. This is one of the earliest signs that explanations can raise
+reliance independently of accuracy.
+3.2 Automation Bias
+Automation bias is the tendency to use automated recommendations as a shortcut for careful
+information seeking and processing. Skitka et al. [26] separated omission errors, in which people
+fail to act because the automation did not alert them, from commission errors, in which people
+follow an automated directive even though other available information contradicts it.
+Commission errors are exactly what our planted wrong cases are designed to detect, since each
+wrong AI decision contradicts the applicant's own numbers on the screen. Parasuraman and
+Manzey [23] concluded that automation bias appears in both novices and experts and cannot be
+prevented by training or instructions alone. Green and Chen [12] found related problems in an
+algorithm-in-the-loop experiment that included a lending scenario: participants could not
+effectively evaluate the accuracy of the algorithm's predictions and did not calibrate their
+3
+reliance to its actual performance. A limitation is that most classic studies involve trained
+operators and automation that offers no explanation, whereas modern AI interfaces also argue for
+their answers.
+3.3 Measuring Trust
+Our self-report measure is the empirically developed 12-item Trust in Automation scale [15].
+Hoffman et al. [14] argued that trust in XAI should be measured through both self-report and
+behavior, because what people say and what they do often differ. We therefore pair the scale with
+behavioral agreement, separated into correct and incorrect cases, which gives a direct measure of
+the appropriate reliance that Lee and See [19] identify as the construct that matters.
+4. Explainable AI From a Human-Centered Perspective
+Early XAI research focused on algorithms. Feature-attribution methods such as SHAP assign
+each input a contribution to a prediction [21], and the factor-by-factor breakdown in our
+interactive condition, which shows income against a threshold, credit history length, and
+debt-to-income ratio, is essentially a user-facing version of this idea. In the terms of Doshi-Velez
+and Kim [9], our project is a human-grounded evaluation, testing how real people respond to
+explanations on a simplified but realistic task.
+Miller [22] argued that XAI researchers largely ignored decades of work in philosophy,
+psychology, and cognitive science on how people explain things to each other. Human
+explanations are contrastive (why this outcome instead of another), selective (a few key causes
+rather than a complete list), and social (a conversation adjusted to what the listener knows).
+These properties map onto our conditions. The static explanation in Condition B is selective,
+giving two short reasons, while the interactive explanation in Condition C is more contrastive,
+placing each factor next to the threshold it passed or failed, and more conversational, since the
+user decides what to ask about. Lim et al. [20] similarly found that “why” and “why not”
+explanations produced better understanding and stronger trust than other explanation types,
+which supports the “Why?” control in Condition C.
+5. Effects of Explanations on Trust, Agreement, and Error Detection
+5.1 Evidence That Explanations Help
+Some studies found clear benefits. Kulesza et al. [17] showed that explanations helped users
+build more accurate mental models of a recommender system. Cheng et al. [5] tested several
+explanation interfaces with 199 non-expert participants using a university admissions algorithm
+and found that interactive and “white-box” explanations both improved comprehension, with the
+interactive approach improving it most but taking more time. Surprisingly, trust was not affected
+by the interface or by how well participants understood the algorithm, a strong hint that
+understanding, trust, and reliance must be measured separately.
+5.2 Evidence That Explanations Do Not Improve, or Even Harm, Decisions
+A growing number of controlled experiments suggest that explanations often fail to improve
+decision quality. Poursabzi-Sangdeh et al. [25] ran pre-registered experiments with about 3,800
+participants who predicted apartment prices with a model's help. A more transparent model
+helped people simulate its predictions but made them worse at detecting when it had made a
+large mistake, which the authors attributed to information overload. Zhang et al. [29], using an
+income prediction task close to our lending domain, found that showing a confidence score
+4
+helped people calibrate their trust, while local feature-based explanations did not. The most
+direct evidence for the backfire effect our project tests comes from Bansal et al. [1], who found
+across several tasks that explanations increased acceptance of the AI's recommendations
+regardless of whether they were correct, and added nothing beyond simply displaying the AI's
+confidence. Bussone et al. [4] reported a similar pattern in a clinical decision support prototype.
+Clinicians who saw comprehensive explanations trusted the system more but also agreed with
+more of its incorrect diagnoses. Like our study, it used a Wizard-of-Oz prototype with planted
+errors, although with only seven clinicians its findings need testing with larger samples.
+There is also a psychological explanation for this effect. Langer et al. [18] found that people
+complied with a small request almost as often when it came with a meaningless reason (“because
+I have to make copies”) as when it came with a real one. Eiband et al. [11] found that placebic
+explanations containing no real information produced trust similar to real explanations in a
+nutrition recommender, though their study had only 30 participants. This is highly relevant to
+Condition B. A fixed sentence such as “Rejected because income is below threshold” sounds
+justified whether or not it is true, which may explain why static explanations can increase
+agreement with wrong decisions.
+5.3 When Explanations Can Reduce Overreliance
+Not all recent evidence is negative. Buçinca et al. [3] tested cognitive forcing functions, such as
+asking people to decide before seeing the AI's answer or to request its recommendation on
+demand. These reduced overreliance compared with simple XAI designs, although participants
+rated them less favorably. Vasconcelos et al. [28] offered a cost-benefit account of the mixed
+findings. Across five studies with 731 participants, explanations reduced overreliance when they
+made checking the AI's answer much easier than solving the task alone, suggesting that earlier
+null results may reflect explanations that did not lower the cost of verification enough. These
+studies matter for Condition C. The “Why?” button requires an action, which may act as a mild
+forcing function, and the breakdown places the applicant's numbers next to the thresholds, which
+makes verification cheap.
+6. Explanation Depth and Interactivity
+How much explanation is enough is itself contested. Kulesza et al. [17] varied the soundness and
+completeness of explanations and found that completeness mattered more for building accurate
+mental models, while heavily oversimplified explanations increased mental demand and reduced
+trust in the explanations themselves. Too much detail, however, can overload users [25]. Springer
+and Whittaker [27] addressed this tension in four studies of an emotion analytics system.
+Transparency helped users build a model of how the algorithm worked but could lower their
+accuracy judgments when it exposed the system's errors, and the authors recommended
+progressive disclosure, starting with simplified feedback and revealing more detail on request.
+Condition C follows this approach by showing the decision first and the breakdown only when
+the user clicks “Why?” Interactivity, however, does not guarantee careful thinking. Kaur et al.
+[16] found that data scientists using interpretability tools often over-trusted them and took the
+visual output at face value. If experienced data scientists can over-trust detailed, interactive
+explanations, lay users in a loan scenario may do the same. The literature therefore makes two
+competing predictions: interactive explanations may support verification by lowering its cost, or
+they may create a stronger illusion of understanding because they look more thorough.
+5
+7. Perceptions of Fairness in Algorithmic Decisions
+Fairness is especially relevant in lending, where decisions directly affect people's lives. Colquitt
+[6] validated a four-dimensional model of organizational justice: distributive, procedural,
+interpersonal, and informational. Informational justice concerns whether people receive adequate
+and truthful explanations, which suggests that explanation depth should affect perceived fairness.
+Binns et al. [2] tested this using scenarios that included loan decisions and found that explanation
+style mattered mainly when participants were exposed to several styles. When they saw only one,
+differences between scenarios hid any effect of explanation. Dodge et al. [8], with more than 160
+participants and four explanation types for a recidivism model, found that some styles were seen
+as inherently less fair and that individual differences shaped reactions to each style. Richer
+explanations should therefore increase perceived fairness, but such judgments are sensitive to
+study design.
+8. Methodological Implications
+The reviewed work also shapes our design. We use a Wizard-of-Oz approach in which AI
+decisions are pre-scripted, as Bussone et al. [4] did. This gives full control over which decisions
+are wrong and ensures that every wrong decision contradicts the applicant's own numbers, which
+is necessary for measuring error detection. The trade-off is ecological validity, since real AI
+errors are rarely this clear-cut, so our results should be read as a best case for error detection. A
+within-subjects design offers more statistical power with fewer participants, but Binns et al. [2]
+show that exposure to several explanation styles can itself change judgments, and Dzindolet et al.
+[10] show that observing an AI error lowers trust for the rest of a session. We therefore
+counterbalance condition order, case order, and the position of the wrong cases. Following
+Hoffman et al. [14], we measure trust through self-report, behavior, and time-to-decision.
+Time-to-decision is useful because fast decisions may reflect heuristic acceptance of the AI's
+answer, while the cognitive forcing work of Buçinca et al. [3] suggests that slower, more
+effortful decisions may reflect actual verification. Table 1 summarizes the key empirical studies.
+Table 1
+Empirical Studies on Explanations, Trust, and Reliance
+Study Task / domain Key finding Relevance to our study
+Dzindolet et al. [10] Detection task with
+automated aid
+Explaining why the aid might err
+raised trust and reliance without
+changing accuracy.
+Explanation can raise reliance
+on its own.
+Cheng et al. [5] Admissions algorithm (N =
+199)
+Interactive explanations improved
+comprehension most; trust
+unaffected.
+Measure understanding, trust,
+and reliance separately.
+Bussone et al. [4] Clinical decision support
+(7 clinicians)
+Detailed explanations increased trust
+and over-reliance.
+Backfire effect; Wizard-of-Oz
+with planted errors.
+Eiband et al. [11] Nutrition recommender (N
+= 30)
+Placebic explanations produced trust
+similar to real ones.
+Static reasons may persuade
+regardless of content.
+Zhang et al. [29] Income prediction Confidence aided trust calibration;
+local explanations did not.
+Close to the lending domain.
+Bansal et al. [1] Sentiment analysis and
+question answering
+Explanations increased acceptance
+of AI advice whether right or wrong.
+Motivates planted wrong cases.
+Poursabzi-Sangdeh et al.
+[25]
+Apartment price prediction
+(N ≈ 3,800)
+Transparency hurt detection of large
+model errors.
+More detail can harm error
+detection.
+Buçinca et al. [3] Nutrition decisions Cognitive forcing functions reduced
+overreliance.
+On-demand explanation may
+act as forcing.
+6
+Study Task / domain Key finding Relevance to our study
+Vasconcelos et al. [28] Maze task (5 studies, N =
+731)
+Explanations reduced overreliance
+when verification was easy.
+Predicts Condition C may aid
+error detection.
+8.1 Limitations of the Reviewed Literature
+Three limitations cut across the studies reviewed here. First, many of the strongest findings come
+from short online tasks with crowd workers, such as apartment pricing [25] or sentiment analysis
+[1], where participants have little at stake, so transfer to lending is uncertain. Second, several of
+the studies most directly relevant to our backfire hypothesis are small: Bussone et al. [4]
+observed only seven clinicians and Eiband et al. [11] only 30 participants, so their conclusions
+should be treated as suggestive rather than settled. Third, studies measure “trust” in different
+ways, from questionnaires [15] to agreement rates [1] to comprehension tests [5], which makes it
+hard to compare effect sizes across papers. Our study addresses this by measuring all of these in
+the same participants on one task.
+9. Research Gap and Hypotheses
+The goal is calibrated rather than maximum trust [19], and people are prone to commission errors
+when automation is wrong [26]. Explanations frequently increase agreement with AI regardless
+of correctness [1, 4], possibly because they work partly as persuasive cues [11, 18]. Yet
+explanations that lower the cost of verification or require active engagement can reduce
+overreliance [3, 28], while very detailed explanations can overload users [25]. We identify four
+gaps. First, few studies compare three levels of depth, including an interactive format, within one
+design. Second, few combine explanation depth with deliberately incorrect AI decisions that
+users can verify on screen. Third, trust, agreement, error detection, and fairness are usually
+studied separately [2]. Fourth, predictions about interactive explanations compete [16, 28]. H1
+and H2 concern responses across all cases, while H3a and H3b concern incorrect AI decisions
+only.
+H1. Overall agreement with the AI will increase with explanation depth, from A to B
+to C.
+H2. Self-reported trust [15] will be higher in B and C than in A.
+H3a. On incorrect AI decisions, participants will agree more often in B than in A,
+reflecting a persuasive effect of fixed explanations.
+H3b. On incorrect AI decisions, participants will agree less often in C than in B,
+because the breakdown makes verification easier. Because overload findings
+predict the opposite, we treat H3b as exploratory.
+H4. Perceived fairness will be highest in C and lowest in A.
+H5. Time-to-decision will be longest in C, and longer decision times will be
+associated with better detection of incorrect AI decisions.
+10. Conclusion
+People likely do trust AI more when it explains itself, but the real issue is whether explanations
+help them trust it appropriately, more when it is right and less when it is wrong. Static
+explanations may act as persuasive cues, while interactive ones may help people catch errors or
+may overload them. By comparing black-box, static, and interactive explanations within
+7
+subjects, planting verifiable errors in a loan-approval task, and measuring agreement, trust,
+fairness, and decision time together, our study will show whether more explanation leads to
+better human-AI decisions or simply to more agreement.
+8
+References
+[1] Gagan Bansal, Tongshuang Wu, Joyce Zhou, Raymond Fok, Besmira Nushi, Ece Kamar, Marco Tulio Ribeiro,
+and Daniel S. Weld. 2021. Does the Whole Exceed its Parts? The Effect of AI Explanations on
+Complementary Team Performance. In Proceedings of the 2021 CHI Conference on Human Factors in
+Computing Systems (CHI ’21). Association for Computing Machinery, New York, NY, USA, 16 pages.
+https://doi.org/10.1145/3411764.3445717
+[2] Reuben Binns, Max Van Kleek, Michael Veale, Ulrik Lyngs, Jun Zhao, and Nigel Shadbolt. 2018. ‘It’s
+Reducing a Human Being to a Percentage’: Perceptions of Justice in Algorithmic Decisions. In Proceedings of
+the 2018 CHI Conference on Human Factors in Computing Systems (CHI ’18). Association for Computing
+Machinery, New York, NY, USA, 14 pages. https://doi.org/10.1145/3173574.3173951
+[3] Zana Buçinca, Maja Barbara Malaya, and Krzysztof Z. Gajos. 2021. To Trust or to Think: Cognitive Forcing
+Functions Can Reduce Overreliance on AI in AI-Assisted Decision-Making. Proceedings of the ACM on
+Human-Computer Interaction 5, CSCW1, Article 188 (2021), 21 pages. https://doi.org/10.1145/3449287
+[4] Adrian Bussone, Simone Stumpf, and Dympna O’Sullivan. 2015. The Role of Explanations on Trust and
+Reliance in Clinical Decision Support Systems. In 2015 International Conference on Healthcare Informatics
+(ICHI ’15). IEEE, 160–169. https://doi.org/10.1109/ICHI.2015.26
+[5] Hao-Fei Cheng, Ruotong Wang, Zheng Zhang, Fiona O’Connell, Terrance Gray, F. Maxwell Harper, and Haiyi
+Zhu. 2019. Explaining Decision-Making Algorithms through UI: Strategies to Help Non-Expert Stakeholders.
+In Proceedings of the 2019 CHI Conference on Human Factors in Computing Systems (CHI ’19). Association
+for Computing Machinery, New York, NY, USA, 12 pages. https://doi.org/10.1145/3290605.3300789
+[6] Jason A. Colquitt. 2001. On the Dimensionality of Organizational Justice: A Construct Validation of a
+Measure. Journal of Applied Psychology 86, 3 (2001), 386–400. https://doi.org/10.1037/0021-9010.86.3.386
+[7] Consumer Financial Protection Bureau. 2022. Consumer Financial Protection Circular 2022-03: Adverse
+Action Notification Requirements in Connection with Credit Decisions Based on Complex Algorithms.
+Retrieved September 24, 2026 from
+https://www.consumerfinance.gov/compliance/circulars/circular-2022-03-adverse-action-notification-requirem
+ents-in-connection-with-credit-decisions-based-on-complex-algorithms/ (withdrawn May 12, 2025).
+[8] Jonathan Dodge, Q. Vera Liao, Yunfeng Zhang, Rachel K. E. Bellamy, and Casey Dugan. 2019. Explaining
+Models: An Empirical Study of How Explanations Impact Fairness Judgment. In Proceedings of the 24th
+International Conference on Intelligent User Interfaces (IUI ’19). Association for Computing Machinery, New
+York, NY, USA, 275–285. https://doi.org/10.1145/3301275.3302310
+[9] Finale Doshi-Velez and Been Kim. 2017. Towards A Rigorous Science of Interpretable Machine Learning.
+arXiv:1702.08608. https://doi.org/10.48550/arXiv.1702.08608
+[10] Mary T. Dzindolet, Scott A. Peterson, Regina A. Pomranky, Linda G. Pierce, and Hall P. Beck. 2003. The Role
+of Trust in Automation Reliance. International Journal of Human-Computer Studies 58, 6 (2003), 697–718.
+https://doi.org/10.1016/S1071-5819(03)00038-7
+[11] Malin Eiband, Daniel Buschek, Alexander Kremer, and Heinrich Hussmann. 2019. The Impact of Placebic
+Explanations on Trust in Intelligent Systems. In Extended Abstracts of the 2019 CHI Conference on Human
+Factors in Computing Systems (CHI EA ’19). Association for Computing Machinery, New York, NY, USA, 6
+pages. https://doi.org/10.1145/3290607.3312787
+[12] Ben Green and Yiling Chen. 2019. The Principles and Limits of Algorithm-in-the-Loop Decision Making.
+Proceedings of the ACM on Human-Computer Interaction 3, CSCW, Article 50 (2019), 24 pages.
+https://doi.org/10.1145/3359152
+[13] Kevin Anthony Hoff and Masooda Bashir. 2015. Trust in Automation: Integrating Empirical Evidence on
+Factors That Influence Trust. Human Factors 57, 3 (2015), 407–434.
+https://doi.org/10.1177/0018720814547570
+[14] Robert R. Hoffman, Shane T. Mueller, Gary Klein, and Jordan Litman. 2018. Metrics for Explainable AI:
+Challenges and Prospects. arXiv:1812.04608. https://doi.org/10.48550/arXiv.1812.04608
+9
+[15] Jiun-Yin Jian, Ann M. Bisantz, and Colin G. Drury. 2000. Foundations for an Empirically Determined Scale of
+Trust in Automated Systems. International Journal of Cognitive Ergonomics 4, 1 (2000), 53–71.
+https://doi.org/10.1207/S15327566IJCE0401_04
+[16] Harmanpreet Kaur, Harsha Nori, Samuel Jenkins, Rich Caruana, Hanna Wallach, and Jennifer Wortman
+Vaughan. 2020. Interpreting Interpretability: Understanding Data Scientists’ Use of Interpretability Tools for
+Machine Learning. In Proceedings of the 2020 CHI Conference on Human Factors in Computing Systems
+(CHI ’20). Association for Computing Machinery, New York, NY, USA, 14 pages.
+https://doi.org/10.1145/3313831.3376219
+[17] Todd Kulesza, Simone Stumpf, Margaret Burnett, Sherry Yang, Irwin Kwan, and Weng-Keen Wong. 2013.
+Too Much, Too Little, or Just Right? Ways Explanations Impact End Users’ Mental Models. In 2013 IEEE
+Symposium on Visual Languages and Human-Centric Computing (VL/HCC ’13). IEEE, 3–10.
+https://doi.org/10.1109/VLHCC.2013.6645235
+[18] Ellen J. Langer, Arthur Blank, and Benzion Chanowitz. 1978. The Mindlessness of Ostensibly Thoughtful
+Action: The Role of “Placebic” Information in Interpersonal Interaction. Journal of Personality and Social
+Psychology 36, 6 (1978), 635–642. https://doi.org/10.1037/0022-3514.36.6.635
+[19] John D. Lee and Katrina A. See. 2004. Trust in Automation: Designing for Appropriate Reliance. Human
+Factors 46, 1 (2004), 50–80. https://doi.org/10.1518/hfes.46.1.50_30392
+[20] Brian Y. Lim, Anind K. Dey, and Daniel Avrahami. 2009. Why and Why Not Explanations Improve the
+Intelligibility of Context-Aware Intelligent Systems. In Proceedings of the SIGCHI Conference on Human
+Factors in Computing Systems (CHI ’09). Association for Computing Machinery, New York, NY, USA,
+2119–2128. https://doi.org/10.1145/1518701.1519023
+[21] Scott M. Lundberg and Su-In Lee. 2017. A Unified Approach to Interpreting Model Predictions. In Advances
+in Neural Information Processing Systems 30 (NIPS 2017). Curran Associates, Inc., 4765–4774.
+[22] Tim Miller. 2019. Explanation in Artificial Intelligence: Insights from the Social Sciences. Artificial
+Intelligence 267 (2019), 1–38. https://doi.org/10.1016/j.artint.2018.07.007
+[23] Raja Parasuraman and Dietrich H. Manzey. 2010. Complacency and Bias in Human Use of Automation: An
+Attentional Integration. Human Factors 52, 3 (2010), 381–410. https://doi.org/10.1177/0018720810376055
+[24] Raja Parasuraman and Victor Riley. 1997. Humans and Automation: Use, Misuse, Disuse, Abuse. Human
+Factors 39, 2 (1997), 230–253. https://doi.org/10.1518/001872097778543886
+[25] Forough Poursabzi-Sangdeh, Daniel G. Goldstein, Jake M. Hofman, Jennifer Wortman Vaughan, and Hanna
+Wallach. 2021. Manipulating and Measuring Model Interpretability. In Proceedings of the 2021 CHI
+Conference on Human Factors in Computing Systems (CHI ’21). Association for Computing Machinery, New
+York, NY, USA, 52 pages. https://doi.org/10.1145/3411764.3445315
+[26] Linda J. Skitka, Kathleen L. Mosier, and Mark Burdick. 1999. Does Automation Bias Decision-Making?
+International Journal of Human-Computer Studies 51, 5 (1999), 991–1006.
+https://doi.org/10.1006/ijhc.1999.0252
+[27] Aaron Springer and Steve Whittaker. 2020. Progressive Disclosure: When, Why, and How Do Users Want
+Algorithmic Transparency Information? ACM Transactions on Interactive Intelligent Systems 10, 4 (2020),
+1–32. https://doi.org/10.1145/3374218
+[28] Helena Vasconcelos, Matthew Jörke, Madeleine Grunde-McLaughlin, Tobias Gerstenberg, Michael S.
+Bernstein, and Ranjay Krishna. 2023. Explanations Can Reduce Overreliance on AI Systems During
+Decision-Making. Proceedings of the ACM on Human-Computer Interaction 7, CSCW1, Article 129 (2023),
+38 pages. https://doi.org/10.1145/3579605
+[29] Yunfeng Zhang, Q. Vera Liao, and Rachel K. E. Bellamy. 2020. Effect of Confidence and Explanation on
+Accuracy and Trust Calibration in AI-Assisted Decision Making. In Proceedings of the 2020 Conference on
+Fairness, Accountability, and Transparency (FAT ’20). Association for Computing Machinery, New York, NY,
+USA, 295–305. https://doi.org/10.1145/3351095.3372852

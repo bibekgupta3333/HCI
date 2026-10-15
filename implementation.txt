@@ -1,0 +1,31 @@
+Implementation
+Project Implementation
+
+ 
+
+Please submit the following
+
+ 
+
+Source Code (compressed into a single .zip file)
+Video running the application
+Report (See below)
+ 
+
+In the report
+
+describe what the project is briefly.
+
+What technologies you have used to implement the project (platform, language, libraries…….)
+
+On which devices the project is intended to run
+
+A step by step guide on how to run the project from the source code
+
+Steps on How to interact with the application
+
+Screenshots of the source code and what the code sections are responsible for
+
+Screenshots of the applications running
+
+Screenshots of users (member of the group) interacting with the application.

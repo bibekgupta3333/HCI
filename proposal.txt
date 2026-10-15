@@ -1,0 +1,49 @@
+GROUP 4
+CEN5728 – Advanced HCI Group Project Proposal
+Professor: Abdelwahab Hamam
+Team Members:
+Deepthi Reddy Chelladi
+Siwani Sah
+Bibek Gupta
+Afzal Hossain Sohag
+Md Shamimul Islam
+Mohamed Sylla
+Project Title
+Do People Trust AI More When It Explains Itself? A Comparative Study of Explanation
+Depth in AI Decision Interfaces
+Overview
+This project investigates how the depth of AI explanation affects user trust, agreement, and errordetection in high-stakes decision scenarios (loan approval). Rather than a simple binary
+comparison, we test three levels of explanation to see whether more explanation is always better,
+or whether it can backfire by encouraging blind trust.
+The Three Conditions
+Testing three levels of explanation depth is what scales this project appropriately for a team of
+five, giving each interface variant real, independent implementation ownership.
+Condition What the user sees
+A - Black Box Just the decision: "Approved" / "Rejected"
+B - Static Explanation Decision + a fixed written reason: "Rejected because income is below
+threshold and credit history is short"
+C - Interactive Explanation Decision + a "Why?" button the user can click to drill into specific
+factors (e.g., expandable breakdown: income vs. threshold, credit history
+length, debt-to-income ratio), rather than one static paragraph
+Each participant sees all three conditions across different loan cases (within-subjects), with case
+order and condition-case pairing counterbalanced to avoid order effects.
+The Case Bank
+A set of approximately 15 loan scenarios, split so that:
+● Some AI decisions are objectively correct given the stated criteria
+● Some AI decisions are objectively wrong (e.g., decision contradicts the applicant's own
+stated numbers) - planted deliberately to test whether explanations help users catch AI
+mistakes or just increase trust regardless of accuracy
+Research Questions
+● Does explanation depth (none vs. static vs. interactive) increase agreement with the AI?
+● Does it increase self-reported trust (measured via a validated scale, e.g., Jian et al.'s Trust
+in Automation scale)?
+● Does more explanation help users catch wrong decisions, or does it increase automation
+bias (blindly trusting a wrong decision because it "sounds" justified)?
+● Which condition is rated as most "fair"?
+Implementation Plan
+● All decisions are Wizard-of-Oz (pre-scripted, not a real ML model) - implementation
+effort goes into interface polish and study infrastructure, not model training
+● Web-based prototype (React or plain HTML/JS) with three interface variants sharing a
+case-bank backend (a JSON file is sufficient - no database needed)
+● Survey/data collection layer (embedded Qualtrics/Google Form or custom in-app survey)
+capturing: agreement (yes/no), trust score (Likert scale), fairness rating, and time-todecision
