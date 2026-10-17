@@ -1,6 +1,6 @@
 # Sequence Diagrams
 
-This document shows how the study app's modules work together at runtime for the flows that matter most to data quality: assigning a participant, running a trial in each of the three conditions, handling the deliberately wrong AI cases, collecting the block surveys, recovering from a refresh or crash, and exporting the data. Each diagram uses the module names from `_shared-decisions.md` (`StudyContext`, `decisionEngine`, `counterbalance`, `rng`, `logger`, `sessionStore`, and the screens in `src/study/`). It follows the same pattern throughout: a short explanation, the Mermaid diagram, then notes on edge cases. The app has no server. Every arrow happens inside the participant's browser, apart from the optional POST in diagram 8.
+This document shows how the study app's modules work together at runtime for the flows that matter most to data quality: assigning a participant, running a trial in each of the three conditions, handling the deliberately wrong TaskPilot calls (`false_allow` and `false_block`), collecting the block surveys, recovering from a refresh or crash, and exporting the data. Each diagram uses the module names from `_shared-decisions.md` (`StudyContext`, `decisionEngine`, `counterbalance`, `rng`, `logger`, `sessionStore`, and the screens in `src/study/`). In v2 the scripted AI is **TaskPilot**, a personal agent that checks each proposed action against the participant's delegation policy and calls ALLOW or BLOCK; the participant clicks Agree or Override. The flows themselves are domain-independent. The doc follows the same pattern throughout: a short explanation, the Mermaid diagram, then notes on edge cases. The app has no server. Every arrow happens inside the participant's browser, apart from the optional POST in diagram 8.
 
 ## Index
 
@@ -17,7 +17,7 @@ This document shows how the study app's modules work together at runtime for the
 
 ## 1. Session start and assignment
 
-The researcher, not the participant, types the participant number (pid) before consent. `counterbalance.assign(pid)` works out the whole session plan in one deterministic step. The condition order comes from `permutations[(pid-1) % 6]`, the set-to-condition mapping from the Latin square rotation `floor((pid-1)/6) % 3`, and the within-block trial order from a mulberry32 PRNG seeded with the pid. `StudyContext` keeps the plan in memory, and `sessionStore` writes it to `localStorage` straight away, so the assignment survives a refresh even before the first trial.
+The researcher, not the participant, types the participant number (pid) before consent. `counterbalance.assign(pid)` works out the whole session plan in one deterministic step. The condition order comes from `permutations[(pid-1) % 6]`, the set-to-condition mapping from the Latin square rotation `floor((pid-1)/6) % 3`, the within-block trial order from a mulberry32 PRNG seeded with the pid, and `styleArm`, the Study 2 explanation-style flag, which defaults to `"fluent"` in this course build. `StudyContext` keeps the plan in memory, and `sessionStore` writes it to `localStorage` straight away, so the assignment survives a refresh even before the first trial.
 
 ```mermaid
 sequenceDiagram
@@ -54,7 +54,8 @@ sequenceDiagram
             CB->>CB: shuffle 5 case ids of the block set
             CB->>CB: reject and reshuffle if both wrong cases sit in positions 1 and 2
         end
-        CB-->>Consent: plan with conditionOrder, setByCondition, trialOrder per block, seed
+        CB->>CB: styleArm = fluent by default, Study 2 assigns by pid parity
+        CB-->>Consent: plan with conditionOrder, setByCondition, trialOrder per block, seed, styleArm
         Consent->>SC: dispatch START_SESSION with pid and plan
         SC->>SC: init state, block 0, trial 0, startedAt
         SC->>SS: saveSession(session)
@@ -66,6 +67,7 @@ sequenceDiagram
 **Edge cases**
 - **Determinism.** Calling `assign(pid)` again for the same pid must give the identical plan. That lets the analysis rebuild the assignment from the pid alone, and lets diagram 7 check that a stored plan hasn't been tampered with. The seed and the full plan are saved anyway, so nothing depends on recomputing them.
 - **Wrong-case constraint.** The constraint is applied by rejection sampling: reshuffle until the two wrong cases aren't both in positions 1 and 2. All the draws come from the same seeded generator, so the retries are deterministic too. The positions still vary across participants because the seed varies.
+- **styleArm.** Study 1 always stores `styleArm = "fluent"`. The field is in the plan now so that Study 2 (fluent vs terse arm by pid parity) needs no schema change, and every B text lookup goes through it.
 - **Invalid input.** Zero, negative, non-numeric or empty pids are refused on the screen and never reach `counterbalance`.
 - **Reused pid.** A completed session for the same pid is never overwritten silently. The researcher has to confirm, and the old session is kept, with the new one stored next to it under a distinct `sessionId`.
 - **Storage failure.** If `setItem` throws (quota exceeded or private mode), the researcher gets a blocking error before consent. The study must not run if its data can't be saved.
@@ -74,7 +76,7 @@ sequenceDiagram
 
 ## 2. Trial in Condition A (Black Box)
 
-Every trial follows the same skeleton, and diagrams 3 and 4 only change the middle of it. `TrialScreen` asks `StudyContext` for the current case id, `decisionEngine` builds a view payload for the block's condition, and `BlackBoxView` renders `<ApplicantCard/>` and `<DecisionPanel/>` with only the AI decision. The decision timer starts once the decision is actually painted. The agree or disagree click stops it, `logger` builds the trial record, and `sessionStore` saves the session before the next trial loads.
+Every trial follows the same skeleton, and diagrams 3 and 4 only change the middle of it. `TrialScreen` asks `StudyContext` for the current case id, `decisionEngine` builds a view payload for the block's condition, and `BlackBoxView` renders `<ActionCard/>` and `<DecisionPanel/>` with only TaskPilot's ALLOW or BLOCK call. The call appears after the fixed ~800 ms "TaskPilot is checking…" delay, and the decision timer starts once the call is actually painted. The Agree or Override click stops it, `logger` builds the trial record, and `sessionStore` saves the session before the next trial loads.
 
 ```mermaid
 sequenceDiagram
@@ -91,18 +93,18 @@ sequenceDiagram
     SC-->>Trial: caseId and condition A
     Trial->>DE: buildPresentation(caseId, A)
     DE->>DE: look up case in cases.json
-    DE-->>Trial: payload with applicant and aiDecision only
+    DE-->>Trial: payload with request and aiDecision only
     Trial->>View: render payload
-    View-->>P: ApplicantCard, lending rules link, AI decision
+    View-->>P: ActionCard, PolicyPanel link, ALLOW or BLOCK call after fixed delay
     View->>Log: markShown(trialId) after first paint
     Log->>Log: shownAt = performance.now()
-    opt participant opens lending rules
-        P->>View: open rules
-        View->>Log: event rules_open with timestamp
+    opt participant opens the delegation policy
+        P->>View: open PolicyPanel
+        View->>Log: event policy_open with timestamp, policyOpened = true
     end
-    P->>View: click Agree or Disagree
+    P->>View: click Agree or Override
     View->>Log: markDecided(trialId, agreed)
-    Log->>Log: decisionTimeMs = performance.now() - shownAt
+    Log->>Log: decisionTimeMs = decisionTimeRawMs - hiddenMs
     opt confidence follow-up enabled
         View-->>P: confidence 1 to 7
         P->>View: select rating or skip
@@ -124,16 +126,17 @@ sequenceDiagram
 
 **Edge cases**
 - **When the timer starts.** `shownAt` is taken in an effect after the first paint (for example via `requestAnimationFrame`), not when the component mounts, so slow rendering doesn't inflate `decisionTimeMs`.
-- **Double clicks.** Agree and Disagree are disabled after the first click, so the first decision is the only one recorded. A second click is ignored and isn't logged as a decision.
+- **Double clicks.** Agree and Override are disabled after the first click, so the first decision is the only one recorded. A second click is ignored and isn't logged as a decision.
 - **Confidence is excluded.** The confidence prompt appears after the decision click, so its time never counts toward `decisionTimeMs`. If it's skipped, `confidence` is `null`.
-- **Losing focus.** If the tab is hidden mid-trial, `logger` records `visibilitychange` events with timestamps. Analysis can then exclude or flag inflated decision times. The timer is never paused automatically.
+- **Losing focus.** If the tab is hidden mid-trial, `logger` records `visibilitychange` and blur events with timestamps and sums them into `hiddenMs`, `hiddenCount` and `blurCount`. `decisionTimeMs = decisionTimeRawMs - hiddenMs`, and `timingFlag` marks trials the analysis should treat with care.
+- **Same delay everywhere.** The ~800 ms "TaskPilot is checking…" delay is identical in every condition and for correct and wrong calls. Confidence is never shown.
 - **A failed save.** The trial does not advance, and a blocking message asks the researcher to step in. A trial that isn't persisted is treated as not done.
 
 ---
 
 ## 3. Trial in Condition B (Static Explanation)
 
-Condition B uses the skeleton from diagram 2. The only change is that `decisionEngine` adds the case's `staticExplanation` string to the payload, and `StaticExplanationView` shows it next to the decision. The explanation is visible from the moment the decision appears, so the participant doesn't need to do anything to see it, and no extra interaction events are logged apart from the shared rules-panel event.
+Condition B uses the skeleton from diagram 2. The only change is that `decisionEngine` adds the case's `staticExplanation` string to the payload, and `StaticExplanationView` shows it next to the decision. The explanation is visible from the moment the decision appears, so the participant doesn't need to do anything to see it, and no extra interaction events are logged apart from the shared `policy_open` event.
 
 ```mermaid
 sequenceDiagram
@@ -148,17 +151,17 @@ sequenceDiagram
     Trial->>SC: read current block and trial index
     SC-->>Trial: caseId and condition B
     Trial->>DE: buildPresentation(caseId, B)
-    DE-->>Trial: applicant, aiDecision, staticExplanation
+    DE-->>Trial: request, aiDecision, staticExplanation
     Trial->>View: render payload
-    View-->>P: ApplicantCard, AI decision, written reason
+    View-->>P: ActionCard, ALLOW or BLOCK call, first-person reason
     View->>Log: markShown(trialId) after first paint
     Note over View,Log: decision and reason appear together, so one shownAt covers both
-    P->>View: read reason, click Agree or Disagree
+    P->>View: read reason, click Agree or Override
     View->>Log: markDecided(trialId, agreed)
-    Log->>Log: decisionTimeMs = now - shownAt
+    Log->>Log: decisionTimeMs = raw time minus hiddenMs
     View->>Trial: onComplete(agreed, confidence)
     Trial->>Log: recordTrial(caseId, B, agreed, confidence)
-    Log-->>Trial: record with explanationOpened null, factorsExpanded null
+    Log-->>Trial: record with explanationOpened null, timeToFirstExpandMs null, factorsExpanded empty
     Trial->>SC: dispatch TRIAL_COMPLETED
     SC->>SS: saveSession(session)
 ```
@@ -172,7 +175,7 @@ sequenceDiagram
 
 ## 4. Trial in Condition C (Interactive Explanation)
 
-In Condition C the decision first appears alone with a "Why?" button. Clicking it opens a panel with one row per factor (income, credit history, DTI), and each row expands to show the value against the threshold with a pass or fail result. `logger` records every Why click, expand and collapse with a `performance.now()` timestamp, which lets the analysis tell whether participants actually checked the breakdown. `timeToFirstExpandMs` is measured from `shownAt` to the first factor expand, and `factorsExpanded[]` lists the distinct factor keys in the order they were first expanded.
+In Condition C the decision first appears alone with a "Why?" button. Clicking it opens a panel with three rows: Cost, Recipient and Requested by. Each row shows the true value, the rule and a ✓ or ✗, and expands to a `detail` sentence. `logger` records every Why click, expand and collapse with a `performance.now()` timestamp, which lets the analysis tell whether participants actually checked the breakdown. `timeToFirstExpandMs` is measured from `shownAt` to the first "Why?" open, and `factorsExpanded[]` lists the distinct factor keys in the order they were first expanded.
 
 ```mermaid
 sequenceDiagram
@@ -185,9 +188,9 @@ sequenceDiagram
     participant SS as sessionStore
 
     Trial->>DE: buildPresentation(caseId, C)
-    DE-->>Trial: applicant, aiDecision, factors with key label value threshold comparator passes detail
+    DE-->>Trial: request, aiDecision, factors cost recipientTrusted userRequested with label value threshold comparator passes detail
     Trial->>View: render payload
-    View-->>P: ApplicantCard, AI decision, Why button
+    View-->>P: ActionCard, ALLOW or BLOCK call, Why button
     View->>Log: markShown(trialId) after first paint
     opt participant explores the explanation
         P->>View: click Why
@@ -196,13 +199,13 @@ sequenceDiagram
         opt first Why open in this trial
             Log->>Log: timeToFirstExpandMs = t - shownAt
         end
-        View-->>P: factor rows collapsed
+        View-->>P: rows Cost, Recipient, Requested by, each with value, rule, pass or fail, collapsed
         loop any number of times
             alt expand a factor row
                 P->>View: expand factor k
                 View->>Log: event factor_expand k at t
                 Log->>Log: add k to factorsExpanded if new
-                View-->>P: value vs threshold, pass or fail
+                View-->>P: detail sentence for factor k
             else collapse a factor row
                 P->>View: collapse factor k
                 View->>Log: event factor_collapse k at t
@@ -212,9 +215,9 @@ sequenceDiagram
             end
         end
     end
-    P->>View: click Agree or Disagree
+    P->>View: click Agree or Override
     View->>Log: markDecided(trialId, agreed)
-    Log->>Log: decisionTimeMs = now - shownAt
+    Log->>Log: decisionTimeMs = raw time minus hiddenMs
     View->>Trial: onComplete(agreed, confidence)
     Trial->>Log: recordTrial(caseId, C, agreed, confidence)
     Log-->>Trial: record with explanationOpened, factorsExpanded, timeToFirstExpandMs, events
@@ -226,14 +229,14 @@ sequenceDiagram
 - **No exploration.** If the participant decides without clicking Why, the record has `explanationOpened = false`, `factorsExpanded = []` and `timeToFirstExpandMs = null`. That is valid data and is central to H3b and H5.
 - **Opened but not expanded.** If Why is opened but no row is expanded, `explanationOpened = true`, `timeToFirstExpandMs` is set from the Why open, and `factorsExpanded = []`. Per-row `factor_expand` timestamps stay in the event list for finer analysis.
 - **Repeat expands.** Expanding the same factor again adds another `factor_expand` event but doesn't change `factorsExpanded` or `timeToFirstExpandMs`.
-- **Decision without closing.** Agree and Disagree stay enabled while the panel is open. The panel's open state when the decision is made is implied by the event list, so no extra field is needed.
+- **Decision without closing.** Agree and Override stay enabled while the panel is open. The panel's open state when the decision is made is implied by the event list, so no extra field is needed.
 - **Rows start collapsed.** All factor rows start collapsed on every trial. Earlier trials never carry over expanded state, so each expand is a deliberate act.
 
 ---
 
 ## 5. Wrong-AI-case handling
 
-From the participant's side a wrong case can't be told apart from a correct one. The layout, timing, wording style and controls are the same, and the explanation (B or C) argues for the AI's wrong decision. To guarantee this, `decisionEngine.buildPresentation` builds the view payload from an explicit allow-list of fields, so `groundTruth`, `isAiCorrect` and `errorType` never reach any view component or React props. Correctness only joins the record inside `logger`, after the participant has decided. There `detectedError = !agreed and !isAiCorrect` is derived and stored with the trial.
+From the participant's side a wrong case can't be told apart from a correct one. The layout, timing, wording style and controls are the same, and the explanation (B or C) argues for TaskPilot's wrong call. A `false_allow` lets through an action that breaks a rule (overreach), and a `false_block` pauses a valid one (over-caution). To guarantee this, `decisionEngine.buildPresentation` builds the view payload from an explicit allow-list of fields, so `groundTruth`, `isAiCorrect` and `errorType` never reach any view component or React props. Correctness only joins the record inside `logger`, after the participant has decided. There `detectedError` is derived and stored with the trial: `!agreed` on wrong cases, `null` on correct ones.
 
 ```mermaid
 sequenceDiagram
@@ -251,14 +254,14 @@ sequenceDiagram
     DE-->>Trial: payload identical in shape for correct and wrong cases
     Trial->>View: render payload
     View-->>P: same layout, plausible explanation for the AI decision
-    Note over P,View: only the applicant numbers vs the stated rules reveal the error
-    P->>View: Agree or Disagree
+    Note over P,View: only the request fields vs the delegation policy reveal the error
+    P->>View: Agree or Override
     View->>Trial: onComplete(agreed, confidence)
     Trial->>Log: recordTrial(caseId, condition, agreed, confidence)
     Log->>DE: getTruth(caseId)
-    DE-->>Log: isAiCorrect, groundTruth, errorType
+    DE-->>Log: isAiCorrect, groundTruth, errorType false_allow or false_block or null
     alt isAiCorrect is false and agreed is false
-        Log->>Log: detectedError = true
+        Log->>Log: detectedError = true, override caught the false_allow or false_block
     else isAiCorrect is false and agreed is true
         Log->>Log: detectedError = false, counts toward automation-bias rate
     else isAiCorrect is true
@@ -270,16 +273,16 @@ sequenceDiagram
 
 **Edge cases**
 - **No leaks through rendering.** Payload types (`ViewPayloadA`, `ViewPayloadB`, `ViewPayloadC`) have no correctness fields at all. A unit test asserts that `JSON.stringify(payload)` never contains `isAiCorrect` or `groundTruth`. DOM attributes, CSS classes and test ids must not encode correctness either.
-- **Factor rows in C.** For a wrong case, each factor row's `passes` flag reflects the applicant's real numbers against the threshold, so a careful participant can spot the contradiction. The `detail` text still sounds plausible and supports the AI decision. This is how the case bank tests whether the breakdown makes verification easier (H3b).
-- **Same timing.** No artificial delay or animation differs between correct and wrong cases.
-- **Data checks.** `decisionEngine` checks at load time that the stored `groundTruth` matches the lending rules applied to the applicant's numbers, and that `isAiCorrect == (aiDecision == groundTruth)`. A mismatch is a build-time and dev-time error, never something the participant sees.
-- **Correct cases.** On correct cases `detectedError` is `null`. Analysis of H3a and H3b filters to `isAiCorrect == false` before using agreement or detection.
+- **Factor rows in C.** For a wrong case, each factor row's `passes` flag is computed from the true request values (cost against $50.00, recipient against `trustedContacts`, "Triggered by" against "you"), so a careful participant can spot the contradiction. The `detail` text still sounds plausible and supports TaskPilot's call. This is how the case bank tests whether the breakdown makes verification easier (H3b).
+- **Same timing.** The fixed ~800 ms "TaskPilot is checking…" delay is the same for correct and wrong cases, and no animation differs between them.
+- **Data checks.** `decisionEngine` checks at load time that the stored `groundTruth` matches `evaluatePolicy(request)` against the policy and trusted contacts in `cases.json`, that `errorType` is `false_allow` exactly when `aiDecision` is ALLOW and the truth is BLOCK (and `false_block` for the reverse), and that `isAiCorrect == (aiDecision == groundTruth)`. A mismatch is a build-time and dev-time error, never something the participant sees.
+- **Correct cases.** On correct cases `detectedError` is `null`. Analysis of H3a, H3b and H3c filters to `isAiCorrect == false` before using agreement or detection.
 
 ---
 
 ## 6. Block survey and advancing to the next block
 
-After the fifth trial of a block, `StudyContext` sends the participant to `BlockSurveyScreen` for the condition they just used. The screen loads the 12 Jian et al. (2000) items from `trustScale.json` and shows them with the two perceived-fairness items on a 7-point scale. Every item must be answered before Continue is enabled. Raw answers are stored exactly as given. Reverse-scoring of items 1–5 (8 minus the response) happens only at export or analysis time, so the stored data stays what the participant actually clicked. Submitting persists the survey and either starts the next block or, after block 3, moves to `ExitSurveyScreen`.
+After the fifth trial of a block, `StudyContext` sends the participant to `BlockSurveyScreen` for the condition they just used. The screen loads the 12 Jian et al. (2000) items from `trustScale.json` and shows them with the two perceived-control and accountability items on a 7-point scale. The items say "the assistant" where the original scale says "automation". Every item must be answered before Continue is enabled. Raw answers are stored exactly as given. Reverse-scoring of items 1–5 (8 minus the response) happens only at export or analysis time, so the stored data stays what the participant actually clicked. Submitting persists the survey and either starts the next block or, after block 3, moves to `ExitSurveyScreen`.
 
 ```mermaid
 sequenceDiagram
@@ -292,7 +295,7 @@ sequenceDiagram
     participant Exit as ExitSurveyScreen
 
     SC->>Survey: navigate with blockIndex and condition
-    Survey->>Survey: load trustScale.json, 12 Jian items plus 2 fairness items
+    Survey->>Survey: load trustScale.json, 12 Jian items plus 2 perceived-control items
     Survey->>Log: markShown(surveyId)
     Survey-->>P: 14 items on 7-point scales
     loop until all items answered
@@ -326,7 +329,7 @@ sequenceDiagram
 - **No defaults.** No item has a pre-selected value. That avoids midpoint bias and keeps the "every item answered" check meaningful.
 - **Double submit.** Continue is disabled after the first click. A second dispatch for the same block is ignored by the reducer if that block's survey already exists.
 - **Back navigation.** The browser Back button doesn't return to the block's trials. The router guard in `StudyContext` redirects to the current step, so answers can't be changed after the trust rating.
-- **Exit survey.** The exit survey (demographics, AI familiarity, preferred condition, open comment) uses the same validation and save pattern. Only the open comment is optional. Submitting it sets `completedAt` and moves to `DoneScreen`.
+- **Exit survey.** The exit survey (demographics, how often they use AI assistants or agents, preferred condition, open comment) uses the same validation and save pattern. Only the open comment is optional. Submitting it sets `completedAt` and moves to `DebriefScreen`, which explains that TaskPilot was scripted and that some calls were wrong on purpose.
 
 ---
 
@@ -394,7 +397,7 @@ sequenceDiagram
 
 ## 8. Admin export and optional submission
 
-The researcher opens `/admin`, which the participant flow never links to. `AdminScreen` asks `sessionStore` for every session, shows a summary with completion status, and offers three downloads: the raw JSON of everything, a trial-level CSV with one row per trial, and a wide survey CSV with one row per participant and block (raw Jian items, reverse-scored items 1–5, and fairness), with exit-survey answers joined by pid. If `VITE_SUBMIT_URL` is set, sessions can also be POSTed to the Google Apps Script web app. A failed POST never affects the local data, so the downloads are always the fallback.
+The researcher opens `/admin`, which the participant flow never links to. `AdminScreen` asks `sessionStore` for every session, shows a summary with completion status, and offers three downloads: the raw JSON of everything, a trial-level CSV with one row per trial, and a wide survey CSV with one row per participant and block (raw Jian items, reverse-scored items 1–5, and perceived control), with exit-survey answers joined by pid. If `VITE_SUBMIT_URL` is set, sessions can also be POSTed to the Google Apps Script web app. A failed POST never affects the local data, so the downloads are always the fallback.
 
 ```mermaid
 sequenceDiagram
@@ -415,10 +418,10 @@ sequenceDiagram
     Admin->>SS: exportJSON()
     SS-->>Admin: full sessions blob incl events and plans
     Admin->>SS: exportTrialsCSV()
-    SS->>SS: one row per trial, pid, block, condition, caseId, isAiCorrect, agreed, detectedError, decisionTimeMs, resumed
+    SS->>SS: one row per trial, pid, styleArm, block, condition, caseId, errorType, isAiCorrect, agreed, detectedError, decisionTimeMs, policyOpened, resumed
     SS-->>Admin: trials.csv text
     Admin->>SS: exportSurveysCSV()
-    SS->>SS: one row per pid and block, jian raw 1 to 12, jian 1 to 5 reversed as 8 minus x, fairness, exit fields
+    SS->>SS: one row per pid and block, jian raw 1 to 12, jian 1 to 5 reversed as 8 minus x, perceived control, exit fields
     SS-->>Admin: surveys.csv text
     Admin->>Browser: trigger downloads via Blob and object URL
     Browser-->>Researcher: sessions.json, trials.csv, surveys.csv
@@ -455,5 +458,6 @@ sequenceDiagram
 - [system-design.md](system-design.md): routing, state management, storage and deployment
 - [sequence-diagrams.md](sequence-diagrams.md): this document
 - [data-model.md](data-model.md): case bank, session, trial, survey and export schemas
-- [ai-design.md](ai-design.md): Wizard-of-Oz decision engine, explanation design and the wrong-case strategy
+- [ai-design.md](ai-design.md): Wizard-of-Oz TaskPilot engine, explanation design and the wrong-case strategy
+- [research-positioning.md](research-positioning.md): why the domain moved to agent permission prompts and how the study relates to prior work
 - [_shared-decisions.md](_shared-decisions.md): the binding source of truth for every doc

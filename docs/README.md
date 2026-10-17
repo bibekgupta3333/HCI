@@ -2,6 +2,8 @@
 
 These are the planning docs for the Group 4 CEN5728 study app: "Do People Trust AI More When It Explains Itself?". No code exists yet. These docs are the build plan, taken from `../proposal.txt` and sections 8–9 of `../literature.txt`. All diagrams are Mermaid and render on GitHub.
 
+**v2 domain: approving actions proposed by an AI agent.** The proposal used loan approval. The docs now use a scripted assistant, "TaskPilot", that asks permission before it acts, checking each action against a 3-rule delegation policy (cost, trusted recipient, requested by you). The reason is novelty for a later paper, explained in [research-positioning.md](research-positioning.md). The v1 loan design is still in git history once the docs are committed.
+
 | Doc | What's in it |
 |---|---|
 | [architecture.md](architecture.md) | Context diagram, layered component diagram, source tree, deployment view, ADRs, quality attributes |
@@ -9,9 +11,13 @@ These are the planning docs for the Group 4 CEN5728 study app: "Do People Trust 
 | [sequence-diagrams.md](sequence-diagrams.md) | 8 sequence diagrams: session assignment, a trial in each of A/B/C, wrong-case handling, block survey, refresh recovery, admin export |
 | [data-model.md](data-model.md) | ER diagram (no database: a JSON case bank plus localStorage), field dictionary, TypeScript types, the full 15-case bank, trust-scale file, export CSV formats, validation rules |
 | [ai-design.md](ai-design.md) | The Wizard-of-Oz "AI": decision pipeline, rule evaluator, explanation authoring, depth-to-hypothesis model, error-injection taxonomy, persona and debrief |
+| [research-positioning.md](research-positioning.md) | Why the domain changed, domains considered, nearest prior work and the gap, contributions, Study 1 vs Study 2, venues, threats to validity |
+| [design-summary.pdf](design-summary.pdf) | A 5-page summary of these docs with simplified diagrams |
 | [_shared-decisions.md](_shared-decisions.md) | The cross-doc decisions every doc follows (stack, rules, counterbalancing, measures), plus how disagreements between drafts were settled |
 
 ## Still to be decided by the team
-- **What the C breakdown shows on wrong cases.** The recommendation is the applicant's true pass/fail values, so a participant can catch the error ([ai-design.md](ai-design.md)).
+- **Instructor approval for the domain change** from loan approval to agent permission prompts, and the H4 change from fairness to perceived control.
+- **Study 2.** Whether to run the explanation-style arm (fluent vs terse) for the paper. It needs N = 36.
+- **What the C breakdown shows on wrong calls.** The recommendation is the true ✓/✗ values, so a participant can catch the error ([ai-design.md](ai-design.md)).
 - **Work split.** The team ownership in [system-design.md](system-design.md) is a proposal.
-- **Survey wording.** The fairness items and trust-scale anchor labels in [data-model.md](data-model.md) are placeholders.
+- **Survey wording.** The perceived-control items and trust-scale anchor labels in [data-model.md](data-model.md) are placeholders.
