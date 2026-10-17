@@ -1,12 +1,12 @@
 # Data Model
 
-This document is the data model ("DB diagram") for the v3 XAI study app. Participants read made-up social media posts from the fictional town of Riverton (Alder County). Each post carries a scripted AI label, **"Likely accurate"** or **"Likely misleading"**, and the participant clicks **Agree with label** or **Disagree with label**. As the proposal requires, **there is no database**. The data model has two parts. The first is **read-only static content**: `src/data/posts.json` (the 24-post bank, each post with its embedded author, key fact, fact sheet and condition C factors) and `src/data/surveyItems.json` (trust, fairness, tension, frustration and confidence items) are bundled into the build, and every condition view reads them. The second is a **session log**, built in memory by `StudyContext`, written to `localStorage` under the key `xai-study:sessions` after every trial and every survey, and exported from `/admin` as CSV and JSON for analysis in R or Python. The diagram, field dictionaries, TypeScript interfaces and export formats below are the contract between `labelEngine.ts`, `counterbalance.ts`, `logger.ts`, `sessionStore.ts` and the analysis scripts. Each field is tied to the hypothesis (RQ1–RQ3, H1–H6) it serves. This document is the authority on field names and types. [stimuli.md](stimuli.md) is the authority on all participant-facing wording (the practice post and all 24 posts). The three JSON examples in §4 (p03, p04, p15) are copied from `stimuli.md`; if they ever differ from it, `stimuli.md` wins and this document is corrected.
+This document is the data model ("DB diagram") for the v3 XAI study app. Participants read made-up social media posts from the fictional town of Riverton (Alder County). Each post carries a scripted AI label, **"Likely accurate"** or **"Likely misleading"**, and the participant clicks **Agree with label** or **Disagree with label**. The data model has two parts. The first is **read-only static content**: `shared/data/posts.json` (the 24-post bank, each post with its embedded author, key fact, fact sheet and condition C factors) and `shared/data/surveyItems.json` (trust, fairness, tension, frustration and confidence items). The post bank is loaded only by the local server, which sends the browser allow-listed presentations without the correctness fields; the client imports only `surveyItems.json`. The second is a **session log**, written by the local Express server to a single SQLite file (`app/data/study.db`) as each trial, event batch and survey arrives, and exported from `/admin` as CSV and JSON for analysis in R or Python (§7–§8). The stimuli stay a JSON file, as the proposal suggests; SQLite holds only the responses. The diagram, field dictionaries, TypeScript interfaces and export formats below are the contract between `labelEngine.ts`, `counterbalance.ts`, `logger.ts`, the server's `repo.ts` and exporters, and the analysis scripts. Each field is tied to the hypothesis (RQ1–RQ3, H1–H6) it serves. This document is the authority on field names and types. [stimuli.md](stimuli.md) is the authority on all participant-facing wording (the practice post and all 24 posts). The three JSON examples in §4 (p03, p04, p15) are copied from `stimuli.md`; if they ever differ from it, `stimuli.md` wins and this document is corrected.
 
 The previous agent-permission data model (v2.1) is archived at [archive/v2.1-agent-permission/data-model.md](archive/v2.1-agent-permission/data-model.md).
 
 ## 1. Entity-relationship diagram
 
-The **static** entities (POST, AUTHOR, KEY_FACT, FACT_SHEET, FACTOR, SURVEY_ITEM) ship with the build and never change at runtime. The **session** entities (SESSION, BLOCK, TRIAL, INTERACTION_EVENT, BLOCK_SURVEY, EXIT_SURVEY) are created once per participant. AUTHOR, KEY_FACT, FACT_SHEET and FACTOR are embedded inside POST in the JSON, and BLOCK, TRIAL, BLOCK_SURVEY and EXIT_SURVEY are embedded inside SESSION in `localStorage`. The diagram shows them as separate entities so their keys and cardinalities are explicit.
+The **static** entities (POST, AUTHOR, KEY_FACT, FACT_SHEET, FACTOR, SURVEY_ITEM) ship with the build and never change at runtime. The **session** entities (SESSION, BLOCK, TRIAL, INTERACTION_EVENT, BLOCK_SURVEY, EXIT_SURVEY) are created once per participant. AUTHOR, KEY_FACT, FACT_SHEET and FACTOR are embedded inside POST in the JSON, while SESSION, BLOCK, TRIAL, INTERACTION_EVENT, BLOCK_SURVEY and EXIT_SURVEY each have their own SQLite table (§7). The diagram shows the embedded ones as separate entities too, so their keys and cardinalities are explicit.
 
 ```mermaid
 erDiagram
@@ -74,7 +74,8 @@ erDiagram
     }
     SESSION {
         string sessionId PK "uuid v4"
-        int pid UK "anonymous participant number"
+        int pid "server-assigned slot, reused after abandon"
+        string participantHash UK "HMAC-SHA256 of the code, or null"
         int schemaVersion
         string conditionOrder "Williams row, e.g. CDBA"
         int setRotation "0 to 3"
@@ -85,6 +86,7 @@ erDiagram
         string startedAt "ISO 8601"
         string completedAt "ISO 8601 or null"
         int resumeCount
+        string lastActivityAt "ISO 8601, every participant write"
         string appVersion
         string postBankHash
         string submittedAt "optional add-on, else null"
@@ -233,7 +235,9 @@ Both values are written in the same canonical short form so that `groundTruth` i
 | Field | Type | Constraints | Description | Hyp. |
 |---|---|---|---|---|
 | `sessionId` | string (uuid v4) | unique | Primary key of the stored session | integrity |
-| `pid` | integer | ≥ 1; unique among completed sessions | Anonymous participant number entered by the researcher. Drives all counterbalancing | all (subject ID) |
+| `pid` | integer | ≥ 1; unique among `in_progress` and `completed` sessions | Anonymous participant number **assigned by the server** at self-start: the lowest integer ≥ 1 with no `in_progress` or `completed` session, so the pids of abandoned sessions are reused. Pilot pids 901+ are never auto-assigned. Drives all counterbalancing | all (subject ID) |
+| `participantHash` | hex string / null | unique when not null | `HMAC-SHA256(salt, normalisedCode)` of the participation code, where `normalisedCode = code.trim().toLowerCase()` (3–120 characters) and the salt is `PARTICIPANT_SALT` or `meta.participant_salt`. Enforces once-only participation. The raw code is never stored. Never exported. | integrity (once-only) |
+| `lastActivityAt` | ISO 8601 string / null | set on create and on every participant write | Last time the participant did anything (consent, trial, events, cursor, surveys, exit, resume). An `in_progress` session idle longer than `STALE_MINUTES` (default 120) is marked `abandoned` at the next session start | data cleaning, pid reuse |
 | `schemaVersion` | integer | currently `1` | Session record format version | integrity |
 | `conditionOrder` | `[Condition × 4]` | `williams[(pid-1) % 4]`, rows `ABDC`, `BCAD`, `CDBA`, `DACB` | Order in which conditions are run | order-effect control |
 | `setRotation` | `0 \| 1 \| 2 \| 3` | `floor((pid-1)/4) % 4` | Rotation that maps sets to conditions: `set = S[(conditionIndex + setRotation) % 4]`, A=0, B=1, C=2, D=3 | counterbalancing |
@@ -348,7 +352,7 @@ Event `type` values (this list is the authority; other docs use these names exac
 | `socialMediaUse` | enum | `never`, `less_than_weekly`, `weekly`, `daily`, `several_daily` | How often they use social media | covariate (H1, H4) |
 | `labelExposure` | enum | `never`, `rarely`, `sometimes`, `often` | How often they have seen platform accuracy or fact-check labels | covariate (H1a, H4) |
 | `preferredCondition` | `"A" \| "B" \| "C" \| "D" \| "none"` | shown as screenshots, not letters | Preferred interface | H4, H5 (supporting) |
-| `comment` | string | at most 1000 chars; researcher reminds participants not to enter personal info | Open comment | qualitative |
+| `comment` | string | at most 1000 chars; the exit screen reminds participants not to enter personal info | Open comment | qualitative |
 | `submittedAt` | ISO 8601 | | | |
 
 ## 3. TypeScript interfaces
@@ -481,7 +485,7 @@ export interface SurveyItems {
   confidence: ScaleItem;
 }
 
-// ---------- session log (localStorage) ----------
+// ---------- session log (SQLite tables, see §7; nested like this in sessions.json) ----------
 export type EventType =
   | "session_start" | "session_resume" | "consent_given"
   | "practice_start" | "practice_complete" | "block_start"
@@ -598,6 +602,8 @@ export interface Session {
   completedAt: string | null;
   cursor: { blockIndex: 1 | 2 | 3 | 4; positionInBlock: 1 | 2 | 3 | 4 | 5 | 6; phase: Phase };
   resumeCount: number;
+  lastActivityAt: string | null; // v2: updated on every participant write
+  // participantHash is stored in SQLite only; it is never sent to the browser or exported
   appVersion: string;
   postBankHash: string;
   submittedAt: string | null; // optional VITE_SUBMIT_URL add-on only; null otherwise
@@ -606,6 +612,7 @@ export interface Session {
   exitSurvey: ExitSurvey | null;
 }
 
+// Legacy: the root object of the earlier localStorage plan. Not used with SQLite.
 export interface SessionStoreRoot {
   schemaVersion: 1;
   activeSessionId: string | null;
@@ -811,120 +818,127 @@ Block survey order: the 12 trust items, the 2 fairness items, `tension`, then `f
 
 Scoring (done at submit in `BlockSurveyScreen` and recomputed at analysis time): `trustMean = mean(scored_1..scored_12)`, with `scored_i = 8 - raw_i` for i in 1–5 and `scored_i = raw_i` for i in 6–12. `fairnessMean = (fairness1 + fairness2) / 2`. `tension`, `frustrationTlx` and `confidence` are stored raw and not combined with any other score. `nWrongDetected` is counted from the block's trials. Raw answers are always stored, so the analysis can rescore them differently (e.g. dropping item 12, separate trust and distrust subscales, or analysing the two fairness items separately).
 
-## 7. localStorage layout
+## 7. SQLite storage layout
 
-- **Key:** `xai-study:sessions` (the only key the app writes).
-- **Value:** JSON-serialized `SessionStoreRoot`.
+Session data is stored by the local Express server in one SQLite file, `app/data/study.db` by default (set with `DB_PATH`). The schema is [app/server/db/schema.sql](../app/server/db/schema.sql), applied idempotently (`CREATE TABLE IF NOT EXISTS`) every time the server starts. Column names are the snake_case form of the field names in §2 and §3 (`decisionTimeMs` → `decision_time_ms`); the mapping lives only in `server/db/repo.ts`, so the API, the exports and this document all use the camelCase names. Booleans are stored as `0`/`1`, and arrays and nested objects as JSON text (except `factorsExpanded`, stored pipe-separated as in the CSV).
 
-Example for pid 7: `conditionOrder = williams[6 % 4] = CDBA`, `setRotation = floor(6/4) % 4 = 1`, so A→S2, B→S3, C→S4, D→S1, and block 1 is C on S4.
+The browser stores two things in `localStorage`: the active session id (`xai-study:activeSessionId`), so a reload can ask the server for the session, and, once the exit survey has been saved, `xai-study:participated = "1"`, so the Welcome screen thanks a returning visitor. Nothing else is written in the browser, and the client never receives the correctness fields or the participant hash.
+
+| Table | Primary key | One row per | Holds (field names from §2) |
+|---|---|---|---|
+| `meta` | `key` | setting | `schema_version` (currently `1`), `post_bank_hash`, and `participant_salt` (32 random bytes, hex, generated once when `PARTICIPANT_SALT` is not set) |
+| `sessions` | `session_id` | session | `pid`, `conditionOrder` (e.g. `"CDBA"`), `setRotation`, `seed`, `status`, `consequenceBanner`, `anxiety`, `cursor` (as `cursor_block`, `cursor_position`, `cursor_phase`), `resumeCount`, `postBankHash`, `appVersion`, `startedAt`, `consentAt`, `completedAt`, and (v2) `participant_hash` (TEXT, unique index `idx_sessions_participant_hash` where not null) and `last_activity_at` (TEXT) |
+| `blocks` | `(session_id, block_index)` | block (4 per session) | `blockIndex`, `condition`, `set` (`set_id`), `postOrder` (JSON array of 6 post ids), `startedAt`, `endedAt` |
+| `trials` | `(session_id, block_index, position_in_block)` | trial (24 per completed session) | `trialId`, `pid`, `positionInBlock`, `trialIndex`, `postId`, `condition`, `set`, `topic`, `aiLabel`, `groundTruth`, `isAiCorrect`, `errorType`, `difficulty`, `agreed`, `detectedError`, `confidence`, `labelShownAt`, `respondedAt`, `decisionTimeRawMs`, `hiddenMs`, `hiddenCount`, `blurCount`, `decisionTimeMs`, `timingFlag`, `factSheetOpened`, `factSheetOpenMs`, `explanationOpened`, `factorsExpanded`, `timeToFirstExpandMs`, `resumed`, plus `saved_at` |
+| `events` | `(session_id, seq)` | interaction event | `seq`, `trialId`, `blockIndex`, `condition`, `postId`, `type`, `factorKey`, `tMs`, `perfNow`, `wallClock` |
+| `block_surveys` | `(session_id, block_index)` | block survey (4 per completed session) | `condition`, trust answers raw and scored (`trust_raw`, `trust_scored`, JSON arrays of 12), `trustMean`, `fairness1`, `fairness2`, `fairnessMean`, `tension`, `frustrationTlx`, `frustrationTlxTouched`, `nWrongDetected`, `anxiety` (JSON or NULL), `submittedAt` |
+| `exit_surveys` | `session_id` | completed session | `ageRange`, `gender`, `education`, `socialMediaUse`, `labelExposure`, `preferredCondition`, `comment`, `submittedAt` |
+
+Every child table references `sessions(session_id)` with `ON DELETE CASCADE`, so deleting a session (a withdrawal on `/admin`) removes all of its rows.
+
+Example for pid 7: `conditionOrder = williams[6 % 4] = CDBA`, `setRotation = floor(6/4) % 4 = 1`, so A→S2, B→S3, C→S4, D→S1, and block 1 is C on S4. Its `sessions` row looks like this (shown as JSON):
 
 ```json
 {
-  "schemaVersion": 1,
-  "activeSessionId": "3f0c9a8e-5d1b-4a8e-9c2f-7b6e1d2a4c10",
-  "sessions": {
-    "3f0c9a8e-5d1b-4a8e-9c2f-7b6e1d2a4c10": {
-      "schemaVersion": 1,
-      "sessionId": "3f0c9a8e-5d1b-4a8e-9c2f-7b6e1d2a4c10",
-      "pid": 7,
-      "conditionOrder": ["C", "D", "B", "A"],
-      "setRotation": 1,
-      "seed": 7,
-      "consequenceBanner": false,
-      "anxiety": false,
-      "status": "in_progress",
-      "cursor": { "blockIndex": 2, "positionInBlock": 3, "phase": "trial" },
-      "resumeCount": 0,
-      "blocks": [ "...4 Block objects..." ],
-      "events": [ "...InteractionEvent objects..." ],
-      "exitSurvey": null
-    }
-  }
+  "session_id": "3f0c9a8e-5d1b-4a8e-9c2f-7b6e1d2a4c10",
+  "pid": 7,
+  "condition_order": "CDBA",
+  "set_rotation": 1,
+  "seed": 7,
+  "status": "in_progress",
+  "consequence_banner": 0,
+  "anxiety": 0,
+  "cursor_block": 2,
+  "cursor_position": 3,
+  "cursor_phase": "trial",
+  "resume_count": 0,
+  "participant_hash": "9b1e…c4 (64 hex characters)",
+  "last_activity_at": "2026-11-03T14:09:55.000Z",
+  "post_bank_hash": "…",
+  "app_version": "0.1.0",
+  "started_at": "2026-11-03T14:00:12.000Z",
+  "consent_at": "2026-11-03T14:01:40.000Z",
+  "completed_at": null
 }
 ```
 
 Rules:
-1. **Versioning.** `schemaVersion` is stored on the root and on each session. On load, `sessionStore` compares it with `CURRENT_SCHEMA_VERSION`. If it is older, a pure `migrate(vN → vN+1)` function runs. If it is newer or unknown, the store refuses to write and `/admin` shows a warning, so the store never corrupts data it does not understand. A record missing `consequenceBanner` or `anxiety` is read as `false`.
-2. **Write after every trial.** The whole root is serialized and written synchronously on every Agree/Disagree response, every confidence submit, every block survey submit, the exit survey submit, and every cursor change (block start, phase change). Interaction events are buffered in memory and flushed with the next write, and also on `visibilitychange` → hidden and on `pagehide`.
-3. **Resume.** On startup, if `activeSessionId` points to an `in_progress` session, the app restores it at `cursor`. A trial that was showing but not answered is shown again with a fresh timer and fresh fact-sheet and "Why?" state, it is marked `resumed: true`, `resumeCount` goes up by 1, and a `session_resume` event is logged. If the cursor is at `post_rating` (decision made, confidence not yet given), only the confidence strip is shown again.
-4. **Completion.** After the exit survey, `status` becomes `completed`, `completedAt` is set, and `activeSessionId` becomes null. The data stays until the researcher clears it from `/admin`, and clearing requires that an export has been done first.
-5. **Size.** One session holds 24 trials and a few hundred events (roughly 80–150 KB), so dozens of sessions fit well within the 5 MB localStorage limit. If a `setItem` throws `QuotaExceededError`, the app shows a blocking message asking the researcher to export.
-6. **Reuse.** Starting a session with a `pid` that already has a `completed` session requires a confirmation on `/admin`, because a reused pid would break counterbalancing. A replacement participant for an interrupted session reuses the pid in a new `sessionId`.
+1. **Versioning.** `meta.schema_version` records the schema version. The schema only ever adds tables or nullable columns; a breaking change needs a migration step in `openDb` and a new version number. The v2 columns are added this way: when `participant_hash` or `last_activity_at` is missing, `openDb` runs `ALTER TABLE sessions ADD COLUMN …` and then `CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_participant_hash ON sessions(participant_hash) WHERE participant_hash IS NOT NULL`. `postBankHash` and `appVersion` are stored on every session, so sessions run with a different post bank can be found.
+2. **One transaction per submission.** The server writes each trial, each event batch, each block survey, the exit survey and each cursor change as soon as it arrives, in its own transaction, so a half-saved record cannot exist. The file is opened in WAL mode with foreign keys on.
+3. **Constraints instead of trust.** `CHECK` constraints enforce the ranges (`confidence` 1–7, `tension` 1–7, `frustrationTlx` 0–100 in steps of 5 and touched, `nWrongDetected` 0–2, `status`, `condition`, `set_id`). Duplicate trials and block surveys hit the primary key and return 409. Events are inserted with `INSERT OR IGNORE` on `(session_id, seq)`, so a retried batch or a `sendBeacon` duplicate is harmless.
+4. **Resume.** On reload the client reads `xai-study:activeSessionId` and calls `POST /api/sessions/:id/resume`, which increments `resumeCount` and returns the session with its `cursor`. A trial that was showing but not answered is shown again with a fresh timer and fresh fact-sheet and "Why?" state, it is marked `resumed: true`, and a `session_resume` event is logged. Because the data is on the server, the participant can also resume from another browser or device by typing the same participation code (`POST /api/sessions` returns 200 with the in-progress session).
+5. **Completion.** After the exit survey the server sets `status = completed`, `completedAt` and cursor phase `done`. Data stays in the file until a session is deleted from `/admin` (withdrawal) or the file itself is removed.
+6. **Size and backup.** One session is roughly 24 trial rows, 4 survey rows and a few hundred event rows, well under 1 MB, so the whole study fits in a small file. To back it up, stop the server and copy `study.db` (while it runs, recent writes can still be in `study.db-wal`), or download the exports below.
+7. **Self-start and pid reuse.** `POST /api/sessions { participantCode }` runs in one `BEGIN IMMEDIATE` transaction: look up `participant_hash` (completed or abandoned → 409 `already_participated`; in progress → 200 resume); otherwise mark stale `in_progress` sessions (`last_activity_at` older than `STALE_MINUTES`) abandoned, pick the lowest pid with no `in_progress` or `completed` session, and insert the session and its 4 blocks (201). A freed pid is reused by the next participant with a new `sessionId`; `trialId` (`${pid}-${blockIndex}-${positionInBlock}`) is therefore unique only within a session, and analysis must filter on `status = completed`.
+8. **Activity.** Every participant write (consent, trial, events, cursor, block survey, exit survey, resume) sets `last_activity_at = now` in the same transaction.
 
 ## 8. Export formats (`/admin`)
 
-All exports are built by `sessionStore.ts` from the same stored records, so the files always agree. CSV files use UTF-8, a header row, comma separators, RFC 4180 quoting, `TRUE`/`FALSE` for booleans, and an empty field for null. Lists inside a cell are joined with a pipe (`|`), with no spaces; an empty list is an empty field. Files are named `xai-study_<file>_<YYYYMMDD-HHmm>.<ext>`. By default only `completed` sessions are exported. A checkbox includes in-progress and abandoned sessions, and a `status` column identifies them.
+All exports are built by `server/export/exporters.ts` from the same SQLite tables, so the files always agree. They are downloaded from `/admin` or from `GET /api/admin/export/<file>` (with `?token=` when `ADMIN_TOKEN` is set), and named `<YYYY-MM-DD>-xai-study-<file>`. CSV files use UTF-8, a header row, comma separators, RFC 4180 quoting, `TRUE`/`FALSE` for booleans, and an empty field for null. Lists inside a cell are joined with a pipe (`|`), with no spaces; an empty list is an empty field. Every session in the database is exported, whatever its status; `trials.csv` has a `status` column so the analysis can keep only `completed` sessions. The column order below is binding (it is the list in `app/CONTRACT.md`).
 
 ### 8.1 `trials.csv` (long format, one row per trial)
 
 | # | Column | Example | Notes |
 |---|---|---|---|
 | 1 | `pid` | 7 | |
-| 2 | `conditionOrder` | CDBA | letters joined |
-| 3 | `blockIndex` | 2 | 1–4 |
-| 4 | `condition` | D | A/B/C/D |
-| 5 | `postId` | p04 | |
-| 6 | `set` | S1 | |
-| 7 | `topic` | env | env/svc/evt |
-| 8 | `positionInBlock` | 3 | 1–6 |
-| 9 | `aiLabel` | accurate | accurate/misleading |
-| 10 | `groundTruth` | FALSE | TRUE/FALSE |
-| 11 | `isAiCorrect` | FALSE | |
-| 12 | `errorType` | miss | `false_alarm`/`miss`; empty if correct; H1a, H1b split by this |
-| 13 | `difficulty` | subtle | `clear`/`subtle`; empty if correct |
-| 14 | `agreed` | TRUE | TRUE = Agree with label; H4 |
-| 15 | `detectedError` | FALSE | empty if `isAiCorrect`; H1, H1a, H1b, H2 |
-| 16 | `confidence` | 6 | 1–7; required, never empty |
-| 17 | `decisionTimeMs` | 9312.4 | H6 |
-| 18 | `factSheetOpened` | FALSE | H6 |
-| 19 | `factSheetOpenMs` | 0 | H6 |
-| 20 | `explanationOpened` | | empty in A/B/D |
-| 21 | `factorsExpanded` | | pipe-separated keys in order of first expansion, e.g. `claimVsRecord\|source`; empty in A/B/D or if none expanded |
-| 22 | `timeToFirstExpandMs` | | empty unless C and opened |
-| 23 | `resumed` | FALSE | |
-| 24 | `sessionId` | 3f0c9a8e-… | |
-| 25 | `setRotation` | 1 | |
-| 26 | `trialIndex` | 9 | 1–24 |
-| 27 | `nFactorsExpanded` | 0 | count of `factorsExpanded` |
-| 28 | `claimRowExpanded` | | TRUE if `claimVsRecord` is in `factorsExpanded`; empty in A/B/D. Lets H1b/H3b test whether the decisive row was opened |
-| 29 | `labelShownAt` | 2026-11-03T14:12:05.120Z | |
-| 30 | `respondedAt` | 2026-11-03T14:12:14.433Z | |
-| 31 | `status` | completed | session status |
-| 32 | `decisionTimeRawMs` | 9312.4 | |
-| 33 | `hiddenMs` | 0 | |
-| 34 | `hiddenCount` | 0 | |
-| 35 | `blurCount` | 0 | |
-| 36 | `timingFlag` | FALSE | |
-| 37 | `consequenceBanner` | FALSE | session flag; always FALSE unless the optional banner is enabled |
-| 38 | `submittedAt` | | session-level; empty unless the optional `VITE_SUBMIT_URL` add-on posted the session |
+| 2 | `sessionId` | 3f0c9a8e-… | |
+| 3 | `trialId` | 7-2-3 | `${pid}-${blockIndex}-${positionInBlock}` |
+| 4 | `blockIndex` | 2 | 1–4 |
+| 5 | `positionInBlock` | 3 | 1–6 |
+| 6 | `trialIndex` | 9 | 1–24 |
+| 7 | `condition` | D | A/B/C/D |
+| 8 | `set` | S1 | |
+| 9 | `postId` | p04 | |
+| 10 | `topic` | env | env/svc/evt |
+| 11 | `aiLabel` | accurate | accurate/misleading |
+| 12 | `groundTruth` | FALSE | TRUE/FALSE |
+| 13 | `isAiCorrect` | FALSE | |
+| 14 | `errorType` | miss | `false_alarm`/`miss`; empty if correct; H1a, H1b split by this |
+| 15 | `difficulty` | subtle | `clear`/`subtle`; empty if correct |
+| 16 | `agreed` | TRUE | TRUE = Agree with label; H4 |
+| 17 | `detectedError` | FALSE | empty if `isAiCorrect`; H1, H1a, H1b, H2 |
+| 18 | `confidence` | 6 | 1–7; required, never empty |
+| 19 | `decisionTimeMs` | 9312.4 | `decisionTimeRawMs - hiddenMs`; H6 |
+| 20 | `decisionTimeRawMs` | 9312.4 | |
+| 21 | `hiddenMs` | 0 | |
+| 22 | `hiddenCount` | 0 | |
+| 23 | `blurCount` | 0 | |
+| 24 | `timingFlag` | FALSE | TRUE if `hiddenCount > 0` or `decisionTimeMs > 120000` |
+| 25 | `factSheetOpened` | FALSE | H6 |
+| 26 | `factSheetOpenMs` | 0 | H6 |
+| 27 | `explanationOpened` | | empty in A/B/D |
+| 28 | `factorsExpanded` | | pipe-separated keys in order of first expansion, e.g. `claimVsRecord\|source`; empty in A/B/D or if none expanded |
+| 29 | `timeToFirstExpandMs` | | empty unless C and opened |
+| 30 | `resumed` | FALSE | |
+| 31 | `labelShownAt` | 2026-11-03T14:12:05.120Z | |
+| 32 | `respondedAt` | 2026-11-03T14:12:14.433Z | |
+| 33 | `conditionOrder` | CDBA | letters joined |
+| 34 | `setRotation` | 1 | |
+| 35 | `status` | completed | session status |
 
-Columns 1–23 are the core analysis columns. Columns 24–38 support reconstruction, cleaning and the C-engagement breakdowns (see `system-design.md` for the timing fields). A completed session gives exactly 24 rows.
+A completed session gives exactly 24 rows. The C-engagement helpers used in the analysis plan are derived from these columns rather than exported: `nFactorsExpanded` is the number of keys in `factorsExpanded`, and `claimRowExpanded` is TRUE when `factorsExpanded` contains `claimVsRecord` (empty outside C). `consequenceBanner` is in `sessions.json`.
 
 ### 8.2 `surveys.csv` (one row per participant × condition)
 
 | Column(s) | Notes |
 |---|---|
-| `pid`, `sessionId`, `conditionOrder`, `setRotation` | |
-| `blockIndex`, `condition`, `set` | the block being rated |
+| `pid`, `sessionId` | |
+| `blockIndex`, `condition` | the block being rated |
 | `trust_01` … `trust_12` | **raw** answers 1–7 |
-| `trust_01_s` … `trust_12_s` | scored values (items 1–5 reversed) |
+| `trust_01_s` … `trust_12_s` | scored values (items 1–5 reversed: `8 - raw`) |
 | `trustMean` | mean of the 12 scored items (H4) |
-| `distrustMean`, `trustSubMean` | optional subscale means (items 1–5 scored, items 6–12) |
-| `fairness_1`, `fairness_2`, `fairnessMean` | fairness (H5) |
+| `fairness1`, `fairness2`, `fairnessMean` | fairness (H5) |
 | `tension` | 1–7 (H3, H3a, H3b) |
 | `frustrationTlx` | 0–100 in steps of 5 (H3, H3a) |
 | `frustrationTlxTouched` | TRUE on every submitted survey (data-cleaning check) |
 | `nWrongDetected` | wrong labels in this block the participant disagreed with (0–2); H3 predictor |
-| `nFalseAlarmDetected`, `nMissDetected` | 0–1 each; split of `nWrongDetected` by error type (H1a, H3) |
-| `agreeRate`, `agreeRateWrong`, `meanConfidence`, `meanDecisionTimeMs`, `factSheetOpenRate` | convenience aggregates for this block, recomputed from `trials.csv` |
-| `anxiety` | pipe-separated raw answers; empty unless the optional scale is on |
-| `submittedAt`, `status` | |
+| `submittedAt` | |
 
-A completed session gives exactly 4 rows (one per condition).
+A completed session gives exactly 4 rows (one per condition). The optional subscale means (`distrustMean` over scored items 1–5, `trustSubMean` over items 6–12), the split of `nWrongDetected` by error type, and per-block aggregates (agree rate, mean confidence, mean decision time, fact-sheet open rate) are computed in the analysis from these columns and `trials.csv`. Optional anxiety answers, when that feature is on, are in `sessions.json`.
 
 ### 8.3 `events.csv` (one row per interaction event)
 
-Columns: `pid`, `sessionId`, `seq`, `eventId`, `trialId`, `blockIndex`, `condition`, `postId`, `type`, `factorKey`, `tMs`, `perfNow`, `wallClock`. The `blockIndex`, `condition` and `postId` columns are copied in from the trial so the file can be analysed without joins.
+Columns: `pid`, `sessionId`, `seq`, `trialId`, `blockIndex`, `condition`, `postId`, `type`, `factorKey`, `tMs`, `perfNow`, `wallClock`. The `blockIndex`, `condition` and `postId` columns are copied in from the trial so the file can be analysed without joins. `(sessionId, seq)` identifies an event.
 
 Event types that matter for analysis:
 
@@ -940,29 +954,66 @@ Event types that matter for analysis:
 
 ### 8.4 `exit.csv` (one row per participant)
 
-Columns: `pid`, `sessionId`, `conditionOrder`, `ageRange`, `gender`, `education`, `socialMediaUse`, `labelExposure`, `preferredCondition`, `comment`, `submittedAt`. This is a flat convenience copy of the exit survey, which is also in `sessions.json`.
+Columns: `pid`, `sessionId`, `ageRange`, `gender`, `education`, `socialMediaUse`, `labelExposure`, `preferredCondition`, `comment`, `submittedAt`. This is a flat copy of the `exit_surveys` table; join on `sessionId` with `trials.csv` for `conditionOrder`.
 
 ### 8.5 `sessions.json` (complete archive)
 
-The full `SessionStoreRoot` (every session with its blocks, trials, surveys, events and exit survey), plus an export header:
+`participant_hash` is never included in any export or API response.
+
+A JSON array with one object per session, in the shape of the `Session` interface in §3: the session fields (including `schemaVersion`, `postBankHash`, `appVersion`, `consequenceBanner`, `anxiety`, `cursor`, `resumeCount`), its 4 `blocks` (each with its `trials` and its block `survey`), its `events` and its `exitSurvey`.
 
 ```json
-{
-  "exportedAt": "2026-11-03T16:00:00.000Z",
-  "appVersion": "1.0.0",
-  "postBankHash": "sha256:…",
-  "schemaVersion": 1,
-  "sessions": [ "...Session objects..." ]
-}
+[
+  {
+    "schemaVersion": 1,
+    "sessionId": "3f0c9a8e-5d1b-4a8e-9c2f-7b6e1d2a4c10",
+    "pid": 7,
+    "conditionOrder": ["C", "D", "B", "A"],
+    "setRotation": 1,
+    "status": "completed",
+    "postBankHash": "…",
+    "appVersion": "0.1.0",
+    "blocks": [ "...4 blocks, each { blockIndex, condition, set, postOrder, startedAt, endedAt, trials[6], survey }..." ],
+    "events": [ "...interaction events..." ],
+    "exitSurvey": { "...": "..." }
+  }
+]
 ```
 
-This is the authoritative backup. Every CSV can be regenerated from it. If the optional `VITE_SUBMIT_URL` add-on is enabled, the POST body is the same structure with a single session.
+This is the portable backup next to the `.db` file itself. Every CSV can be regenerated from it.
+
+### 8.6 KPI definitions (`GET /api/admin/kpis`, `server/kpi.ts`)
+
+The `/admin` dashboard reads these live from SQLite (type `Kpis` in `app/shared/api.ts`). **Pilot pids ≥ 900 are excluded from every KPI.** Condition and error-type KPIs use **completed sessions only**, so `in_progress` data never moves them. Rates are numbers in 0–1, and any rate or mean with an empty denominator is `null`.
+
+| KPI | Field | Definition |
+|---|---|---|
+| Sessions started | `sessions.started` | `inProgress + completed + abandoned` |
+| In progress / completed / abandoned | `sessions.inProgress`, `.completed`, `.abandoned` | Count of sessions with that `status` |
+| Completion rate | `sessions.completionRate` | `completed / (completed + abandoned)`: of the sessions that have ended, the share that finished |
+| Progress to target | `target.n`, `.minimum`, `.completed` | Target N = 32, minimum 16, and the completed count |
+| Cycle progress | `target.cycle1Completed`, `.cycle2Completed` | Distinct completed pids in 1–16 and in 17–32 |
+| Session duration | `durationMin.median`, `.p90` | Median and 90th percentile (linear interpolation) of `completedAt − startedAt` in minutes, completed sessions |
+| Trials | `byCondition[].trials` | Trials in that condition |
+| Agreement rate | `byCondition[].agreementRate` | Share of trials with `agreed = TRUE` (all trials, correct and wrong labels) |
+| Wrong-label trials | `byCondition[].wrongTrials` | Trials with `isAiCorrect = FALSE` |
+| Detection rate | `byCondition[].detectionRate` | Share of wrong-label trials with `detectedError = TRUE` (H1, H2) |
+| False-alarm / miss detection | `byCondition[].falseAlarmDetection`, `.missDetection` | Detection rate restricted to `errorType = false_alarm` / `miss` (H1a, H1b) |
+| Fact-sheet open rate | `byCondition[].factSheetOpenRate` | Share of trials with `factSheetOpened = TRUE` (H6) |
+| Mean confidence | `byCondition[].meanConfidence` | Mean `confidence` (1–7) |
+| Median decision time | `byCondition[].medianDecisionMs` | Median `decisionTimeMs` (hidden time already subtracted) (H6) |
+| Trust / fairness / tension / frustration | `byCondition[].trustMean`, `.fairnessMean`, `.tensionMean`, `.frustrationMean` | Mean over that condition's block surveys of `trustMean` (scored), `fairnessMean`, `tension` and `frustrationTlx` (H3, H4, H5) |
+| Detection by error type | `byErrorType[]` | For `false_alarm` and `miss`: `n` wrong trials and their detection rate, all conditions pooled (H1a headline) |
+| Balance | `balance[]` | Completed sessions per `conditionOrder`, always listing the 4 Williams rows `ABDC`, `BCAD`, `CDBA`, `DACB` |
+| Completed per day | `dailyCompleted[]` | Completed sessions per UTC date of `completedAt` |
+
+KPIs are a monitoring aid. They are not the analysis: the hypothesis tests in `system-design.md` §6 run on the exports, with mixed models and exclusions.
 
 ## 9. Data integrity and validation
 
-### 9.1 Startup validator (`validatePost()` per post, plus bank-level checks, run when the app loads)
+### 9.1 Startup validator (`validatePost()` per post, plus bank-level checks, run when the server starts)
 
-`labelEngine.ts` exports `validatePost(post)`, and a bank-level `validateBank()` runs it on every post and then checks the tallies. If any check fails, the app shows a blocking "Post bank invalid" screen listing the failures, and no session can start. In development the same checks run as a unit test (`npm test`), so a bad edit fails before it reaches a participant.
+`labelEngine.ts` exports `validatePost(post)`, and a bank-level `validateBank()` runs it on every post and then checks the tallies. `loadPostBank` runs these checks when the server starts; if any fails, the server refuses to start and prints the failures, so no session can start. In development the same checks run as a unit test (`npm test`), so a bad edit fails before it reaches a participant.
 
 ```ts
 export function truthOf(p: Post): Truth {
@@ -1022,11 +1073,12 @@ Counterbalancing checks (unit test on `counterbalance.ts`):
 
 ### 9.3 Privacy
 
-- **Anonymous ID only.** `pid` is a sequential number assigned by the researcher. The link between a participant's identity and their `pid` (for example, a sign-up sheet) is kept on paper or offline by the team and never entered into the app.
-- **No PII collected.** No names, emails, student IDs, IP addresses, social media handles or exact birth dates. Age is collected as a range, and social media use only as a frequency. `appVersion` is stored, but no user-agent fingerprint.
+- **Anonymous ID only.** `pid` is a slot number assigned by the server. The app holds no link between a person and their `pid`.
+- **Hashed participation code.** To stop people taking part twice, the participant types a short personal code (for example a university email or student ID). The server normalises it and stores only `participantHash = HMAC-SHA256(salt, code)` (hex). The raw code is never written to the database, the logs or the exports, and the hash is never sent to the browser or exported. Because the hash is keyed with a secret salt (`PARTICIPANT_SALT`, or `meta.participant_salt`), someone with a copy of the exports cannot test a list of emails against it. Someone with both the database and the salt could, so keep `study.db` and the salt private, and treat the hash as pseudonymous data under the ethics approval. To unlink the data fully after collection, set `participant_hash` to NULL for every session (this disables the once-only check).
+- **No PII stored.** No names, raw emails or student IDs, IP addresses, social media handles or exact birth dates. Age is collected as a range, and social media use only as a frequency. `appVersion` is stored, but no user-agent fingerprint.
 - **Fictional content.** Riverton, Alder County, every account handle, display name, agency and fact sheet in `posts.json` is invented and does not describe real people, places, brands or organizations. Every `factSheet.source` is marked "(fictional)" (check 9). No post makes a health-risk claim that could cause harm if believed, and the debrief shows the true facts for every wrong label.
 - **Free text.** The exit comment is the only free-text field. Participants are told not to include identifying details, and the researcher checks comments before sharing the data.
-- **Local storage.** Data stays in the lab machine's browser until it is exported. Exports are stored in the team's private course drive. The optional `VITE_SUBMIT_URL` POST sends only the anonymous session object.
+- **Storage.** Data stays in the SQLite file on the study server (`app/data/study.db`, git-ignored) and is never sent anywhere else. Remote participants reach it over HTTPS. Admin routes answer only from loopback unless `ADMIN_TOKEN` is set. The browser keeps only the active session id and the `participated` flag. Exports and `.db` backups are stored in the team's private course drive. A withdrawal deletes every row of that session from the database.
 
 ## Related docs
 

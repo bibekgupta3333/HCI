@@ -114,20 +114,21 @@ Every phase also needs: a PR reviewed by one member who isn't the author, `npm r
 | 7 | ≥ 16 complete sessions covering pids 1–16 (one full cycle), aiming for 32 (pids 1–32); every session exported and backed up off the lab machine; incidents logged |
 | 8 | Every item in §7 is ticked; the `.zip` builds and runs from a clean checkout on a second machine |
 
-## 6. Commands (planned)
+## 6. Commands
 
-None of these exist yet. Once they work, copy the real versions into `CLAUDE.md` and the report.
+These are the real `package.json` scripts in `app/` (the scaffold already exists, so there is nothing to create). They are copied into `CLAUDE.md` and `app/README.md`, which is the full run guide for the report. Requirement: Node.js 22 or newer.
 
-| Purpose | Command (planned) |
+| Purpose | Command (run in `app/`) |
 |---|---|
-| Scaffold (Phase 0, once) | `npm create vite@latest xai-label-study -- --template react-ts` |
-| Add routing and test deps (once) | `npm install react-router-dom` and `npm install -D vitest @testing-library/react jsdom` |
-| Install | `npm install` |
-| Develop | `npm run dev` (Vite, `http://localhost:5173`) |
-| Lint | `npm run lint` |
-| Unit tests | `npm test` (Vitest) |
-| Build | `npm run build` (static `dist/`) |
-| Preview / lab run | `npm run preview` |
+| Install | `cd app && npm install` (installs React, Express, `better-sqlite3`, Vitest and the rest) |
+| Develop | `npm run dev` (Express API on `http://localhost:3001` + Vite on `http://localhost:5173` with an `/api` proxy; open `http://localhost:5173/admin`) |
+| Unit and API tests | `npm test` (Vitest, all suites) |
+| One test file | `npx vitest run <path>`, e.g. `npx vitest run shared/counterbalance.test.ts` |
+| Type-check | `npm run typecheck` |
+| Build | `npm run build` (type-check + static `dist/`) |
+| Lab run | `npm start` (one process serving the API and `dist/` on `http://localhost:3001`; open `http://localhost:3001/admin`) |
+| Configuration | `PORT` (default 3001), `DB_PATH` (default `data/study.db`, i.e. `app/data/study.db`), `ADMIN_TOKEN` (optional) |
+| Back up data | stop the server and copy `app/data/study.db`, or download the exports from `/admin` |
 
 ## 7. Report deliverables checklist (`implementation.txt`)
 
@@ -136,9 +137,9 @@ None of these exist yet. Once they work, copy the real versions into `CLAUDE.md`
 | Source code as one `.zip` | Clean checkout without `node_modules/` or `dist/`, with a README containing the run steps | Mohamed Sylla |
 | Video of the app running | 4–6 min: `/admin` pid entry, consent, instructions and practice post, one trial in each of A, B, C and D (opening the fact sheet, "Why?" with rows expanded in C, and at least one wrong label), a block survey with the slider, debrief, export | Mohamed Sylla |
 | Brief project description | Main question, the Riverton post scenario, the AI labels and fact sheets, conditions A–D, false alarms vs misses, Wizard-of-Oz design | `_shared-decisions.md`, `research-positioning.md` |
-| Technologies used | React 18, TypeScript, Vite, React Router, Vitest, `localStorage`, JSON/CSV export; analysis in R or Python | `architecture.md` |
+| Technologies used | React 18, TypeScript, Vite, React Router, Vitest; Node.js 22, Express 5, SQLite (`better-sqlite3`); JSON/CSV export; analysis in R or Python | `architecture.md` |
 | Target devices | Desktop or laptop browser (Chrome, Firefox, Edge) in a moderated lab session; not designed for phones | `architecture.md` |
-| Step-by-step run from source | Install Node LTS, unzip, `npm install`, `npm run dev`, open the URL; `npm test`; `npm run build` + `npm run preview` for the lab build; tested from a clean checkout | §6 |
+| Step-by-step run from source | Install Node.js 22+, unzip, `cd app && npm install`, `npm run dev`, open `http://localhost:5173/admin`; `npm test`; `npm run build` + `npm start` for the lab build (`http://localhost:3001/admin`); tested from a clean checkout | §6, `app/README.md` |
 | How to interact with the app | Researcher: `/admin`, enter pid, preview, export. Participant: consent → instructions (1 practice post) → 4 parts × 6 posts ("Fact sheet ▸", "Agree with label" / "Disagree with label", confidence, "Why?" in C) → block survey after each part → exit survey → debrief | `study-protocol.md`, `wireframes.md` |
 | Screenshots of source code + explanation | Each member, for their own files: `posts.json`, `labelEngine.ts`, `counterbalance.ts`, the four views, `StudyContext`, `BlockSurveyScreen`, `logger.ts`, `sessionStore.ts` | Each owner (§3) |
 | Screenshots of the app running | Consent, instructions, a trial in each of A/B/C/D, the fact sheet open, C expanded, a block survey (Likert + slider), debrief, `/admin` | Deepthi Reddy Chelladi |

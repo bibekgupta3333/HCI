@@ -1,6 +1,6 @@
 # Sequence Diagrams (v3: AI accuracy labels on social media posts)
 
-This document shows how the study app's modules work together at runtime for the flows that matter most to data quality. It covers assigning a participant, running a trial in each of the four conditions, opening the fact sheet, handling the deliberately wrong labels (`false_alarm` and `miss`), the per-post confidence rating, the block surveys, recovering from a refresh or crash, and exporting the data. Each diagram uses the module names from `_shared-decisions.md`: `StudyContext`, `labelEngine`, `counterbalance`, `rng`, `logger`, `sessionStore`, `conditionRegistry`, the shared components (`PostCard`, `LabelPanel`, `FactSheetPanel`, `PostRatingStrip`) and the screens in `src/study/`. Participants read made-up posts from the fictional town of Riverton, each carrying a scripted AI label ("Likely accurate" or "Likely misleading"), and click **Agree with label** or **Disagree with label**. Event names, field names and export columns are exactly those in `data-model.md` (the authority; its §2.9 event list is the full set of `type` values), and participant-facing wording is quoted from `stimuli.md`. Every section follows the same pattern: a short explanation, the Mermaid diagram, then notes on edge cases. The app has no server. Every arrow happens inside the participant's browser, apart from the optional POST in diagram 11.
+This document shows how the study app's modules work together at runtime for the flows that matter most to data quality. It covers assigning a participant, running a trial in each of the four conditions, opening the fact sheet, handling the deliberately wrong labels (`false_alarm` and `miss`), the per-post confidence rating, the block surveys, recovering from a refresh or crash, and exporting the data. Each diagram uses the module names from `_shared-decisions.md`: `StudyContext`, `labelEngine`, `counterbalance`, `rng`, `logger`, `conditionRegistry`, the shared components (`PostCard`, `LabelPanel`, `FactSheetPanel`, `PostRatingStrip`), the screens in `src/study/`, and the local server (`Server API`, backed by the `SQLite` file `app/data/study.db`). Participants read made-up posts from the fictional town of Riverton, each carrying a scripted AI label ("Likely accurate" or "Likely misleading"), and click **Agree with label** or **Disagree with label**. Event names, field names and export columns are exactly those in `data-model.md` (the authority; its §2.9 event list is the full set of `type` values), and participant-facing wording is quoted from `stimuli.md`. Every section follows the same pattern: a short explanation, the Mermaid diagram, then notes on edge cases. The browser talks only to the study's Express server (`/api`, see `app/CONTRACT.md`), on the same laptop or, for participants on their own devices, over HTTPS through a reverse proxy. The server holds the post bank with its correctness fields, computes the assignment, derives the truth fields of each trial and writes everything to SQLite; the browser keeps only the active session id (`xai-study:activeSessionId`) and, after the exit survey, the `xai-study:participated` flag in `localStorage`. **v2:** participants start the study themselves with a participation code (diagram 1), confidence is an inline chip row on the trial screen (diagram 8), and `/admin` is read-only data and KPIs (diagrams 11 and 12). Persistence moved from browser `localStorage` to this server in the build (see `architecture.md` ADR-4).
 
 The previous v2.1 version of this document is archived at [archive/v2.1-agent-permission/sequence-diagrams.md](archive/v2.1-agent-permission/sequence-diagrams.md).
 
@@ -16,91 +16,106 @@ The previous v2.1 version of this document is archived at [archive/v2.1-agent-pe
 8. [Per-post confidence rating and the next trial](#8-per-post-confidence-rating-and-the-next-trial)
 9. [Block survey and advancing to the next block](#9-block-survey-and-advancing-to-the-next-block)
 10. [Refresh and crash recovery](#10-refresh-and-crash-recovery)
-11. [Admin export and optional submission](#11-admin-export-and-optional-submission)
+11. [Admin export](#11-admin-export)
+12. [Admin KPI polling](#12-admin-kpi-polling)
 
 ---
 
 ## 1. Session start and assignment
 
-The researcher, not the participant, types the participant number (pid) before consent. `counterbalance.assign(pid)` works out the whole session plan in one deterministic step. The condition order comes from the 4×4 Williams square (`williams[(pid-1) % 4]`, one of ABDC, BCAD, CDBA, DACB), the set for each condition from the rotation `floor((pid-1)/4) % 4` (condition index A=0, B=1, C=2, D=3, set `S[(conditionIndex + rotation) % 4]`), and the order of the 6 posts in each block from a mulberry32 PRNG seeded with the pid. `StudyContext` keeps the plan in memory, and `sessionStore` writes it to `localStorage` straight away, so the assignment survives a refresh even before the first trial.
+The participant starts the study themselves; no researcher is involved. On the Welcome screen (`/`) they type a short participation code (for example a university email or student ID) and press **Start** or Enter. `POST /api/sessions { participantCode }` normalises the code (`trim().toLowerCase()`, 3–120 characters) and computes `participant_hash = HMAC-SHA256(salt, code)`; the raw code is never stored or logged. Inside one `BEGIN IMMEDIATE` transaction the server checks the hash against existing sessions, marks stale sessions abandoned, allocates the pid (the lowest integer ≥ 1 with no `in_progress` or `completed` session, so abandoned pids are reused), runs `counterbalance.assign(pid)`, and writes the session row and its 4 block rows. The condition order comes from the 4×4 Williams square (`williams[(pid-1) % 4]`, one of ABDC, BCAD, CDBA, DACB), the set for each condition from the rotation `floor((pid-1)/4) % 4`, and the order of the 6 posts in each block from a mulberry32 PRNG seeded with the pid. The browser stores only the new `sessionId`.
 
 ```mermaid
 sequenceDiagram
-    actor Researcher
-    participant Consent as ConsentScreen
+    actor P as Participant
+    participant W as WelcomeScreen
     participant SC as StudyContext
+    participant API as Server API
     participant CB as counterbalance
     participant RNG as rng
-    participant SS as sessionStore
+    participant DB as SQLite
     participant LS as localStorage
 
-    Researcher->>Consent: enter participant number
-    Consent->>Consent: validate positive integer
-    Consent->>SS: findSession(pid)
-    SS->>LS: getItem xai-study:sessions
-    LS-->>SS: sessions JSON or null
-    alt pid already has a completed session
-        SS-->>Consent: existing completed session
-        Consent-->>Researcher: warn pid already used, require confirm or new pid
-    else pid has an incomplete session
-        SS-->>Consent: in_progress session
-        Consent-->>Researcher: offer resume, see diagram 10
-    else no session for pid
-        SS-->>Consent: none
-        Consent->>CB: assign(pid)
-        CB->>CB: order = williams[(pid-1) mod 4], ABDC or BCAD or CDBA or DACB
-        CB->>CB: rotation = floor((pid-1)/4) mod 4
+    P->>W: open the study site at /
+    W->>LS: read xai-study:participated and activeSessionId
+    alt participated flag set
+        W-->>P: You have already taken part. Thank you
+    else active session id stored
+        W-->>P: offer Continue, see diagram 10
+    end
+    P->>W: type participation code, press Start or Enter
+    W->>W: check 3 to 120 characters
+    W->>SC: startSession(participantCode)
+    SC->>API: POST /api/sessions with participantCode
+    API->>API: normalise trim and lower case, 400 if invalid
+    API->>API: hash = HMAC-SHA256 of salt and code, raw code dropped
+    API->>DB: BEGIN IMMEDIATE
+    API->>DB: find session by participant_hash
+    alt hash has a completed or abandoned session
+        API->>DB: ROLLBACK
+        API-->>SC: 409 already_participated
+        SC-->>W: AlreadyParticipatedError
+        W-->>P: You have already taken part. Thank you
+    else hash has an in_progress session
+        API->>DB: resume_count + 1, last_activity_at = now, COMMIT
+        API-->>SC: 200 SessionView at the saved cursor
+        SC->>LS: setItem xai-study:activeSessionId
+        SC-->>P: resumed where they left off
+    else new code
+        API->>DB: mark in_progress sessions idle over STALE_MINUTES abandoned
+        API->>DB: pid = lowest integer from 1 with no in_progress or completed session
+        API->>CB: assign(pid)
+        CB->>CB: order = williams[(pid-1) mod 4], rotation = floor((pid-1)/4) mod 4
         CB->>CB: set for condition = S[(conditionIndex + rotation) mod 4]
-        CB->>RNG: mulberry32(seedFrom(pid))
-        RNG-->>CB: seeded generator
+        CB->>RNG: mulberry32(pid)
         loop each of 4 blocks
             CB->>RNG: next() for shuffle
-            RNG-->>CB: random floats
-            CB->>CB: shuffle the 6 post ids of the block set
-            CB->>CB: reject and reshuffle if both wrong labels sit in positions 1 and 2
+            CB->>CB: shuffle the 6 post ids, reshuffle if both wrong labels sit in positions 1 and 2
         end
-        CB-->>Consent: plan with conditionOrder, setRotation, seed, and set and postOrder per block
-        Consent->>SC: dispatch START_SESSION with pid, plan, consequenceBanner false, anxiety false
-        SC->>SC: init session, status in_progress, startedAt, cursor block 1 post 1
+        CB-->>API: plan with conditionOrder, setRotation, seed, postOrder per block
+        API->>DB: INSERT session with participant_hash and last_activity_at, and 4 blocks
+        API->>DB: COMMIT
+        API-->>SC: 201 SessionView without correctness fields
+        SC->>LS: setItem xai-study:activeSessionId
         SC->>SC: log event session_start
-        SC->>SS: saveSession(session)
-        SS->>LS: setItem xai-study:sessions
-        Consent-->>Researcher: hand device to participant
+        SC-->>P: consent screen
     end
 ```
 
 **Edge cases**
-- **Determinism.** Calling `assign(pid)` again for the same pid must give the identical plan. That lets the analysis rebuild the assignment from the pid alone, and lets diagram 10 check that a stored plan hasn't changed. The seed and the full plan are saved anyway, so nothing depends on recomputing them.
-- **Full balance.** One cycle of the Williams order and the set rotation needs 16 participants (4 orders × 4 rotations). The target is N = 32 (two cycles). The minimum is 16, and pids beyond a full cycle wrap round deterministically.
-- **Wrong-label constraint.** Each block has exactly 2 wrong labels (1 false alarm, 1 miss). The constraint is applied by rejection sampling: reshuffle until the two aren't both in positions 1 and 2. All the draws come from the same seeded generator, so the retries are deterministic too, and positions still vary across participants because the seed varies.
-- **Practice post.** The single practice post on `InstructionsScreen` isn't part of the plan or the 24-post bank, and it never produces a trial record.
-- **Optional flags.** `consequenceBanner` and `anxiety` are stored as `false` by default. The flags exist so the optional features can be switched on without a schema change.
-- **Consent.** "I agree" logs `consent_given` and sets `consentAt`; then `InstructionsScreen` and the practice post (`practice_start`, `practice_complete`, with `trialId: null`) run before block 1, whose start logs `block_start`.
-- **Invalid input.** Zero, negative, non-numeric or empty pids are refused on the screen and never reach `counterbalance`.
-- **Reused pid.** A completed session for the same pid is never overwritten silently. The researcher has to confirm. A replacement participant reuses the pid with a new `sessionId`, and the old session is kept next to it.
-- **Storage failure.** If `setItem` throws (quota exceeded or private mode), the researcher gets a blocking error before consent. The study must not run if its data can't be saved.
+- **Once-only.** A code that already completed, or whose session was abandoned, gets 409 and the thank-you message. The server check is the real guard; the `participated` flag in the browser only saves a round trip. A person who types a *different* code is not caught (see `system-design.md` R-15).
+- **Same code, other device.** A code with an `in_progress` session resumes it (200) on any device, with `resume_count` + 1.
+- **Concurrency.** `BEGIN IMMEDIATE` takes SQLite's write lock before the pid is chosen, so two people pressing Start at the same moment get different pids. The unique index on `participant_hash` stops one code from creating two sessions.
+- **Stale sessions and pid reuse.** Before allocating, any `in_progress` session whose `last_activity_at` is older than `STALE_MINUTES` (default 120) is marked abandoned. Its pid is then free for the newcomer, which keeps each 16-participant cycle balanced. Pilot pids 901+ are never auto-assigned.
+- **Salt.** `PARTICIPANT_SALT` from the environment, or 32 random bytes generated once and stored in `meta.participant_salt`. Changing it mid-study would let earlier codes start again.
+- **Determinism.** `assign(pid)` gives the identical plan for the same pid, so the analysis can rebuild the assignment from the pid alone, and `GET /api/admin/assignments/:pid` previews it. The seed and the full plan are saved anyway (`sessions`, `blocks`).
+- **Wrong-label constraint.** Each block has exactly 2 wrong labels (1 false alarm, 1 miss). Rejection sampling reshuffles until the two aren't both in positions 1 and 2; all draws come from the same seeded generator, so the retries are deterministic too.
+- **No truth in the browser.** `SessionView` carries post ids only. Which ids are the wrong labels is known only to the server.
+- **Consent.** "I agree" calls `POST /api/sessions/:id/consent`, which sets `consentAt`, moves the cursor to `instructions`, updates `last_activity_at` and logs `consent_given`; then `InstructionsScreen` and the inline practice post (`practice_start`, `practice_complete`, with `trialId: null`) run before block 1.
+- **Server not reachable.** The Welcome screen shows the error and no session starts. The study must not run if its data can't be saved.
 
 ---
 
 ## 2. Trial in Condition A (No explanation)
 
-Every trial follows the same skeleton, and diagrams 3 to 5 only change the middle of it. Times in the diagrams are `tMs`, the milliseconds since the trial's `trial_shown` event. `TrialScreen` asks `StudyContext` for the current post id, `labelEngine.buildPresentation(post, A)` builds an allow-listed payload, and `conditionRegistry` picks `NoExplanationView`, which renders `PostCard` and `LabelPanel` with only the AI label. The label appears after the fixed ~800 ms "AI is checking…" delay, and the decision timer starts once the label is actually painted. The Agree or Disagree click stops it, the `PostRatingStrip` confidence step follows (diagram 8), and `logger` builds the trial record before `sessionStore` saves the session.
+Every trial follows the same skeleton, and diagrams 3 to 5 only change the middle of it. Times in the diagrams are `tMs`, the milliseconds since the trial's `trial_shown` event. `TrialScreen` asks `StudyContext` for the current post id, `labelEngine.buildPresentation(post, A)` builds an allow-listed payload, and `conditionRegistry` picks `NoExplanationView`, which renders `PostCard` and `LabelPanel` with only the AI label. The label appears after the fixed ~800 ms "AI is checking…" delay, and the decision timer starts once the label is actually painted. The Agree or Disagree click stops it, the inline `PostRatingStrip` confidence chips follow on the same screen (diagram 8), and the trial is sent to the server, which adds the truth fields and saves it to SQLite.
 
 ```mermaid
 sequenceDiagram
     actor P as Participant
     participant Trial as TrialScreen
     participant SC as StudyContext
-    participant LE as labelEngine
+    participant API as Server API
     participant Reg as conditionRegistry
     participant View as NoExplanationView
     participant Log as logger
-    participant SS as sessionStore
+    participant DB as SQLite
 
     Trial->>SC: read blockIndex and positionInBlock
     SC-->>Trial: postId and condition A
-    Trial->>LE: buildPresentation(post, A)
-    LE-->>Trial: payload with post fields and aiLabel only
+    Trial->>API: GET presentation for block and position
+    API->>API: labelEngine.buildPresentation(post, A)
+    API-->>Trial: payload with post fields and aiLabel only
     Trial->>Reg: viewFor(A)
     Reg-->>Trial: NoExplanationView
     Trial->>View: render payload
@@ -115,14 +130,16 @@ sequenceDiagram
     P->>View: click Agree with label or Disagree with label
     View->>Log: markDecided(trialId, agreed)
     Log->>Log: event decision_agree or decision_disagree, respondedAt
-    Log->>Log: decisionTimeMs = decisionTimeRawMs - hiddenMs
+    Log->>Log: decisionTimeRawMs and hiddenMs
     View-->>P: PostRatingStrip, see diagram 8
-    P->>View: required confidence 1 to 7, then Next
+    P->>View: tap a confidence chip 1 to 7, Undo window 1 s
     View->>Trial: onComplete(agreed, confidence)
-    Trial->>Log: recordTrial(postId, A, agreed, confidence)
-    Log-->>Trial: record with explanationOpened null, timeToFirstExpandMs null, factorsExpanded empty
-    Trial->>SC: dispatch TRIAL_COMPLETED with record
-    SC->>SS: saveSession(session)
+    Trial->>Log: snapshot(), explanationOpened null, timeToFirstExpandMs null, factorsExpanded empty
+    Trial->>API: POST trial with decision, confidence, timings, then flush events
+    API->>API: add condition, set, topic, truth fields, detectedError, decisionTimeMs, timingFlag
+    API->>DB: INSERT trial in one transaction, move cursor
+    API-->>Trial: TrialSaved with the next cursor
+    Trial->>SC: advance to the returned cursor
 ```
 
 **Edge cases**
@@ -131,7 +148,8 @@ sequenceDiagram
 - **Double clicks.** Agree and Disagree are disabled after the first click, so the first decision is the only one recorded. A second click is ignored and isn't logged as a decision.
 - **Losing focus.** If the tab is hidden mid-trial, `logger` records `visibility_hidden` and `visibility_visible` events and sums them into `hiddenMs` and `hiddenCount`. `decisionTimeMs = decisionTimeRawMs - hiddenMs`, and `timingFlag` marks trials the analysis should treat with care.
 - **Fields that don't apply.** Outside C, `explanationOpened = null`, `timeToFirstExpandMs = null` and `factorsExpanded = []`, so "not applicable" can't be mistaken for "did not open".
-- **A failed save.** The trial does not advance, and a blocking message asks the participant to call the researcher. A trial that isn't persisted is treated as not done.
+- **A failed save.** If the POST fails (server stopped, network error), the trial does not advance, and a message asks the participant to call the researcher, with a Retry button. A trial that isn't in SQLite is treated as not done. A retried POST that the server had already saved returns 409 and is treated as saved.
+- **Server-side timing fields.** The client sends `decisionTimeRawMs` and `hiddenMs`; the server stores `decisionTimeMs = decisionTimeRawMs - hiddenMs` and sets `timingFlag` when `hiddenCount > 0` or `decisionTimeMs > 120000`.
 
 ---
 
@@ -143,14 +161,15 @@ Condition B uses the skeleton from diagram 2. The only change is that `labelEngi
 sequenceDiagram
     actor P as Participant
     participant Trial as TrialScreen
-    participant LE as labelEngine
+    participant API as Server API
     participant View as StaticExplanationView
     participant Log as logger
     participant SC as StudyContext
-    participant SS as sessionStore
+    participant DB as SQLite
 
-    Trial->>LE: buildPresentation(post, B)
-    LE-->>Trial: post fields, aiLabel, staticExplanation
+    Trial->>API: GET presentation for block and position
+    API->>API: labelEngine.buildPresentation(post, B)
+    API-->>Trial: post fields, aiLabel, staticExplanation
     Trial->>View: render payload
     View-->>P: PostCard, AI is checking, then LabelPanel with the label and one fixed reason
     View->>Log: markShown(trialId) after first paint, event trial_shown
@@ -160,13 +179,15 @@ sequenceDiagram
     end
     P->>View: read reason, click Agree with label or Disagree with label
     View->>Log: markDecided(trialId, agreed), event decision_agree or decision_disagree
-    Log->>Log: decisionTimeMs = decisionTimeRawMs - hiddenMs
+    Log->>Log: decisionTimeRawMs and hiddenMs
     View-->>P: PostRatingStrip, see diagram 8
     View->>Trial: onComplete(agreed, confidence)
-    Trial->>Log: recordTrial(postId, B, agreed, confidence)
-    Log-->>Trial: record with explanationOpened null, timeToFirstExpandMs null, factorsExpanded empty
-    Trial->>SC: dispatch TRIAL_COMPLETED
-    SC->>SS: saveSession(session)
+    Trial->>Log: snapshot(), explanationOpened null, timeToFirstExpandMs null, factorsExpanded empty
+    Trial->>API: POST trial with decision, confidence, timings, then flush events
+    API->>API: add condition, set, topic, truth fields, detectedError, decisionTimeMs, timingFlag
+    API->>DB: INSERT trial in one transaction, move cursor
+    API-->>Trial: TrialSaved with the next cursor
+    Trial->>SC: advance to the returned cursor
 ```
 
 **Edge cases**
@@ -184,14 +205,15 @@ In Condition C the label first appears alone with a "Why?" button. Clicking it o
 sequenceDiagram
     actor P as Participant
     participant Trial as TrialScreen
-    participant LE as labelEngine
+    participant API as Server API
     participant View as InteractiveExplanationView
     participant Log as logger
     participant SC as StudyContext
-    participant SS as sessionStore
+    participant DB as SQLite
 
-    Trial->>LE: buildPresentation(post, C)
-    LE-->>Trial: post fields, aiLabel, factors source claimVsRecord wording with label displayValue passes detail
+    Trial->>API: GET presentation for block and position
+    API->>API: labelEngine.buildPresentation(post, C)
+    API-->>Trial: post fields, aiLabel, factors source claimVsRecord wording with label displayValue passes detail
     Trial->>View: render payload
     View-->>P: PostCard, AI is checking, then LabelPanel with the label and a Why button
     View->>Log: markShown(trialId) after first paint, event trial_shown
@@ -220,13 +242,15 @@ sequenceDiagram
     end
     P->>View: click Agree with label or Disagree with label
     View->>Log: markDecided(trialId, agreed), event decision_agree or decision_disagree
-    Log->>Log: decisionTimeMs = decisionTimeRawMs - hiddenMs
+    Log->>Log: decisionTimeRawMs and hiddenMs
     View-->>P: PostRatingStrip, see diagram 8
     View->>Trial: onComplete(agreed, confidence)
-    Trial->>Log: recordTrial(postId, C, agreed, confidence)
-    Log-->>Trial: record with explanationOpened, factorsExpanded, timeToFirstExpandMs
-    Trial->>SC: dispatch TRIAL_COMPLETED
-    SC->>SS: saveSession(session)
+    Trial->>Log: snapshot() with explanationOpened, factorsExpanded, timeToFirstExpandMs
+    Trial->>API: POST trial with decision, confidence, timings, then flush events
+    API->>API: add condition, set, topic, truth fields, detectedError, decisionTimeMs, timingFlag
+    API->>DB: INSERT trial in one transaction, move cursor
+    API-->>Trial: TrialSaved with the next cursor
+    Trial->>SC: advance to the returned cursor
 ```
 
 **Edge cases**
@@ -247,14 +271,15 @@ Condition D uses the same skeleton as B. `labelEngine` adds the post's `counterf
 sequenceDiagram
     actor P as Participant
     participant Trial as TrialScreen
-    participant LE as labelEngine
+    participant API as Server API
     participant View as CounterfactualView
     participant Log as logger
     participant SC as StudyContext
-    participant SS as sessionStore
+    participant DB as SQLite
 
-    Trial->>LE: buildPresentation(post, D)
-    LE-->>Trial: post fields, aiLabel, counterfactualExplanation
+    Trial->>API: GET presentation for block and position
+    API->>API: labelEngine.buildPresentation(post, D)
+    API-->>Trial: post fields, aiLabel, counterfactualExplanation
     Trial->>View: render payload
     View-->>P: PostCard, AI is checking, then LabelPanel with the label and one would be labeled X if Y line
     View->>Log: markShown(trialId) after first paint, event trial_shown
@@ -264,13 +289,15 @@ sequenceDiagram
     end
     P->>View: click Agree with label or Disagree with label
     View->>Log: markDecided(trialId, agreed), event decision_agree or decision_disagree
-    Log->>Log: decisionTimeMs = decisionTimeRawMs - hiddenMs
+    Log->>Log: decisionTimeRawMs and hiddenMs
     View-->>P: PostRatingStrip, see diagram 8
     View->>Trial: onComplete(agreed, confidence)
-    Trial->>Log: recordTrial(postId, D, agreed, confidence)
-    Log-->>Trial: record with explanationOpened null, timeToFirstExpandMs null, factorsExpanded empty
-    Trial->>SC: dispatch TRIAL_COMPLETED
-    SC->>SS: saveSession(session)
+    Trial->>Log: snapshot(), explanationOpened null, timeToFirstExpandMs null, factorsExpanded empty
+    Trial->>API: POST trial with decision, confidence, timings, then flush events
+    API->>API: add condition, set, topic, truth fields, detectedError, decisionTimeMs, timingFlag
+    API->>DB: INSERT trial in one transaction, move cursor
+    API-->>Trial: TrialSaved with the next cursor
+    Trial->>SC: advance to the returned cursor
 ```
 
 **Edge cases**
@@ -323,48 +350,52 @@ sequenceDiagram
 
 ## 7. Wrong-label handling
 
-From the participant's side a wrong label can't be told apart from a correct one. The layout, timing, wording style and controls are identical, and the explanation in B, C and D argues for the AI's label. A **false alarm** labels a TRUE post "Likely misleading", and a **miss** labels a FALSE post "Likely accurate". To guarantee this, `labelEngine.buildPresentation` builds the payload from an explicit allow-list, so `groundTruth`, `isAiCorrect`, `errorType` and `difficulty` never reach a view or React props. Correctness joins the record only inside `logger`, after the participant has decided, through `labelEngine.getTruth(postId)`. There `detectedError` is derived as `!agreed` on wrong labels and `null` on correct ones.
+From the participant's side a wrong label can't be told apart from a correct one. The layout, timing, wording style and controls are identical, and the explanation in B, C and D argues for the AI's label. A **false alarm** labels a TRUE post "Likely misleading", and a **miss** labels a FALSE post "Likely accurate". To guarantee this, the post bank lives only on the server, and `labelEngine.buildPresentation` builds the payload from an explicit allow-list, so `groundTruth`, `isAiCorrect`, `errorType` and `difficulty` never reach the browser, a view or React props. Correctness joins the record only on the server, after the participant has decided, when `POST /api/sessions/:id/trials` saves the trial. There `detectedError` is derived as `!agreed` on wrong labels and `null` on correct ones, and the response to the browser carries no truth fields.
 
 ```mermaid
 sequenceDiagram
     actor P as Participant
     participant Trial as TrialScreen
-    participant LE as labelEngine
+    participant API as Server API
+    participant LE as labelEngine on server
     participant View as Condition view A B C or D
     participant Log as logger
-    participant SS as sessionStore
+    participant DB as SQLite
 
-    Trial->>LE: buildPresentation(post, condition)
+    Trial->>API: GET presentation for block and position
+    API->>LE: buildPresentation(post, condition)
     LE->>LE: read full post incl groundTruth, isAiCorrect, errorType, difficulty
     LE->>LE: copy allow-listed fields only
     Note over LE: correctness fields are dropped here
-    LE-->>Trial: payload identical in shape for correct and wrong labels
+    LE-->>API: payload identical in shape for correct and wrong labels
+    API-->>Trial: payload
     Trial->>View: render payload
     View-->>P: same layout, same delay, explanation that supports the AI label
     Note over P,View: only the post claim vs the fact sheet, or the C Claim vs record row, reveals the error
     P->>View: Agree with label or Disagree with label
     View->>Trial: onComplete(agreed, confidence)
-    Trial->>Log: recordTrial(postId, condition, agreed, confidence)
-    Log->>LE: getTruth(postId)
-    LE-->>Log: groundTruth, isAiCorrect, errorType false_alarm or miss or null, difficulty
+    Trial->>Log: snapshot() of timings and expands
+    Trial->>API: POST trial with postId, agreed, confidence, timings
+    API->>API: check postId against the stored block plan
+    API->>API: look up groundTruth, isAiCorrect, errorType false_alarm or miss or null, difficulty
     alt isAiCorrect is false and agreed is false
-        Log->>Log: detectedError = true, the wrong label was caught
+        API->>API: detectedError = true, the wrong label was caught
     else isAiCorrect is false and agreed is true
-        Log->>Log: detectedError = false, the wrong label was accepted
+        API->>API: detectedError = false, the wrong label was accepted
     else isAiCorrect is true
-        Log->>Log: detectedError = null, not applicable on correct labels
+        API->>API: detectedError = null, not applicable on correct labels
     end
-    Note over Log: detection is analysed by errorType, false_alarm vs miss, for H1a and H1b
-    Log-->>Trial: record with isAiCorrect, errorType, difficulty, detectedError
-    Trial->>SS: saveSession via StudyContext
+    Note over API: detection is analysed by errorType, false_alarm vs miss, for H1a and H1b
+    API->>DB: INSERT trial with isAiCorrect, errorType, difficulty, detectedError
+    API-->>Trial: TrialSaved with the next cursor, no truth fields
 ```
 
 **Edge cases**
-- **No leaks through rendering.** The payload types have no correctness fields at all. A unit test asserts that `JSON.stringify(payload)` never contains `groundTruth`, `isAiCorrect`, `errorType` or `difficulty`. DOM attributes, CSS classes and test ids must not encode correctness either. Only `logger` calls `getTruth`.
+- **No leaks through rendering.** The payload types have no correctness fields at all. A unit test asserts that `JSON.stringify(payload)` never contains `groundTruth`, `isAiCorrect`, `errorType` or `difficulty`. DOM attributes, CSS classes and test ids must not encode correctness either. The client never imports `posts.json` or the truth functions, so the client bundle contains no ground truth; only server code reads it.
 - **Claim vs record in C shows the true comparison.** On a wrong label the row still shows the post's real claim value and the real fact-sheet value with the honest ✓ or ✗, so a careful participant can spot the contradiction. The `detail` sentence still sounds plausible and supports the label. This is the C-shows-true-values principle, which the team still has to confirm.
 - **B and D on wrong labels.** They cite a plausible but non-decisive factor (for example the topic or the wording) in the same confident tone, and never mention the key fact.
 - **Same timing.** The fixed ~800 ms "AI is checking…" delay is the same for correct and wrong labels, and no animation differs between them.
-- **Data checks.** `labelEngine.validatePost` checks at load time that `groundTruth` agrees with comparing `keyFact.claimValue` to `keyFact.recordValue`, that `errorType` is `false_alarm` exactly when the truth is TRUE and the label is misleading (and `miss` for FALSE with accurate), that `isAiCorrect` matches, and that each set has 2 correct accurate, 2 correct misleading, 1 false alarm and 1 miss. A mismatch is a dev-time and build-time error, never something the participant sees.
+- **Data checks.** `labelEngine.validatePost` checks at server start (via `loadPostBank`) and in the tests that `groundTruth` agrees with comparing `keyFact.claimValue` to `keyFact.recordValue`, that `errorType` is `false_alarm` exactly when the truth is TRUE and the label is misleading (and `miss` for FALSE with accurate), that `isAiCorrect` matches, and that each set has 2 correct accurate, 2 correct misleading, 1 false alarm and 1 miss. A mismatch stops the server from starting and fails `npm test`, so it is never something the participant sees.
 - **Correct labels.** On correct labels `detectedError` is `null`. Detection analyses filter to `isAiCorrect == false` first.
 - **Split by error type (H1a).** `errorType` and `difficulty` are stored on every trial record, so comparing how often misses and false alarms are caught (and the clear vs subtle split) needs no join back to the post bank.
 
@@ -372,55 +403,66 @@ sequenceDiagram
 
 ## 8. Per-post confidence rating and the next trial
 
-After every decision, `PostRatingStrip` replaces the buttons with one 7-point question: "How confident are you in your decision?" (1 = "Not at all confident", 7 = "Extremely confident"). The rating is **required**: there is no skip, and the **Next** button is enabled only once a value is picked. Its time never counts toward `decisionTimeMs`, because `respondedAt` and the decision `tMs` were fixed by the Agree or Disagree click. The session is saved once after the decision (cursor phase `post_rating`) and again when Next writes the completed trial record, which then either loads the next post with a fresh "AI is checking…" delay or, after the sixth post, opens the block survey.
+After every decision, the `PostRatingStrip` chip row slides in **on the same screen**: "How sure are you?" with chips 1–7 (1 = not at all sure, 7 = completely sure). The rating is **required**, and there is no Next button: tapping a chip (or pressing `1`–`7`) starts a 1 s "Undo" window and then submits. Its time never counts toward `decisionTimeMs`, because `respondedAt` was fixed by the Agree or Disagree click (`A` or `D` on the keyboard). The submit sends the decision, the confidence and the timings in one `POST`; the server saves the complete trial in one transaction, stamps `last_activity_at`, and returns the next cursor. While the participant was reading, `TrialScreen` already prefetched the next presentation, so the next post appears straight away and only the fixed ~800 ms "AI is checking…" delay separates them. After the sixth post the block survey opens. A progress bar shows "Post n of 24" and "Part x of 4".
 
 ```mermaid
 sequenceDiagram
     actor P as Participant
     participant View as Condition view A B C or D
-    participant Strip as PostRatingStrip
+    participant Strip as PostRatingStrip chips
     participant Trial as TrialScreen
     participant Log as logger
     participant SC as StudyContext
-    participant SS as sessionStore
+    participant API as Server API
+    participant DB as SQLite
 
-    P->>View: click Agree with label or Disagree with label
+    Note over Trial,API: after the label is shown, prefetch the next post
+    Trial->>API: GET presentation for the next block and position
+    API-->>Trial: next payload, kept in memory
+    P->>View: click Agree or Disagree, or press A or D
     View->>Log: markDecided(trialId, agreed), event decision_agree or decision_disagree
-    View->>SC: dispatch DECIDED, cursor phase post_rating
-    SC->>SS: saveSession(session)
-    View->>Strip: show confidence 1 to 7, Next disabled
-    Strip-->>P: How confident are you in your decision
-    P->>Strip: select confidence c, required
-    Strip->>Log: event confidence_submit, value kept for confidence
-    Strip->>Strip: enable Next
-    P->>Strip: click Next
+    View->>Strip: slide in chips 1 to 7 on the same screen
+    Strip-->>P: How sure are you
+    P->>Strip: tap chip c, or press a number key
+    Strip->>Log: event confidence_submit
+    Strip-->>P: Undo link for 1 s
+    opt participant taps Undo or another chip within 1 s
+        P->>Strip: change or clear the value
+        Strip->>Strip: restart the 1 s window
+    end
     Strip->>Trial: onComplete(agreed, c)
-    Trial->>Log: recordTrial(postId, condition, agreed, c)
-    Log->>Log: attach getTruth fields, see diagram 7
-    Log-->>Trial: complete trial record
-    Trial->>SC: dispatch TRIAL_COMPLETED
-    SC->>SS: saveSession(session)
+    Trial->>Log: snapshot()
+    Trial->>API: POST trial with agreed, c and timings
+    API->>API: attach truth fields, see diagram 7
+    API->>DB: INSERT trial, move cursor, last_activity_at = now
+    API-->>Trial: TrialSaved with the next cursor
+    Trial->>Log: flush buffered events
+    Log->>API: POST events batch
+    API->>DB: INSERT OR IGNORE events on session and seq
     alt positionInBlock less than 6
-        SC->>SC: positionInBlock + 1
-        SC-->>Trial: load next post, header Part x of 4, Post y of 6
+        Trial->>SC: advance to block b, post y + 1
+        SC-->>Trial: render the prefetched post, progress bar n + 1 of 24
         Trial->>Trial: reset panels, start AI is checking delay
     else sixth post done
+        Trial->>SC: advance to the block survey cursor
         SC-->>Trial: navigate to BlockSurveyScreen, see diagram 9
     end
 ```
 
 **Edge cases**
-- **Required.** `confidence` is never null on a saved trial. Next stays disabled until a value is chosen, and there is no "skip" option.
-- **Changing the rating.** The participant can change the confidence value before clicking Next. Only the last value is stored in `confidence`, and every change is still logged as a `confidence_submit` event (events carry no value; the value lives on the trial).
-- **Decision is final.** Once the strip appears, the Agree and Disagree buttons are gone. The decision can't be changed while rating confidence.
-- **Carry-over clicks.** Next is placed away from where the new trial's Agree and Disagree buttons will appear, and those buttons stay disabled during the delay, so a double click on Next can't register a decision on the next post.
-- **Save before advance.** The next post loads only after `saveSession` succeeds. If the save fails, the strip stays on screen with a blocking message.
+- **Required.** `confidence` is never null on a saved trial. There is no skip option, and nothing is submitted until a chip is chosen.
+- **Undo.** During the 1 s window the participant can tap Undo or pick another chip; only the value at submit is stored in `confidence`. Every chip change is still logged as a `confidence_submit` event (events carry no value; the value lives on the trial).
+- **Decision is final.** Once the chips appear, the Agree and Disagree buttons are locked. The decision can't be changed while rating confidence.
+- **Keyboard.** `A`/`D` decide, `1`–`7` rate, `F` toggles the fact sheet, `W` toggles "Why?" in C, `Esc` closes an open panel. Keys are ignored during the ~800 ms delay and while a submit is in flight, so a held key can't answer the next post.
+- **Prefetch.** The prefetched payload is the same allow-listed presentation as a normal fetch, so it carries no truth. If the prefetch failed, the post is fetched normally after the submit.
+- **Save before advance.** The next post appears only after the server confirms the trial was saved. If the save fails, the screen shows Retry and asks the participant to contact the study email if it keeps failing; nothing advances.
+- **Reload before submit.** Nothing is saved until the chip submits, so a reload brings the same post back with a fresh delay and timer, marked `resumed = true` (diagram 10).
 
 ---
 
 ## 9. Block survey and advancing to the next block
 
-After the sixth post of a block, `StudyContext` sends the participant to `BlockSurveyScreen` for the condition they just used. The items come from `surveyItems.json` in a fixed order: the 12 Jian et al. (2000) trust items with "the system" worded as "the AI labels", then the 2 fairness items, all on 7-point scales, then `tension` (1–7), then the NASA-TLX frustration slider (`frustrationTlx`, 0–100 in steps of 5, starting at 50). The slider counts as answered only once it has been moved (`frustrationTlxTouched = true`). On submit, `logger` stores the raw answers and computes `nWrongDetected`, the number of the block's 2 wrong labels the participant disagreed with, then the next block starts or, after block 4, the exit survey opens.
+After the sixth post of a block, `StudyContext` sends the participant to `BlockSurveyScreen` for the condition they just used. The items come from `surveyItems.json` in a fixed order: the 12 Jian et al. (2000) trust items with "the system" worded as "the AI labels", then the 2 fairness items, all on 7-point scales, then `tension` (1–7), then the NASA-TLX frustration slider (`frustrationTlx`, 0–100 in steps of 5, starting at 50). The slider counts as answered only once it has been moved (`frustrationTlxTouched = true`). On submit, the browser sends the raw answers to the server, which scores them, computes `nWrongDetected` (the number of the block's 2 wrong labels the participant disagreed with, from the saved trials) and stores the survey in SQLite; then the next block starts or, after block 4, the exit survey opens.
 
 ```mermaid
 sequenceDiagram
@@ -428,7 +470,8 @@ sequenceDiagram
     participant SC as StudyContext
     participant Survey as BlockSurveyScreen
     participant Log as logger
-    participant SS as sessionStore
+    participant API as Server API
+    participant DB as SQLite
     participant Trial as TrialScreen
     participant Exit as ExitSurveyScreen
 
@@ -455,13 +498,14 @@ sequenceDiagram
         Survey-->>P: prompt to set the frustration slider, stay on screen
     else all 16 answered and slider touched
         P->>Survey: click Continue
-        Survey->>Log: recordSurvey(blockIndex, condition, trustResponses raw, fairness1, fairness2, tension, frustrationTlx, frustrationTlxTouched)
-        Log->>Log: trustResponses scored = 8 - raw for items 1 to 5, trustMean, fairnessMean
-        Log->>Log: nWrongDetected = count of detectedError true in this block, 0 to 2
-        Log->>Log: event block_survey_submit
-        Log-->>Survey: BlockSurvey record with raw and scored values
-        Survey->>SC: dispatch BLOCK_SURVEY_COMPLETED
-        SC->>SS: saveSession(session)
+        Survey->>Log: event block_survey_submit, flush events
+        Survey->>API: POST block survey with trust raw, fairness1, fairness2, tension, frustrationTlx, frustrationTlxTouched
+        API->>API: check the block's 6 trials are saved
+        API->>API: scored = 8 - raw for items 1 to 5, trustMean, fairnessMean
+        API->>API: nWrongDetected = count of detectedError true in this block, 0 to 2
+        API->>DB: INSERT block survey, move cursor
+        API-->>Survey: nWrongDetected and the next cursor
+        Survey->>SC: advance to the returned cursor
         alt blockIndex less than 4
             SC->>SC: blockIndex + 1, positionInBlock = 1, event block_start
             SC->>Trial: navigate to first post of next block
@@ -470,7 +514,7 @@ sequenceDiagram
             SC->>Exit: navigate to ExitSurveyScreen
         end
     end
-    Note over SS: raw answers are always stored, so scoring can be recomputed at export or analysis
+    Note over DB: raw answers are always stored, so scoring can be recomputed at export or analysis
 ```
 
 **Edge cases**
@@ -479,143 +523,186 @@ sequenceDiagram
 - **No defaults on Likert items.** No 7-point item has a pre-selected value. That avoids midpoint bias and keeps the "every item answered" check meaningful.
 - **Slider validation.** The thumb starts at 50, but `frustrationTlx` stays `null` until the first input event, which also sets `frustrationTlxTouched = true`. A participant who really means 50 has to move the thumb away and back. `frustrationTlxTouched` is saved so the analysis can confirm every value was set on purpose.
 - **`nWrongDetected`.** It is computed from the block's stored trial records, not from anything on screen, so it is also recomputable from `trials.csv`. It is the H3 predictor for tension and frustration.
-- **Double submit.** Continue is disabled after the first click. A second dispatch for the same block is ignored by the reducer if that block's survey already exists.
-- **Back navigation.** The browser Back button doesn't return to the block's posts. The router guard in `StudyContext` redirects to the current step.
-- **Exit survey.** The exit survey (`ageRange`, `gender`, `education`, `socialMediaUse`, `labelExposure`, `preferredCondition`, `comment`) uses the same validation and save pattern. Only `gender` and `comment` are optional. Submitting it logs `exit_survey_submit`, sets `status = "completed"` and `completedAt`, and moves to `DebriefScreen` (which logs `session_complete`), which explains that the labels were scripted, that 8 of the 24 were wrong on purpose, and shows the facts for every wrong label.
+- **Double submit.** Continue is disabled after the first click. A second submission for the same block hits the primary key `(session_id, block_index)` and the server answers 409.
+- **Back navigation.** The browser Back button doesn't return to the block's posts. The router guard redirects to the step given by the server cursor.
+- **Exit survey.** The exit survey (`ageRange`, `gender`, `education`, `socialMediaUse`, `labelExposure`, `preferredCondition`, `comment`) uses the same validation and save pattern. Only `gender` and `comment` are optional. Submitting it logs `exit_survey_submit`; the server checks that all 4 block surveys exist, saves it, sets `status = "completed"` and `completedAt`, and moves to `DebriefScreen` (which logs `session_complete`), which explains that the labels were scripted, that 8 of the 24 were wrong on purpose, and shows the facts for every wrong label.
 
 ---
 
 ## 10. Refresh and crash recovery
 
-Because `sessionStore` saves after every decision, every confidence submit, every survey and every `cursor` change, a reload loses at most the step that was on screen. On startup the app reads `localStorage`, follows `activeSessionId` to an `in_progress` session, and offers the researcher a resume. Resuming restores the stored `cursor` (`blockIndex`, `positionInBlock`, `phase`), logs `session_resume` and adds 1 to `resumeCount`. If the cursor is on an unanswered trial, the half-seen attempt is thrown away, the post is shown again with a fresh delay and timer, and the new record is flagged `resumed = true` so the analysis can treat its timing with care. If it is at `post_rating` (decision saved, confidence not yet given), only the confidence strip is shown again.
+Because the server saves every trial, every survey, every event batch and every `cursor` change as it arrives, a reload loses at most the step that was on screen. The only thing the browser keeps is `xai-study:activeSessionId`. On startup the app reads that id and calls `POST /api/sessions/:id/resume`, which adds 1 to `resumeCount` and returns the session with its stored `cursor` (`blockIndex`, `positionInBlock`, `phase`). If the cursor is on an unanswered trial, the half-seen attempt is thrown away, the post is shown again with a fresh delay and timer, and the new record is flagged `resumed = true` so the analysis can treat its timing with care. Because the data is on the server, a session can also be resumed from another browser or device by typing the same participation code on the Welcome screen (diagram 1, 200 response).
 
 ```mermaid
 sequenceDiagram
-    actor Researcher
-    participant App as App bootstrap
-    participant SS as sessionStore
+    actor P as Participant
+    participant App as WelcomeScreen
     participant LS as localStorage
     participant SC as StudyContext
-    participant CB as counterbalance
-    participant Consent as ConsentScreen
+    participant API as Server API
+    participant DB as SQLite
     participant Trial as TrialScreen
     participant Log as logger
 
     Note over App: page reload, tab crash, or browser restart
-    App->>SS: loadAll()
-    SS->>LS: getItem xai-study:sessions
-    LS-->>SS: raw JSON
-    alt JSON parse fails
-        SS->>LS: setItem xai-study:sessions-corrupt-timestamp with raw text
-        SS-->>App: empty list, error flag
-        App-->>Researcher: warn storage unreadable, raw copy kept for admin
-    else parsed
-        SS-->>App: sessions
-        App->>App: follow activeSessionId to an in_progress session
-        alt incomplete session found
-            App-->>Researcher: prompt resume participant pid at step
-            alt researcher chooses resume
-                App->>SC: dispatch RESUME_SESSION with stored session
-                SC->>Log: event session_resume, resumeCount + 1
-                SC->>CB: assign(pid) to check the stored plan
-                CB-->>SC: recomputed plan
-                SC->>SC: warn on mismatch, stored plan wins
-                SC->>SC: read cursor blockIndex, positionInBlock, phase
-                alt cursor phase is trial
-                    SC->>Trial: navigate to block b, post y
-                    Trial->>Log: start trial with resumed = true
-                    Log->>Log: new trial_shown after delay and paint, timer from zero
-                    Note over Trial,Log: the interrupted attempt and its partial events are discarded
-                else cursor phase is post_rating
-                    SC->>Trial: show only the confidence strip for the saved decision
-                else cursor phase is block_survey
-                    SC->>SC: navigate to BlockSurveyScreen, answers start empty
-                else cursor phase is exit_survey
-                    SC->>SC: navigate to ExitSurveyScreen
-                end
-            else researcher chooses abandon
-                App->>SS: markAbandoned(sessionId)
-                SS->>LS: setItem xai-study:sessions
-                App->>Consent: start fresh
-            end
-        else none incomplete
-            App->>Consent: normal start
+    App->>LS: getItem xai-study:activeSessionId
+    alt no id stored
+        App-->>P: participation code field
+        P->>App: type the same code, Start
+        App->>API: POST /api/sessions with participantCode
+        API-->>App: 200 SessionView of the in_progress session
+        App->>LS: setItem xai-study:activeSessionId
+    else id stored
+        App-->>P: offer Continue
+        P->>App: click Continue
+    end
+    App->>SC: resume()
+    SC->>API: POST /api/sessions/id/resume
+    API->>DB: resume_count + 1, read session, blocks and cursor
+    alt session not found
+        API-->>SC: 404
+        SC->>LS: remove the stored id
+        SC-->>App: back to the start screen
+    else completed or abandoned
+        API-->>SC: SessionView with that status
+        SC->>LS: remove the stored id
+    else in_progress
+        API-->>SC: SessionView with cursor
+        SC->>Log: event session_resume
+        alt cursor phase is trial or post_rating
+            SC->>Trial: navigate to block b, post y, resumed = true
+            Trial->>API: GET presentation again
+            Log->>Log: new trial_shown after delay and paint, timer from zero
+            Note over Trial,Log: the interrupted attempt is discarded, nothing of it was saved as a trial
+        else cursor phase is block_survey
+            SC->>SC: navigate to BlockSurveyScreen, answers start empty
+        else cursor phase is exit_survey
+            SC->>SC: navigate to ExitSurveyScreen
+        else cursor phase is consent or instructions
+            SC->>SC: navigate to that screen
         end
+    end
+    opt no activity for STALE_MINUTES
+        Note over API,DB: the next new session start marks it abandoned and reuses its pid
     end
 ```
 
 **Edge cases**
-- **Working out the next step.** The resume point is the stored `cursor`, which is written on every phase change. On resume it is checked against the stored records (trial count per block, which block surveys exist), and a mismatch is shown to the researcher.
+- **Working out the next step.** The resume point is the stored `cursor`, which the server moves on every saved trial and survey and on every `PUT /cursor`. The server also checks submissions against it (a trial for the wrong post is refused with 400, a duplicate with 409), so the browser cannot skip or repeat a step.
 - **What `resumed` means.** `resumed = true` is set only on the trial that was interrupted. Later trials have `resumed = false`. The session also keeps a `resumeCount` for transparency.
-- **Interrupted confidence step.** If the crash happens after the decision but before Next, the decision was already saved and the cursor is at `post_rating`, so only the required confidence strip is shown again. The decision and its timing are kept.
+- **Interrupted confidence step.** The decision and confidence are saved together when Next is clicked. If the crash happens after the decision but before Next, the trial is shown again from the start and marked `resumed = true`.
+- **Events of the interrupted attempt.** Events flushed before the crash (every 5 s, and on `pagehide` via `sendBeacon`) stay in the `events` table, so the analysis can see the abandoned attempt. Duplicates are ignored on `(session_id, seq)`.
 - **Fact sheet and C panel.** Both start closed on the resumed trial, and `factSheetOpenMs` and `factorsExpanded` restart from zero with the new attempt.
-- **Abandoned sessions are kept.** They're marked `status = "abandoned"`, still exported, and excluded by default in the analysis. They're never deleted automatically. A replacement participant reuses the pid with a new `sessionId`.
-- **Two tabs.** Only one tab should run the study. A `storage` event listener detects writes from another tab and shows a warning, because both tabs would otherwise overwrite the same key.
+- **Abandoned sessions are kept.** They're marked `status = "abandoned"` from `/admin` or automatically after `STALE_MINUTES` without activity, still exported, and excluded by default in the analysis. They're never deleted automatically. The next new participant gets the freed pid with a new `sessionId`. The abandoned code itself cannot start again (409). Only a withdrawal (**Delete** on `/admin`) removes a session, with all its rows.
+- **Server restart.** Stopping and restarting the server loses nothing that was saved: SQLite commits each write, and the session resumes from the database.
+- **Two tabs.** Only one tab should run the study. If two tabs submit the same trial, the second gets a 409, so the data stays consistent.
 
 ---
 
-## 11. Admin export and optional submission
+## 11. Admin export
 
-The researcher opens `/admin`, which the participant flow never links to. `AdminScreen` asks `sessionStore` for every session, shows a summary with completion status, and offers five downloads with the columns defined in `data-model.md` §8: `trials.csv` (one row per trial), `surveys.csv` (one row per pid and block), `events.csv` (one row per interaction event), `exit.csv` (one row per participant) and `sessions.json` (everything, including plans and raw events). If `VITE_SUBMIT_URL` is set, completed sessions can also be POSTed as `text/plain` to a Google Apps Script web app. A failed POST never touches the local data, so the downloads are always the fallback.
+The researcher opens `/admin`, which the participant flow never links to. Admin routes need `ADMIN_TOKEN` when it is set and otherwise answer only from loopback (403 from anywhere else). `AdminScreen` asks the server for every session (`GET /api/admin/sessions`), shows a table with pid, status and trial count, and offers five downloads with the columns defined in `data-model.md` §8: `trials.csv` (one row per trial), `surveys.csv` (one row per pid and block), `events.csv` (one row per interaction event), `exit.csv` (one row per participant) and `sessions.json` (everything, including plans and raw events). Each file is built on the server from the SQLite tables. When `ADMIN_TOKEN` is set, every admin request carries the token.
 
 ```mermaid
 sequenceDiagram
     actor Researcher
     participant Admin as AdminScreen
-    participant SS as sessionStore
-    participant LS as localStorage
+    participant API as Server API
+    participant Exp as exporters
+    participant DB as SQLite
     participant Browser as Browser download
-    participant GAS as Apps Script at VITE_SUBMIT_URL
 
     Researcher->>Admin: open /admin
-    Admin->>SS: loadAll()
-    SS->>LS: getItem xai-study:sessions
-    LS-->>SS: sessions JSON
-    SS-->>Admin: sessions with status and submittedAt
-    Admin-->>Researcher: table of sessions, counts, unsynced badge
-    Researcher->>Admin: click Export
-    Admin->>SS: exportTrialsCSV()
-    SS->>SS: one row per trial, pid, conditionOrder, blockIndex, condition, postId, set, topic, positionInBlock
-    SS->>SS: plus aiLabel, groundTruth, isAiCorrect, errorType, difficulty, agreed, detectedError, confidence
-    SS->>SS: plus decisionTimeMs, factSheetOpened, factSheetOpenMs, explanationOpened, factorsExpanded pipe-separated, timeToFirstExpandMs, resumed
-    SS->>SS: plus sessionId, setRotation, trialIndex, nFactorsExpanded, claimRowExpanded, timing and status columns
-    SS-->>Admin: trials.csv text
-    Admin->>SS: exportSurveysCSV()
-    SS->>SS: one row per pid and block, trust_01 to trust_12 raw, trust_01_s to trust_12_s scored, trustMean
-    SS->>SS: plus fairness_1, fairness_2, fairnessMean, tension, frustrationTlx, frustrationTlxTouched, nWrongDetected
-    SS-->>Admin: surveys.csv text
-    Admin->>SS: exportEventsCSV()
-    SS->>SS: one row per event, pid, sessionId, seq, eventId, trialId, blockIndex, condition, postId, type, factorKey, tMs
-    SS-->>Admin: events.csv text
-    Admin->>SS: exportExitCSV()
-    SS-->>Admin: exit.csv text, one row per participant
-    Admin->>SS: exportJSON()
-    SS-->>Admin: sessions.json blob incl plans and events
-    Admin->>Browser: trigger downloads via Blob and object URL
+    Admin->>API: GET /api/admin/sessions
+    API->>DB: sessions with trial counts
+    DB-->>API: rows
+    API-->>Admin: AdminSessionRow list
+    Admin-->>Researcher: table of sessions with status and trials done
+    Researcher->>Admin: click trials.csv
+    Admin->>API: GET /api/admin/export/trials.csv
+    API->>Exp: trialsCsv(db)
+    Exp->>DB: all trial rows joined with session fields
+    Exp->>Exp: pid, sessionId, trialId, blockIndex, positionInBlock, trialIndex, condition, set, postId, topic
+    Exp->>Exp: plus aiLabel, groundTruth, isAiCorrect, errorType, difficulty, agreed, detectedError, confidence
+    Exp->>Exp: plus timing, fact sheet, explanation and factorsExpanded pipe-separated, resumed
+    Exp->>Exp: plus labelShownAt, respondedAt, conditionOrder, setRotation, status
+    Exp-->>API: trials.csv text
+    API-->>Browser: attachment with a dated file name
+    Researcher->>Admin: click surveys.csv, events.csv, exit.csv
+    Admin->>API: GET /api/admin/export/name
+    API->>Exp: surveysCsv, eventsCsv or exitCsv
+    Exp->>DB: rows
+    Exp-->>API: CSV text
+    API-->>Browser: attachment
+    Researcher->>Admin: click sessions.json
+    Admin->>API: GET /api/admin/export/sessions.json
+    API->>Exp: sessionsJson(db)
+    Exp->>DB: every session with blocks, trials, surveys, exit survey and events
+    Exp-->>API: JSON text
+    API-->>Browser: attachment
     Browser-->>Researcher: trials.csv, surveys.csv, events.csv, exit.csv, sessions.json
-    opt VITE_SUBMIT_URL is set
-        Researcher->>Admin: click Submit unsynced
-        loop each completed session with submittedAt null
-            Admin->>GAS: POST session JSON as text/plain
-            alt response ok
-                GAS-->>Admin: 200 ok
-                Admin->>SS: set submittedAt for sessionId
-                SS->>LS: setItem xai-study:sessions
-            else network error, timeout, or non-200
-                GAS-->>Admin: failure
-                Admin-->>Researcher: show failed, submittedAt stays null, keep local copy, use downloads
+```
+
+**Edge cases**
+- **Backups.** The exports are one backup. The other is the SQLite file itself: stop the server and copy `app/data/study.db` (see `app/README.md`). Exporting never changes the database.
+- **Deleting data.** Only a withdrawal deletes data: **Delete (withdrawal)** on `/admin` asks for a typed confirmation, then `DELETE /api/admin/sessions/:id` removes the session and, by cascade, all its rows.
+- **CSV safety.** Values are quoted following RFC 4180 and inner quotes are doubled. Free-text fields such as the exit comment are escaped, and newlines inside them are kept within quotes. Booleans are written `TRUE`/`FALSE` and nulls as empty fields. `factorsExpanded` (and any other list) is written as one pipe-separated cell of keys in order of first expansion, e.g. `claimVsRecord|source`, and is empty when the list is empty.
+- **Where scoring happens.** The server computes `trust_NN_s`, `trustMean` and `fairnessMean` when the block survey is saved and stores both raw and scored answers, so the analysis can recompute or rescore from the raw columns.
+- **Which sessions are exported.** In-progress and abandoned sessions are included in every file with a `status` column on `trials.csv`, so the researcher decides on exclusions during analysis.
+- **No third parties.** Exports are plain downloads from the study server. Nothing is sent to any other service.
+
+---
+
+## 12. Admin KPI polling
+
+`/admin` is a read-only monitoring dashboard. On load and then every 15 s it fetches the KPIs and the session list in parallel. `GET /api/admin/kpis` is computed by `server/kpi.ts` from SQL over the session, trial and survey tables: session counts by status, completion rate, median and p90 duration, progress toward N = 32 (minimum 16) and per cycle, per-condition agreement, detection, fact-sheet use, confidence, decision time, trust, fairness, tension and frustration, detection per error type, completed sessions per condition order, and completions per day. Only completed sessions feed the condition and error KPIs, and pilot pids ≥ 900 are excluded everywhere. The charts are small inline SVG bars drawn by `KpiCharts`; there is no chart library.
+
+```mermaid
+sequenceDiagram
+    actor R as Researcher
+    participant Admin as AdminScreen
+    participant Charts as KpiCharts
+    participant API as Server API
+    participant KPI as kpi.ts
+    participant DB as SQLite
+
+    R->>Admin: open /admin, enter token if one is set
+    loop on load, then every 15 s
+        par KPIs
+            Admin->>API: GET /api/admin/kpis with x-admin-token
+            API->>API: check token, or loopback when no token is set
+            alt not allowed
+                API-->>Admin: 403
+                Admin-->>R: ask for the admin token
+            else allowed
+                API->>KPI: computeKpis(db)
+                KPI->>DB: counts by status, durations, trials and surveys of completed sessions, pid below 900
+                DB-->>KPI: rows
+                KPI->>KPI: rates, medians, p90, by condition, by error type, balance, per day
+                KPI-->>API: Kpis
+                API-->>Admin: Kpis JSON
+                Admin->>Charts: render cards, condition table bars, balance grid
             end
+        and sessions
+            Admin->>API: GET /api/admin/sessions
+            API->>DB: sessions with progress and last_activity_at
+            API-->>Admin: AdminSessionRow list
         end
+    end
+    opt researcher acts on a session
+        R->>Admin: Mark abandoned or Delete for a withdrawal
+        Admin->>API: POST abandon or DELETE session
+        API->>DB: update status, or delete with cascade
+        Admin->>API: refresh KPIs and sessions now
     end
 ```
 
 **Edge cases**
-- **No CORS preflight.** The POST uses `Content-Type: text/plain` so the browser doesn't send a preflight request, which Apps Script web apps don't handle. The script parses the body as JSON. A timeout (about 10 s via `AbortController`) counts as a failure.
-- **Local data is never deleted.** A successful submission only sets `submittedAt`. Clearing local data is a separate admin action that requires typing a confirmation, and it's offered only after a download.
-- **CSV safety.** Values are quoted and inner quotes are doubled. Free-text fields such as the exit comment are escaped, and newlines inside them are kept within quotes. Cells that start with `=`, `+`, `-` or `@` get a leading apostrophe so spreadsheets don't run them as formulas. Booleans are written `TRUE`/`FALSE` and nulls as empty fields. `factorsExpanded` (and any other list) is written as one pipe-separated cell of keys in order of first expansion, e.g. `claimVsRecord|source`, and is empty when the list is empty.
-- **Where scoring happens.** `trustResponses[].scored`, `trustMean` and `fairnessMean` are computed at submit and recomputed from the raw answers on export; a mismatch is reported. The `trust_NN_s` columns come from that recomputation, so re-exporting is idempotent.
-- **Which sessions are exported.** Incomplete and abandoned sessions are included in every file with a `status` column, so the researcher decides on exclusions during analysis.
-- **Optional add-on.** If `VITE_SUBMIT_URL` isn't set, the Submit control doesn't appear at all. The core study path never depends on the network.
+- **Read-only.** Polling never writes. There is no start-session form on `/admin`; participants start themselves (diagram 1).
+- **Live sessions.** `in_progress` sessions appear in the counts and the sessions table (with last activity), but not in the condition or error KPIs, so partial data never moves the detection rates.
+- **Empty data.** Rates and means are `null` when there is nothing to compute, and the dashboard shows a dash instead of 0.
+- **Load.** Each poll is a handful of aggregate queries over at most a few thousand rows, which SQLite answers in milliseconds, so a 15 s refresh has no effect on participants' writes.
+- **Hidden tab.** The dashboard may pause polling while its tab is hidden and refresh immediately when it becomes visible again.
 
 ---
 
@@ -628,7 +715,7 @@ sequenceDiagram
 - [ai-design.md](ai-design.md): the Wizard-of-Oz `labelEngine`, explanation design and the wrong-label strategy
 - [research-positioning.md](research-positioning.md): why the domain moved to AI accuracy labels and how the study relates to prior work
 - [implementation-plan.md](implementation-plan.md): build order, owners and milestones for the app
-- [study-protocol.md](study-protocol.md): how a moderated session is run, from consent to debrief
+- [study-protocol.md](study-protocol.md): how a self-guided session runs, from the Welcome screen to the debrief
 - [stimuli.md](stimuli.md): final participant-facing wording for all 24 posts
 - [wireframes.md](wireframes.md): screen layouts for the trial, survey and admin screens
 - [_shared-decisions.md](_shared-decisions.md): the binding source of truth for every doc

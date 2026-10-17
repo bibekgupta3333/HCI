@@ -1,6 +1,8 @@
 # Design docs
 
-These are the planning docs for the Group 4 CEN5728 study app. No code exists yet. All diagrams are Mermaid and render on GitHub.
+These are the design docs for the Group 4 CEN5728 study app. The code is in [`../app/`](../app/README.md), and its run guide is [`app/README.md`](../app/README.md). All diagrams are Mermaid and render on GitHub.
+
+**Stack:** React 18 + TypeScript + Vite client, served by a local Node server (Express 5) that stores all responses in one SQLite file (`better-sqlite3`, `app/data/study.db`) and exports CSV/JSON from `/admin`. Ground truth stays on the server; the browser keeps only the active session id. This replaced the earlier plan of a static SPA with `localStorage` persistence (see [architecture.md](architecture.md), ADR-4).
 
 **v3 domain: AI accuracy labels on social media posts** (Deepthi's proposal). Participants read 24 made-up posts from a fictional town. Each post carries an AI label, "Likely accurate" or "Likely misleading", and a fact sheet that proves the post true or false. 8 of the labels are deliberately wrong: 4 false alarms and 4 misses. There are four explanation conditions:
 - A: no explanation
@@ -20,7 +22,7 @@ Main question: *When the AI label is wrong, do explanations help people catch it
 | [architecture.md](architecture.md) | Context and component diagrams, source tree, deployment view, ADRs |
 | [system-design.md](system-design.md) | Requirements, flows, screen specs, counterbalancing tables (pid 1–16), analysis plan, team, risks |
 | [sequence-diagrams.md](sequence-diagrams.md) | Sequence diagrams for assignment, trials A–D, fact sheet, wrong labels, surveys, recovery, export |
-| [data-model.md](data-model.md) | ER diagram (no database), field dictionary, TypeScript types, `posts.json` examples, exports, validation |
+| [data-model.md](data-model.md) | ER diagram, field dictionary, TypeScript types, `posts.json` examples, SQLite tables, exports, validation |
 | [ai-design.md](ai-design.md) | The Wizard-of-Oz labeller, ground truth, explanation design, error taxonomy, affect rationale |
 | [stimuli.md](stimuli.md) | Final wording for all 24 posts, fact sheets and explanations |
 | [wireframes.md](wireframes.md) | Wireframes for every screen, plus the screen flow |

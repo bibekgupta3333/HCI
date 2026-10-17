@@ -13,6 +13,8 @@ This document turns the study design into a buildable specification for the app,
 
 Where this doc and `_shared-decisions.md` disagree, `_shared-decisions.md` wins. Module and field names follow it, and `data-model.md` is the authority on field names and types. `stimuli.md` is the authority on all participant-facing wording, so the post text in the wireframes here is illustrative. The previous v2.1 design is archived at `archive/v2.1-agent-permission/system-design.md`.
 
+> **v2 app change (self-guided, once-only).** The study is now self-guided: anyone opens the site on a lab laptop or their own desktop or phone, types a participation code and starts. Each person takes part once (the code is stored only as a salted hash), the server assigns the pid, and `/admin` is read-only data and KPIs. The trial and survey screens are faster (inline confidence chips, keyboard shortcuts, progress bar, survey matrix), with a target of 15–20 minutes. Posts, conditions, counterbalancing and every measure are unchanged. The binding API is [app/CONTRACT.md](../app/CONTRACT.md). Persistence is SQLite on the server, not `localStorage`; older mentions of `sessionStore` below map to the server repository.
+
 > **Deviation from the approved proposal.** v3 departs from `proposal.txt` in three ways:
 > 1. **Domain:** loan approval becomes AI accuracy labels on fictional social media posts.
 > 2. **A fourth condition:** D (counterfactual) is added to A/B/C.
@@ -28,7 +30,9 @@ Where this doc and `_shared-decisions.md` disagree, `_shared-decisions.md` wins.
 
 | ID | Requirement |
 |---|---|
-| FR-1 | The researcher starts a session by entering a numeric participant ID (`pid`) on `/admin`. The app warns if that `pid` already has a stored session. |
+| FR-1 | The participant starts the session themselves on the Welcome screen (`/`) by typing a participation code (3–120 characters, e.g. a university email or student ID) and pressing Start or Enter. No researcher action is needed. The server assigns the `pid` (lowest free slot, abandoned slots reused). |
+| FR-1a | **Once-only.** The server stores only `HMAC-SHA256(salt, normalisedCode)`. A code with a completed or abandoned session is refused (409 `already_participated`, shown as "You've already taken part. Thank you!"); a code with a session in progress resumes it. After the exit survey the browser sets a `participated` flag that shows the thank-you message straight away. |
+| FR-1b | **Continue.** If the browser holds an active session id, the Welcome screen offers Continue. Typing the same code on another device also resumes. |
 | FR-2 | The participant must give informed consent before seeing any post. If they decline, the app goes straight to `DebriefScreen` and records no trial data. |
 | FR-3 | `InstructionsScreen` explains the task ("an AI has labeled each post; check whether you agree"), the two labels, the fact sheet, and the two buttons. It ends with one practice post that is not in the bank. |
 | FR-4 | All 24 posts and their fact sheets load from `src/data/posts.json`, and the survey items from `src/data/surveyItems.json`. All four condition views read the same post objects through `labelEngine.buildPresentation(post, condition)`. |
@@ -39,13 +43,17 @@ Where this doc and `_shared-decisions.md` disagree, `_shared-decisions.md` wins.
 | FR-9 | All four views render the shared `PostCard`, `LabelPanel` and "Fact sheet ▸" button. Only the explanation area differs. `conditionRegistry.ts` maps A–D to the views. |
 | FR-10 | `FactSheetPanel` opens from "Fact sheet ▸" on every trial in every condition. It shows the fact sheet's title, body (with the key fact) and source. It is identical across conditions and never mentions the label. |
 | FR-11 | On each trial the participant clicks **Agree with label** or **Disagree with label**. `agreed = true` means they went with the AI label. The choice is final once clicked. |
-| FR-12 | After the choice, `PostRatingStrip` asks for confidence (1–7), which is required. Only then does "Next" become available. |
+| FR-12 | After the choice, `PostRatingStrip` slides in on the same screen with confidence chips 1–7 ("How sure are you?"), which are required. Tapping a chip saves the trial and moves to the next post after a 1 s Undo window; there is no separate Next button. The next presentation is prefetched. |
+| FR-12a | **Keyboard.** `A` agree, `D` disagree, `1`–`7` confidence, `F` fact sheet, `W` "Why?" (C only), `Esc` closes a panel. A hint line lists them. On the block survey, number keys answer the focused row and move to the next. |
+| FR-12b | **Progress.** A top progress bar shows "Post n of 24" and "Part x of 4". |
 | FR-13 | `counterbalance.ts` assigns condition order, set-to-condition mapping and within-block post order, deterministically from `pid` (§4). |
-| FR-14 | After every block of 6 posts, `BlockSurveyScreen` asks, in a fixed order, 12 Jian trust items, then 2 fairness items, then `tension` (1–7), then the `frustrationTlx` slider (§3.3). |
+| FR-14 | After every block of 6 posts, `BlockSurveyScreen` asks on one compact screen, in a fixed order, 12 Jian trust items as a matrix (rows = items, columns = chips 1–7), then 2 fairness items, then `tension` (1–7), then the `frustrationTlx` slider (§3.3). An "x of 16 answered" counter is shown; Continue is enabled when all are answered. |
 | FR-15 | After block 4, `ExitSurveyScreen` asks demographics, social media use, how often they've seen platform labels, the preferred part, and an open comment. |
 | FR-16 | `logger.ts` records the per-trial record (§5.4), the per-block record, and a timestamped event stream. It is the only module that calls `labelEngine.getTruth(postId)`. |
-| FR-17 | `sessionStore.ts` writes the session to `localStorage` (`xai-study:sessions`) after every trial and every survey submit. |
-| FR-18 | `/admin` lists sessions and exports all of them as JSON and as CSV (one row per trial, plus a block-survey CSV and an exit-survey CSV). |
+| FR-17 | The server writes each trial, event batch and survey to SQLite the moment it is submitted, and stamps `last_activity_at` on every participant write. |
+| FR-18 | `/admin` lists sessions and exports all of them as JSON and as CSV (one row per trial, plus block-survey, event and exit-survey CSVs). It cannot start sessions. Admin routes require `ADMIN_TOKEN` when set, and answer only from loopback when it is not. |
+| FR-18a | **KPIs.** `/admin` shows, refreshed every 15 s from `GET /api/admin/kpis`: completed / target (N = 32, minimum 16), in progress, completion rate, median and p90 duration; per condition A–D trials, agreement, detection (all, false alarm, miss), fact-sheet open rate, mean confidence, median decision time, mean trust, fairness, tension and frustration; detection per error type; completed sessions per condition order (balance); completions per day. Completed sessions only; pilot pids ≥ 900 excluded. |
+| FR-18b | **Stale sessions.** An in-progress session with no activity for `STALE_MINUTES` (default 120) is marked abandoned when the next session starts, and its pid is reused. |
 | FR-19 | If the page is reloaded mid-session, the app resumes at the first trial or survey with no saved response. The resumed trial gets `resumed = true`. |
 | FR-20 | `DebriefScreen` says the AI was scripted, that 8 of the 24 labels were deliberately wrong, and that every post, person and agency was fictional. It shows each wrong-label post with its fact sheet and the correct answer. |
 | FR-21 | Every trial record carries `errorType` (`false_alarm`/`miss`/null), `difficulty` and `detectedError`. The block record carries `nWrongDetected`, so H1a/H1b and H3 can be computed from the export alone. |
@@ -55,15 +63,15 @@ Where this doc and `_shared-decisions.md` disagree, `_shared-decisions.md` wins.
 
 | ID | Requirement |
 |---|---|
-| NFR-1 | Static SPA (React 18 + TypeScript + Vite). It has no server and no database. It runs with `npm install && npm run dev`, or from the `npm run build` output. |
-| NFR-2 | It runs in current desktop Chrome, Firefox and Edge at a viewport of 1280×720 or larger. Mobile is out of scope. |
+| NFR-1 | React 18 + TypeScript + Vite SPA served by one Express 5 process with a SQLite file (`better-sqlite3`). It runs with `npm install && npm run dev`, or `npm run build && npm start`. |
+| NFR-2 | It runs in current Chrome, Firefox, Edge and Safari, on desktop (1280 px) and on phones (from 360 px wide). On narrow screens the fact sheet is a bottom sheet and the survey matrix becomes one chip row per item; touch targets are at least 44 px; `prefers-reduced-motion` is respected. |
 | NFR-3 | Times are measured with `performance.now()` to the millisecond. UI work between the label appearing and the click adds no more than one frame (about 16 ms) of bias. |
 | NFR-4 | Assignment is reproducible: the same `pid` always gives the same order, sets and post sequence (mulberry32 seeded by `pid`). |
 | NFR-5 | At most the trial in progress can be lost (FR-17). |
 | NFR-6 | Visual parity: in all four conditions the post card, label, "Fact sheet ▸" button and the Agree/Disagree buttons have the same layout, size and position. The explanation area has a fixed minimum height. |
 | NFR-7 | No correctness leak. The payload from `buildPresentation` is allow-listed and carries no `groundTruth`, `isAiCorrect`, `errorType` or `difficulty`. No AI confidence score is shown. Every label appears after the same fixed ~800 ms "AI is checking…" delay. B, C-detail and D text use the same confident tone on right and wrong labels. |
-| NFR-8 | Data is anonymous: only `pid` plus answers, with no names or emails. All posts, accounts, places and agencies are fictional, with no real brands and no health-risk claims that could cause harm if believed. |
-| NFR-9 | A full session takes about 30–35 minutes (§3.5). Affect is asked once per block, not per trial. |
+| NFR-8 | Data is anonymous: only `pid` plus answers, with no names or emails. The participation code is kept only as a salted HMAC hash and is never logged. All posts, accounts, places and agencies are fictional, with no real brands and no health-risk claims that could cause harm if believed. |
+| NFR-9 | A full session takes about 15–20 minutes (§3.5). Affect is asked once per block, not per trial. |
 | NFR-10 | Accessibility: everything works from the keyboard. Color is never the only cue: labels carry ✓/⚠ plus text, and factor rows carry ✓/✗ plus text. Contrast meets WCAG AA. |
 
 ### 1.3 Traceability
@@ -95,7 +103,8 @@ Where this doc and `_shared-decisions.md` disagree, `_shared-decisions.md` wins.
 | FR-16, NFR-3 | Proposal: "time-to-decision"; CLAUDE.md: log C expansions | H6, H1b |
 | FR-21 | False alarm vs miss, the v3 headline comparison | H1a, H1b, H3 |
 | FR-17 – FR-19, NFR-5 | Proposal: survey/data collection layer | All |
-| FR-1, FR-2, FR-20, NFR-8 | Ethics, deception, moderated session, debrief | — |
+| FR-1, FR-1a, FR-1b, FR-2, FR-20, NFR-8 | Ethics, deception, self-guided once-only session, debrief | — (one person = one row set, so the within-subjects design holds) |
+| FR-12a, FR-12b, FR-18a, NFR-2 | v2 PI decision: fast, interactive, any device; KPIs for monitoring unmoderated collection | All (data quality and balance) |
 | NFR-7 | Errors must be found from the data, not from cues | RQ1, RQ2 |
 | FR-22 | Optional consequence banner and anxiety scale (Deepthi's "drop if too big") | RQ3 (exploratory) |
 | NFR-2, NFR-10 | `implementation.txt`: target devices, run steps, demo | — |
@@ -109,16 +118,21 @@ Where this doc and `_shared-decisions.md` disagree, `_shared-decisions.md` wins.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Consent
+    [*] --> Welcome
+    Welcome --> AlreadyTookPart : flag set or code returns 409
+    AlreadyTookPart --> [*]
+    Welcome --> Consent : new code, 201
+    Welcome --> Resume : code in progress 200, or Continue
+    Resume --> Block : at saved cursor
     Consent --> Debrief : declined
     Consent --> Instructions : agreed
     Instructions --> Practice : continue
     Practice --> Block : start part 1
     state Block {
         [*] --> Trial
-        Trial --> PostRating : agree or disagree with label
-        PostRating --> Trial : next, posts left in part
-        PostRating --> BlockSurvey : sixth post rated
+        Trial --> Confidence : agree or disagree with label
+        Confidence --> Trial : chip tapped, posts left in part
+        Confidence --> BlockSurvey : sixth post rated
         BlockSurvey --> [*] : submitted
     }
     Block --> Block : parts 2 to 4
@@ -127,7 +141,8 @@ stateDiagram-v2
     Debrief --> [*]
 ```
 
-- `PostRating` is the `PostRatingStrip` inside `TrialScreen`. It is a second step on the same screen, and the route doesn't change.
+- `Confidence` is the `PostRatingStrip` chip row inside `TrialScreen`. It is a second step on the same screen, and the route doesn't change. Tapping a chip (or pressing `1`–`7`) submits after a 1 s Undo window.
+- `Welcome` is `/`. It shows the participation-code field, Continue when an active session id is stored, or the thank-you message when the participated flag is set.
 - The route is `/trial/:block/:pos`, and `StudyContext` holds the indices, so a reload lands in the right place (FR-19).
 - Stored records use `blockIndex` 1–4 and `positionInBlock` 1–6. The trial id is `${pid}-${blockIndex}-${positionInBlock}`.
 
@@ -135,23 +150,25 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-    [*] --> AdminHome
-    AdminHome --> NewSession : enter pid
-    NewSession --> DuplicateWarning : pid exists
-    DuplicateWarning --> AdminHome : cancel
-    DuplicateWarning --> Preview : continue as replacement session
-    NewSession --> Preview : pid is new
-    Preview --> ParticipantFlow : start session
-    ParticipantFlow --> AdminHome : researcher returns to admin
-    AdminHome --> Export : download JSON or CSV
-    Export --> AdminHome
-    AdminHome --> ClearConfirm : clear all data
-    ClearConfirm --> AdminHome : confirm only after export
+    [*] --> Access
+    Access --> Forbidden : not loopback and no valid token
+    Access --> Dashboard : loopback, or valid x-admin-token
+    Dashboard --> Dashboard : poll KPIs and sessions every 15 s
+    Dashboard --> Preview : enter pid to preview assignment
+    Preview --> Dashboard
+    Dashboard --> AbandonConfirm : mark stalled session abandoned
+    AbandonConfirm --> Dashboard
+    Dashboard --> DeleteConfirm : withdrawal request by email
+    DeleteConfirm --> Dashboard : all rows of the session deleted
+    Dashboard --> Export : download CSV or JSON
+    Export --> Dashboard
+    Forbidden --> [*]
 ```
 
-- `/admin` isn't linked from any participant screen. The researcher opens it by URL.
-- **Preview** shows the assignment for that `pid`: order, sets, post IDs per block, and where the wrong labels fall. The researcher checks it against §4.3 before handing over the laptop. Preview also shows the optional flags (`consequenceBanner`, anxiety scale), which are off by default.
-- A replacement session reuses the `pid` with a new `sessionId`. The earlier session is kept with status `abandoned`.
+- `/admin` isn't linked from any participant screen. The researcher opens it by URL, on the server machine (loopback) or with the `ADMIN_TOKEN` entered in the token field.
+- The dashboard is **data and KPIs only**: it cannot start sessions. Participants start themselves (§2.1).
+- **Preview** (`GET /api/admin/assignments/:pid`) shows the assignment for any pid, including pilot pids 901+, without creating anything. Use it to check §4.3.
+- A pid whose session was abandoned (by the researcher or after `STALE_MINUTES` idle) is given to the next new participant, with a new `sessionId`. The abandoned session's rows are kept with status `abandoned`.
 
 ---
 
@@ -163,13 +180,14 @@ All screens are in `src/study/`. "Logged" means an event goes to `logger.ts` as 
 
 | Screen | Shows | Inputs | Logged / stored |
 |---|---|---|---|
-| `AdminScreen` | Session list (pid, start, status, trial count), new-session form, assignment preview, optional flags, export buttons, clear button | pid (integer ≥ 1), buttons | `session_created {pid, sessionId, assignment, flags}` |
-| `ConsentScreen` | Purpose ("how people judge AI labels on social media posts"), about 30–35 min, voluntary, may stop at any time, anonymous data use, contact. The deception isn't disclosed until the debrief, which ethics must approve. | "I agree" / "I do not agree" | `consent {given}` |
+| `WelcomeScreen` (`/`) | Study title, 2-line description, "About 15–20 minutes", participation-code field with a one-line privacy note ("Only used to make sure each person takes part once; stored scrambled."), Start; Continue when an active session is stored; "You've already taken part. Thank you!" when the participated flag is set or the server returns 409 | Code (3–120 characters), Start / Enter, Continue | `POST /api/sessions` → 201 new, 200 resumed, 409 already participated |
+| `AdminScreen` | KPI cards, per-condition table with inline SVG bars, balance grid, sessions table (pid, status, order, progress x/24, started, last activity), Abandon / Delete, export buttons, token field, pid preview. No start form. | Token, pid (preview), buttons | Nothing participant-side; reads `/api/admin/kpis` and `/api/admin/sessions` every 15 s |
+| `ConsentScreen` | Short plain text plus a "Read full consent details" disclosure: purpose ("how people judge AI labels on social media posts"), about 15–20 min, self-guided (contact email instead of "call the researcher"), voluntary, may stop at any time, anonymous data use, contact. The deception isn't disclosed until the debrief, which ethics must approve. | "I agree" / "I do not agree" | `consent {given}` |
 | `InstructionsScreen` | The scenario, a labeled tour of a `PostCard` and `LabelPanel`, the two labels (✓ Likely accurate, ⚠ Likely misleading), what "Fact sheet ▸" does, and the note "The AI can make mistakes" (the same for every pid). Then 1 practice post (below). | "Start" (enabled after the practice post is answered) | `instructions_viewed {durationMs}`, `practice_done {agreed, factSheetOpened}` (not a trial record) |
-| `TrialScreen` | Header "Part x of 4 · Post y of 6", `PostCard`, `LabelPanel`, the condition's explanation area, "Fact sheet ▸", "Agree with label" / "Disagree with label", then `PostRatingStrip` | Agree/Disagree; then confidence 1–7 and "Next". In C: "Why?" and the row toggles | `trial_shown`, `factsheet_opened`/`factsheet_closed`, `explanation_opened`/`explanation_closed`, `factor_expanded`/`factor_collapsed {key}`, `decision {agreed}`, `confidence {value}`, `visibility {state}`, `trial_saved` |
-| `BlockSurveyScreen` | "About the AI labels in Part N", then 16 items in a fixed order (§3.3) | All 16 required; the slider must be touched | `block_survey_submitted {blockIndex, condition, jian[12], fairness[2], tension, frustrationTlx, frustrationTlxTouched, durationMs}` |
-| `ExitSurveyScreen` | Age range, gender (optional), social media use (1–7), how often they've seen platform labels (1–7), preferred part (1–4, with a one-line reminder of each part's look), comment | Preferred part and social media use are required | `exit_survey_submitted {…}` |
-| `DebriefScreen` | Thank-you, then: (1) the AI was not real and every label was scripted; (2) 8 of the 24 labels were deliberately wrong, 4 true posts labeled misleading and 4 false posts labeled accurate, to see whether people noticed; (3) each wrong-label post with its fact sheet and the correct answer; (4) agreeing with a wrong label is common and says nothing bad about the participant; (5) all posts, people, places and agencies were fictional; (6) a pointer to support if they felt stressed, and a reminder they can withdraw their data. No back button. | — | `session_completed` |
+| `TrialScreen` | Progress bar "Post n of 24" + "Part x of 4", keyboard hint line, `PostCard`, `LabelPanel`, the condition's explanation area, "Fact sheet ▸", "Agree with label" / "Disagree with label", then `PostRatingStrip` | Agree/Disagree (`A`/`D`); then a confidence chip 1–7 (`1`–`7`), which submits after a 1 s Undo window. `F` fact sheet; in C: "Why?" (`W`) and the row toggles | `trial_shown`, `factsheet_opened`/`factsheet_closed`, `explanation_opened`/`explanation_closed`, `factor_expanded`/`factor_collapsed {key}`, `decision {agreed}`, `confidence {value}`, `visibility {state}`, `trial_saved` |
+| `BlockSurveyScreen` | "About the AI labels in Part N", then 16 items on one screen in a fixed order (§3.3): trust matrix, fairness ×2, tension, TLX slider, with an "x of 16 answered" counter | All 16 required; the slider must be touched; number keys answer the focused row | `block_survey_submitted {blockIndex, condition, jian[12], fairness[2], tension, frustrationTlx, frustrationTlxTouched, durationMs}` |
+| `ExitSurveyScreen` | One screen; chips or radios for questions with ≤ 6 options. Age range, gender (optional), social media use (1–7), how often they've seen platform labels (1–7), preferred part (1–4, with a one-line reminder of each part's look), comment | Preferred part and social media use are required | `exit_survey_submitted {…}` |
+| `DebriefScreen` | Thank-you, then: (1) the AI was not real and every label was scripted; (2) 8 of the 24 labels were deliberately wrong, 4 true posts labeled misleading and 4 false posts labeled accurate, to see whether people noticed; (3) each wrong-label post with its fact sheet and the correct answer; (4) agreeing with a wrong label is common and says nothing bad about the participant; (5) all posts, people, places and agencies were fictional; (6) a pointer to support if they felt stressed, and a reminder they can withdraw their data by emailing the contact address with their pid (shown). Self-guided: no "call the researcher"; the real facts sit in a "Show the real facts" disclosure. No back button. | — | `session_completed` |
 
 Participants never see condition letters or names. They see "Part 1–4", and the export maps each part to its condition.
 
@@ -177,15 +195,15 @@ Participants never see condition letters or names. They see "Part 1–4", and th
 
 ### 3.2 `TrialScreen` and its parts
 
-**Layout.** On the left: `PostCard`, with "Fact sheet ▸" under it. On the right: `LabelPanel`, the explanation area (fixed minimum height, scrolls inside itself), and the two buttons. `PostRatingStrip` appears under the buttons after a decision.
+**Layout.** A progress bar runs across the top. On wide screens: on the left `PostCard`, with "Fact sheet ▸" under it; on the right `LabelPanel`, the explanation area (fixed minimum height, scrolls inside itself), and the two buttons. `PostRatingStrip` slides in under the buttons after a decision. On phones (< 720 px) everything stacks in one column, and the fact sheet opens as a bottom sheet. A hint line lists the keyboard shortcuts.
 
 **Sequence on each trial:**
 1. The trial mounts. `PostCard` shows at once. `LabelPanel` shows "AI is checking…" for a fixed ~800 ms. Both buttons and the explanation area stay disabled during the delay.
 2. The label is revealed. `shownAt` is set (§5.1). In C, the "Why?" panel starts collapsed on every trial.
 3. The participant may open "Fact sheet ▸" (any condition) and, in C, "Why?" and its rows.
 4. They click Agree or Disagree. Both buttons lock, `FactSheetPanel` closes, and the explanation area stays visible but can no longer be toggled.
-5. `PostRatingStrip` appears: "How confident are you in your answer?" 1 = not at all confident, 7 = completely confident. The rating is required: "Next" stays disabled until a value is picked.
-6. "Next" saves the trial (§5.5) and advances.
+5. `PostRatingStrip` slides in on the same screen: "How sure are you?" chips 1 = not at all sure … 7 = completely sure. The rating is required.
+6. Tapping a chip (or pressing `1`–`7`) shows a 1 s "Undo" link, then saves the trial (§5.5) and advances to the prefetched next post. There is no Next button.
 
 | Component | Contents | Notes |
 |---|---|---|
@@ -193,16 +211,16 @@ Participants never see condition letters or names. They see "Part 1–4", and th
 | `LabelPanel` | "AI label:" then "✓ Likely accurate" or "⚠ Likely misleading" | Same size and place in every condition. Never shows a confidence score. |
 | Explanation area | A: empty. B: `staticExplanation`. C: "Why? ▸" opens `factors[]` rows (Source, Claim vs record, Wording), each with `label`, `displayValue`, ✓/✗ from `passes`, and a toggle to its `detail`. D: `counterfactualExplanation`. | Fixed minimum height, so the buttons never move (NFR-6). |
 | "Fact sheet ▸" | Toggles `FactSheetPanel` | Same place and look in every condition. |
-| `FactSheetPanel` | A side panel over the post column: `factSheet.title`, `factSheet.body` (contains the key fact), `factSheet.source` (e.g. "Riverton Public Works (fictional)"), and "Close ◂" | Overlay, so opening it moves nothing. Never mentions the label or the AI. Highlights nothing. Closes on decision. |
-| `PostRatingStrip` | Confidence 1–7 radio row and "Next" | Required. Keyboard: arrow keys and Enter. |
+| `FactSheetPanel` | A side panel over the post column on wide screens, a bottom sheet on phones: `factSheet.title`, `factSheet.body` (contains the key fact), `factSheet.source` (e.g. "Riverton Public Works (fictional)"), and "Close ◂" | Overlay, so opening it moves nothing. Never mentions the label or the AI. Highlights nothing. Closes on decision. |
+| `PostRatingStrip` | Confidence chips 1–7 and a 1 s Undo link | Required. Keyboard: `1`–`7`. Chips are ≥ 44 px. |
 
 ### 3.3 `BlockSurveyScreen`
 
-Items load from `surveyItems.json` and are always shown in this order, on one scrolling page, with no randomisation. The affect items come last so they can't color the trust and fairness answers.
+Items load from `surveyItems.json` and are always shown in this order, on one compact screen, with no randomisation. The 12 trust items form a `LikertMatrix` (rows = items, columns = chips 1–7; on phones each item becomes its own chip row). The affect items come last so they can't color the trust and fairness answers.
 
 | # | Item(s) | Field | Format | Hypothesis |
 |---|---|---|---|---|
-| 1–12 | Jian et al. (2000) Trust in Automation, with "the system" worded as "the AI labels". Items 1–5 are reverse-scored at analysis (8 − x). | `jian[0..11]` | 7-point radio row, 1 = not at all, 7 = extremely | H4 |
+| 1–12 | Jian et al. (2000) Trust in Automation, with "the system" worded as "the AI labels". Items 1–5 are reverse-scored at analysis (8 − x). | `jian[0..11]` | Matrix row of 7 chips, 1 = not at all, 7 = extremely | H4 |
 | 13 | "The AI labels were fair to the people who posted" | fairness item 1 | 7-point radio row, 1 = strongly disagree, 7 = strongly agree | H5 |
 | 14 | "The AI labels treated posts consistently" | fairness item 2 | 7-point radio row | H5 |
 | 15 | "How tense did you feel while judging the posts in this part?" | `tension` | 7-point radio row, 1 = not at all tense, 7 = extremely tense | H3, H3a, H3b |
@@ -322,13 +340,13 @@ The example is **p15** (S3, `false_alarm`, `subtle`). A TRUE post, "Good news: R
 +--------------------------------------------+
 ```
 
-**After a decision (`PostRatingStrip`, under the locked buttons)**
+**After a decision (`PostRatingStrip`, inline under the locked buttons)**
 
 ```
-+- How confident are you in your answer? (required) -----+
-|  not at all  ( )1 ( )2 ( )3 ( )4 ( )5 ( )6 ( )7  fully |
-|                                             [ Next ]   |
-+--------------------------------------------------------+
++- How sure are you? -----------------------------------+
+|  not at all [1][2][3][4][5][6][7] completely          |
+|  tap a number (or press 1-7) to save · Undo (1 s)     |
++-------------------------------------------------------+
 ```
 
 **How p15 works in each condition:**
@@ -338,23 +356,24 @@ The example is **p15** (S3, `false_alarm`, `subtle`). A TRUE post, "Good news: R
 
 ### 3.5 Session-length budget
 
-Target: about **30–35 minutes** (NFR-9). The pilot (§9.3) times each phase from the event stream.
+Target: about **15–20 minutes** (NFR-9). The pilot (§9.3) times each phase from the event stream, and `/admin` shows the live median and p90 duration of completed sessions.
 
 | Phase | Contents | Estimated time |
 |---|---|---|
-| Consent | Purpose, data use, agree/decline | 1.5–2 min |
-| Instructions + practice | Scenario, PostCard/label tour, fact sheet, buttons, 1 practice post | 3–4 min |
-| Trials | 4 parts × 6 posts = 24 trials at about 30–40 s each (800 ms delay, reading, optional fact sheet, decision, confidence) | 12–16 min |
-| Block surveys | 4 × 16 items at about 1.5–2 min each | 6–8 min |
-| Exit survey | Demographics, social media and label exposure, preferred part, comment | 1.5–2 min |
-| Debrief | Scripted-AI disclosure, the 8 wrong labels with facts, support info, questions | 2–3 min |
-| **Total** | | **≈ 26–35 min** |
+| Welcome | Participation code, Start | 0.3 min |
+| Consent | Short text (full details in a disclosure), agree/decline | 1 min |
+| Instructions + practice | 3 bullets and the inline practice post, no reading lock | 1–1.5 min |
+| Trials | 4 parts × 6 posts = 24 trials at about 18–25 s each (800 ms delay, reading, optional fact sheet, two taps) | 7.5–10 min |
+| Block surveys | 4 × 16 items on one screen (trust matrix, fairness, tension, slider) at about 1–1.5 min each | 4–6 min |
+| Exit survey | One screen of chips and radios, comment | 1 min |
+| Debrief | Scripted-AI disclosure, "Show the real facts", support info | 1–1.5 min |
+| **Total** | | **≈ 16–21 min** |
 
-If the pilot runs over 35 minutes, cut in this order:
+If the pilot runs over 20 minutes, cut in this order:
 1. The optional consequence banner and anxiety scale (§3.6). These are off by default anyway, so they're the first thing dropped if anyone has turned them on.
-2. Shorten the instructions tour.
+2. Shorten the instructions and consent summary.
 
-Never cut a hypothesis measure (agreement, confidence, Jian, fairness, tension, frustration).
+Never cut a hypothesis measure (agreement, confidence, Jian, fairness, tension, frustration), and never cut the 800 ms delay, which is part of the design.
 
 ### 3.6 Optional measures (off by default)
 
@@ -430,7 +449,7 @@ Each cell is condition / set for that block. pid 17 starts the cycle again (same
 
 **Recruitment:**
 - The target is **N = 32** (2 full cycles). The minimum is 16. Deepthi's "20 or more" rounds up to 32, because 20 doesn't complete a cycle.
-- A withdrawn participant's slot is refilled with the same `pid` and a new `sessionId`, so the cycle stays balanced.
+- The server assigns pids itself: the lowest pid with no in-progress or completed session. An abandoned or withdrawn participant's slot is refilled with the same `pid` and a new `sessionId` by the next person who starts, so the cycle stays balanced.
 - Pilot sessions use `pid` ≥ 900 and are left out of the analysis.
 
 ### 4.4 Within-block shuffle
@@ -511,7 +530,7 @@ function constrainedShuffle(xs: Post[], rng: () => number): Post[] {
 - While a trial is active, the logger listens to `document.visibilitychange`.
 - On hidden it records `hiddenSince`. On visible it adds the gap to `hiddenMs` and increments `hiddenCount`. Each change is logged.
 - A trial gets `timingFlag = true` if `hiddenCount > 0` or `decisionTimeMs > 120000`. Flagged trials are never deleted. Analysis can exclude or winsorize them.
-- Sessions are moderated, and the researcher asks participants not to switch tabs. These fields are there to catch accidents.
+- Sessions are **unmoderated** (self-guided), so these fields are the main attention signals. `hiddenMs`, `hiddenCount`, `blurCount` and `timingFlag` are kept on every trial, and session duration (start to completion) is in the session record. The analysis plan should pre-register an attention rule, for example excluding sessions with many flagged trials or a total time far below the median.
 
 ### 5.4 Per-trial record
 
@@ -530,11 +549,11 @@ function constrainedShuffle(xs: Post[], rng: () => number): Post[] {
 **Guards:**
 - **Synchronous lock:** Agree and Disagree share one `useRef` flag, `decidedRef`. It is set on the first click before any state update, so a second click (or React batching) can't register two decisions.
 - **Carry-over clicks:** a decision counts only if both its `pointerdown` and its `click` land after `shownAt`. A double-click on the previous "Next" can't answer the new trial. The buttons are disabled during the ~800 ms delay. Focus starts on the header, not on a button, so a stray Enter does nothing.
-- **Next:** disabled after the first press. The reducer ignores `NEXT_TRIAL` if that trial is already saved.
+- **Confidence chip:** the first chip (or key `1`–`7`) starts the 1 s Undo window; further chips during the window change the value, and the submit fires once. The reducer ignores `NEXT_TRIAL` if that trial is already saved, and the server rejects a duplicate with 409.
 - **Survey submit:** validation runs first, then the button locks.
 - **Reload mid-trial:** the trial is shown again with a fresh timer, gets `resumed = true`, and a `session_resume` event is logged.
 
-**Persistence:** `sessionStore.save()` writes the whole storage root under `xai-study:sessions` after every decision, every confidence + Next, and every survey submit. If a write fails (quota, private mode), a blocking banner tells the participant to call the researcher. The app never carries on without saving.
+**Persistence:** each trial, event batch and survey is one transactional SQLite write on the server (`POST /api/sessions/:id/trials` and friends). If a write fails, the screen shows a retry message and does not advance; it tells the participant to contact the study email if the problem persists. The app never carries on without saving.
 
 ---
 
@@ -591,7 +610,7 @@ Each condition view has its own owner, as the proposal asks. Infrastructure is s
 
 | ID | Risk | Effect on validity | Mitigation |
 |---|---|---|---|
-| R-1 | **Session length and fatigue with 24 posts** (4 parts + 4 surveys) | Careless answers in later parts; trust, affect and detection drift with `blockIndex` | Budget about 30–35 min (§3.5); affect asked per block, not per trial; Williams orders spread fatigue evenly across conditions; `blockIndex` in every model; the pilot times each phase and checks for straight-lining on the Jian items; optional measures off by default and dropped first; a short "take a breath" line between parts |
+| R-1 | **Session length and fatigue with 24 posts** (4 parts + 4 surveys) | Careless answers in later parts; trust, affect and detection drift with `blockIndex` | Budget about 15–20 min (§3.5) with two taps per post and one-screen surveys; affect asked per block, not per trial; Williams orders spread fatigue evenly across conditions; `blockIndex` in every model; the pilot times each phase and checks for straight-lining on the Jian items; optional measures off by default and dropped first; a short "take a breath" line between parts |
 | R-2 | **Fact sheet makes detection trivial** (everyone opens it every time and catches everything) | Ceiling effect, so H1/H2 can't separate conditions | The fact sheet is on demand, not shown by default; a neutral 1–3 sentence record that never mentions the label; `clear` and `subtle` wrong labels in every set; the pilot target is 20–80% detection per error type. If detection is at ceiling, make the subtle items subtler (e.g. p04 "lowest since 2019" vs "record low"), not hide the fact sheet. |
 | R-3 | **Fact sheet too hard to use** (people never open it, or the key fact is buried) | Floor effect; detection measures guessing, not explanation help | The key fact appears in the first sentence of the body; the practice post requires one fact-sheet check; `factSheetOpened` is logged, and the pilot asks "did you know you could open the fact sheet?" |
 | R-4 | **Difficulty confounded with error type** (resolved). An earlier bank had 3 of 4 false alarms `clear` and 3 of 4 misses `subtle`. The difficulty swap in S3 (p15 now `subtle`, p16 now `clear`) fully crosses the two: false alarms p03, p21 `clear` and p09, p15 `subtle`; misses p10, p16 `clear` and p04, p22 `subtle`. | Resolved by the swap, so the H1a headline (misses caught less) is no longer confounded with difficulty | `difficulty` is still logged and stays in the H1 model as a covariate (and the `difficulty × errorType` cross-tab in `postBank.test.ts` checks 2/2/2/2). If pilot wording edits change an item's difficulty, the post-bank owner re-checks the crossing in `_shared-decisions.md` and `stimuli.md`. |
@@ -603,7 +622,10 @@ Each condition view has its own owner, as the proposal asks. Infrastructure is s
 | R-10 | **Explanation text gives the answer away, or reads as obviously wrong** | B, C and D stop being comparable | One wording guide (`stimuli.md` §1): same tone on right and wrong labels, a plausible non-decisive factor on wrong labels, word limits; reviewed by someone who didn't write the item |
 | R-11 | **C's "Why?" is never opened** | H1b and H2 reduce to "C ≈ A" | `explanationOpened` is logged and reported; the instructions mention "Why?" as neutrally as "Fact sheet ▸" |
 | R-12 | **Matched sets aren't equivalent** | Set difficulty confounded with condition | Set rotation pairs each set with each condition 4 times per cycle; `(1|postId)`; per-set detection checked in the pilot |
-| R-13 | **Data loss** | Missing participants unbalance the cycle | Save after every trial; resume on reload; export after every session; clearing needs confirmation and comes after export; replacement sessions reuse the `pid` |
+| R-13 | **Data loss** | Missing participants unbalance the cycle | Save after every trial; resume on reload or with the same code; export after every session day; pids of abandoned sessions are reused for the next participant (ADR-12 in `architecture.md`) |
+| R-15 | **Duplicate participation with different codes** | The same person appears twice, so their data is not independent and they have already seen the debrief (they know 8 labels are wrong) | The server refuses a repeated code (409) and the browser flag thanks a returning visitor, but a new code gets through. Ask for an institutional code (university email or student ID) in the invitation; consent says to take part once; the exit survey can ask "Have you done this study before?"; at analysis, flag sessions from the same day with near-identical answer patterns. Accept the residual risk and report it. |
+| R-16 | **Unmoderated attention** (no researcher in the room; phones, distractions, speeding) | Noisy detection and decision times; inflated agreement from clicking through | Keep and export every attention signal: `hiddenMs`, `hiddenCount`, `blurCount`, `timingFlag` (hidden or > 120 s), fact-sheet use, per-trial decision time and total session duration. Pre-register exclusion rules (e.g. median decision time < 2 s, or many flagged trials). `/admin` shows median and p90 duration to spot speeders early. |
+| R-17 | **Admin data exposed on a reachable server** | Privacy breach | Admin routes answer only from loopback unless `ADMIN_TOKEN` is set; serve participants over HTTPS through a reverse proxy; the participation code is only stored as a salted hash |
 | R-14 | **Approval not obtained** (domain change, 4th condition, affect measures) | The project doesn't match what was approved | Written rationale in `research-positioning.md`; Professor Hamam's approval and ethics approval before any real data |
 
 ---
@@ -627,6 +649,8 @@ There is no code yet. These suites are written alongside the engine.
 ### 9.2 Manual checks before the pilot
 
 - Use `/admin` Preview for pids 1–16 and compare with §4.3.
+- Start sessions from the Welcome screen with a fresh code, a repeated code (expect resume, then 409 after completion), and on a 360 px phone. Check the keyboard shortcuts and the bottom-sheet fact sheet.
+- From another machine, check that `/admin` returns 403 without a token.
 - Run a full session in Chrome, Firefox and Edge. Reload mid-trial and mid-survey, and check that the session resumes.
 - Confirm the four views keep the buttons in exactly the same place, including C with every row expanded.
 - Export JSON and CSV, and load the CSV in R or pandas with no manual cleanup.
@@ -636,7 +660,7 @@ There is no code yet. These suites are written alongside the engine.
 **Who:** the 6 team members, as pids 901–906. These get orders 0, 1, 2, 3, 0, 1, rotation 1 for 901–904 and rotation 2 for 905–906. Their data is excluded from analysis. Members who wrote post content or explanation text are noted, and their detection rates aren't used to judge difficulty. If possible, 2–4 people outside the team also pilot (pids 907+).
 
 **What gets checked:**
-- Session length per phase (target 30–35 min)
+- Session length per phase (target 15–20 min)
 - Detection rate per error type and per difficulty (target 20–80%)
 - Whether the fact sheet was found and used
 - Whether "Why?" was opened
@@ -646,7 +670,7 @@ There is no code yet. These suites are written alongside the engine.
 - Flagged trials
 - Whether the debrief left anyone believing a false post
 
-**Exit criteria:** no blocking bugs; all unit tests pass; detection is inside the target band for both error types; the CSV loads with no cleanup; the session takes 35 minutes or less. If any post changes, `posts.json` gets a new `postBankVersion`, which is stored in each session, before real data collection.
+**Exit criteria:** no blocking bugs; all unit tests pass; detection is inside the target band for both error types; the CSV loads with no cleanup; the session takes 20 minutes or less. If any post changes, `posts.json` gets a new `postBankVersion`, which is stored in each session, before real data collection.
 
 ---
 
@@ -669,7 +693,7 @@ The data model already logs what these would need, so the course build doesn't c
 - [`ai-design.md`](ai-design.md): the Wizard-of-Oz label engine, explanation rules and wrong-label design
 - [`research-positioning.md`](research-positioning.md): why the domain changed to AI content labels, and how the study sits against prior work
 - [`implementation-plan.md`](implementation-plan.md): build order, milestones and who does what when
-- [`study-protocol.md`](study-protocol.md): the moderated session script, consent, timings and debrief procedure
+- [`study-protocol.md`](study-protocol.md): the self-guided session procedure, consent, timings and debrief procedure
 - [`stimuli.md`](stimuli.md): final participant-facing wording for all 24 posts, fact sheets and explanations (the authority on wording)
 - [`wireframes.md`](wireframes.md): wireframes for every study screen
 - [`_shared-decisions.md`](_shared-decisions.md): the binding source of truth for every doc

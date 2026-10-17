@@ -1,81 +1,119 @@
 # Wireframes: AI label study app (low fidelity)
 
-This document gives a low-fidelity ASCII wireframe for every screen in the v3 study app, where participants judge made-up social media posts from the fictional town of Riverton and decide whether to agree with an AI accuracy label. The goal is that every team member builds the same layout, and that the report can show the planned interface next to screenshots of the running app. Each wireframe is at most 46 characters wide so it reads on a phone and in the PDF. The real app is laid out for a desktop browser (see `architecture.md`), so treat these as content and order, not pixel layout. Under each wireframe, 2–4 notes say what is logged and which interaction rules apply. Field and event names follow `data-model.md`. Participant-facing wording (instructions, the practice post, post cards, fact sheets, B/C/D text) is copied from `stimuli.md`, which wins if the two ever differ; `_shared-decisions.md` is binding on the post bank and condition rules.
+This document gives a low-fidelity ASCII wireframe for every screen in the v3 study app, where participants judge made-up social media posts from the fictional town of Riverton and decide whether to agree with an AI accuracy label. The goal is that every team member builds the same layout, and that the report can show the planned interface next to screenshots of the running app. Each wireframe is at most 46 characters wide so it reads on a phone and in the PDF. The real app works from 360 px phones to 1280 px laptops (see `architecture.md`); on wide screens the trial puts the post and the label side by side, and on phones it stacks them (§15). Treat these as content and order, not pixel layout. **v2:** the study is self-guided and once-only (Welcome screen, §0), each post takes two taps (decision, then an inline confidence chip, §9), a progress bar and keyboard hints sit on every trial, the block survey is one matrix screen (§10), and `/admin` is a read-only KPI dashboard (§13). Under each wireframe, 2–4 notes say what is logged and which interaction rules apply. Field and event names follow `data-model.md`. Participant-facing wording (instructions, the practice post, post cards, fact sheets, B/C/D text) is copied from `stimuli.md`, which wins if the two ever differ; `_shared-decisions.md` is binding on the post bank and condition rules.
 
-Conventions: `[ Button ]` is a button, `( )` is a radio option, `▸` is a collapsed row, `▾` an expanded one, `✓`/`⚠` are the two label icons, and `♡`/`↻` are likes and reposts.
+Conventions: `[ Button ]` is a button, `[1]` a tappable chip, `○`/`●` an empty/filled matrix cell, `▓░` the progress bar, `( )` is a radio option, `▸` is a collapsed row, `▾` an expanded one, `✓`/`⚠` are the two label icons, and `♡`/`↻` are likes and reposts.
 
 The previous design (v2.1, approving an AI agent's actions) has its own wireframes in `archive/v2.1-agent-permission/wireframes.md`.
 
 ---
 
-## 1. Consent (`ConsentScreen`)
+## 0. Welcome (`WelcomeScreen`, `/`)
 
 ```
 ┌──────────────────────────────────────────┐
 │ Judging AI labels on social media posts  │
 ├──────────────────────────────────────────┤
-│ This study looks at how people use AI    │
-│ labels when they read social media posts.│
+│ Read 24 made-up posts, each with an AI   │
+│ label, and decide if you agree. Short    │
+│ questions after each part.               │
 │                                          │
-│ • About 30–35 minutes                    │
-│ • You will read 24 made-up posts and     │
-│   answer short questions, including how  │
-│   tense or frustrated you felt           │
-│ • Taking part is voluntary; you can stop │
-│   at any time                            │
-│ • Answers are stored under a number,     │
-│   not your name                          │
-│ • Contact: research team (on handout)    │
+│ About 15–20 minutes · desktop or phone   │
 │                                          │
-│ [ I agree ]         [ I do not agree ]   │
+│ Participation code                       │
+│ ┌──────────────────────────────────────┐ │
+│ │ e.g. your university email           │ │
+│ └──────────────────────────────────────┘ │
+│ Only used so each person takes part      │
+│ once. Stored scrambled, never as typed.  │
+│                                          │
+│                                [ Start ] │
+│ Enter also starts.                       │
+├──────────────────────────────────────────┤
+│ Started already on this device?          │
+│                             [ Continue ] │
 └──────────────────────────────────────────┘
 ```
 
-- "I agree" logs `consent_given` and sets `consentAt`.
+- **Start** (or Enter) sends `POST /api/sessions { participantCode }`. 201 → consent; 200 → resumes at the saved cursor; 409 → the "already taken part" state below; 400 → "Please enter 3–120 characters". The raw code is never stored; the server keeps only its salted hash.
+- **Continue** appears only when the browser holds `xai-study:activeSessionId`. No researcher step and no pid entry anywhere.
+- When `localStorage["xai-study:participated"]` is set (after a finished exit survey) or the server answers 409, the screen shows only:
+
+```
+┌──────────────────────────────────────────┐
+│ Judging AI labels on social media posts  │
+├──────────────────────────────────────────┤
+│ You've already taken part. Thank you!    │
+│                                          │
+│ Questions? Contact: study email (TBD)    │
+└──────────────────────────────────────────┘
+```
+
+## 1. Consent (`ConsentScreen`)
+
+```
+┌──────────────────────────────────────────┐
+│ Before you start                         │
+├──────────────────────────────────────────┤
+│ This study looks at how people use AI    │
+│ labels on social media posts.            │
+│                                          │
+│ • About 15–20 minutes, on your own       │
+│ • 24 made-up posts and short questions,  │
+│   including how tense you felt           │
+│ • Voluntary: stop at any time            │
+│ • Stored under a number, not your name   │
+│ • Contact: study email (placeholder)     │
+│                                          │
+│ [ Read full consent details ▸ ]          │
+│                                          │
+│ [✓] I have read this and agree to take   │
+│     part                                 │
+│                             [ Continue ] │
+│ [ I do not agree ]                       │
+└──────────────────────────────────────────┘
+```
+
+- The short text is always visible; "Read full consent details ▸" expands the full consent text in place. Continue enables only once the box is ticked, and logs `consent_given` and sets `consentAt`.
 - "I do not agree" goes straight to the Debrief (short version), and no trial data is recorded.
-- No back button, and no link to `/admin` appears anywhere in the participant flow.
+- Self-guided wording: no "call the researcher" anywhere; questions go to the contact email placeholder. No back button and no link to `/admin`.
 
 ## 2. Instructions (`InstructionsScreen`)
 
 ```
 ┌──────────────────────────────────────────┐
-│ How this study works                     │
+│ How it works                             │
 ├──────────────────────────────────────────┤
-│ You will read 24 short social media      │
-│ posts from Riverton, a small town in     │
-│ Alder County. The town, the people and   │
-│ the accounts are all made up.            │
+│ • An AI labeled each post ✓ Likely       │
+│   accurate or ⚠ Likely misleading.       │
+│ • Open [ Fact sheet ▸ ] to check the     │
+│   official record, any time.             │
+│ • Agree or Disagree, then tap how sure   │
+│   you are (1–7). Keys: A D 1–7 F.        │
+├──────────────────────────────────────────┤
+│ Practice · not scored                    │
+│ ┌──────────────────────────────────────┐ │
+│ │ Riverton Parks ✔ · @RivertonParks    │ │
+│ │ The Birch Road dog park reopens      │ │
+│ │ Saturday, April 4, with new fencing  │ │
+│ │ and a separate small-dog area.       │ │
+│ └──────────────────────────────────────┘ │
+│ AI label: ✓ Likely accurate              │
+│                         [ Fact sheet ▸ ] │
+│ [Agree with label] [Disagree with label] │
+│ How sure? [1][2][3][4][5][6][7]          │
 │                                          │
-│ An AI tool has read each post and given  │
-│ it an AI label:                          │
-│   ✓ Likely accurate: claim is correct    │
-│   ⚠ Likely misleading: claim is wrong    │
-│                                          │
-│ In some parts of the study, the label    │
-│ comes with an explanation from the AI.   │
-│                                          │
-│ Every post has a fact sheet: the         │
-│ official town or county record on the    │
-│ topic. Open it any time with             │
-│ [ Fact sheet ▸ ].                        │
-│                                          │
-│ For each post, choose one:               │
-│  [ Agree with label ]                    │
-│  [ Disagree with label ]                 │
-│ Then rate how confident you are.         │
-│                                          │
-│ 4 parts of 6 posts, with a short         │
-│ questionnaire after each part. First     │
-│ comes one practice post (not scored).    │
-│                       [ Start practice ] │
+│                      [ Start the study ] │
 └──────────────────────────────────────────┘
 ```
 
-- Wording is the instructions text in `stimuli.md` §2 (condensed here to fit). "Start practice" logs `practice_start`.
-- The button stays disabled for the first 5 s so the page can't be skipped by accident.
-- The text never says that labels may be wrong, and it is the same for every pid.
+- One short screen: 3 bullets, then the practice post inline (details in §3). There is no 5 s reading lock any more.
+- The keyboard hint names the shortcuts once; trials repeat it in a small hint line. The text never says that labels may be wrong, and it is the same for every pid.
+- "Start the study" enables after the practice post has been answered, logs `practice_complete` and `block_start`, and opens post 1 of 24.
 
-## 3. Practice post (part of `InstructionsScreen`)
+## 3. Practice post (inline on `InstructionsScreen`, §2)
+
+The practice card from §2 in more detail:
 
 ```
 ┌──────────────────────────────────────────┐
@@ -102,7 +140,7 @@ The previous design (v2.1, approving an AI agent's actions) has its own wirefram
 │ Fact sheet: the record to check it with  │
 │                                          │
 │ [Agree with label] [Disagree with label] │
-│ then the confidence strip (§9)           │
+│ then the confidence chips (§9)           │
 │ (buttons work here, nothing is saved)    │
 │                    [ Start the study ]   │
 └──────────────────────────────────────────┘
@@ -116,7 +154,8 @@ The previous design (v2.1, approving an AI agent's actions) has its own wirefram
 
 ```
 ┌──────────────────────────────────────────┐
-│ Part 3 of 4 · Post 2 of 6                │
+│ Post 14 of 24 · Part 3 of 4              │
+│ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░  │
 ├──────────────────────────────────────────┤
 │ ┌─ POST (PostCard) ────────────────────┐ │
 │ │ Riverton Neighbors ✔                 │ │
@@ -133,14 +172,16 @@ The previous design (v2.1, approving an AI agent's actions) has its own wirefram
 │ ┌─ EXPLANATION AREA (fixed height) ────┐ │
 │ │   varies by condition, see §5        │ │
 │ └──────────────────────────────────────┘ │
-│                          [ Fact sheet ▸ ]│
+│                         [ Fact sheet ▸ ] │
 │ [Agree with label] [Disagree with label] │
+│ A agree · D disagree · F fact sheet      │
 └──────────────────────────────────────────┘
 ```
 
-- `PostCard`, `LabelPanel`, [Fact sheet ▸] and the two buttons are identical in every condition. Only the explanation area changes, and its fixed height keeps the buttons in the same place. A verified account (like this one) shows `✔` after the display name; an unverified one shows nothing.
-- Logs `trial_shown` (sets `labelShownAt`, the zero point for `tMs`), `decision_agree` / `decision_disagree` (sets `respondedAt`, `agreed`) and `visibility_hidden` / `visibility_visible`. `decisionTimeMs = decisionTimeRawMs - hiddenMs`, so fact-sheet and "Why?" time counts.
-- Both buttons share one synchronous lock, and a click only counts if it lands after `trial_shown`. The confidence strip (§9) follows on the same route.
+- The progress bar shows "Post n of 24" overall and "Part x of 4". `PostCard`, `LabelPanel`, [Fact sheet ▸] and the two buttons are identical in every condition. Only the explanation area changes, and its fixed height keeps the buttons in the same place. A verified account shows `✔` after the display name.
+- Keyboard: `A` agree, `D` disagree, `F` fact sheet, `W` "Why?" (C only), `Esc` closes a panel, `1`–`7` confidence once the chips show. The hint line lists them; on phones it is hidden.
+- Logs `trial_shown` (sets `labelShownAt`), `decision_agree` / `decision_disagree` (sets `respondedAt`, `agreed`) and `visibility_hidden` / `visibility_visible`. `decisionTimeMs = decisionTimeRawMs - hiddenMs`.
+- Both buttons share one synchronous lock, and a click or key only counts after `trial_shown`. The confidence chips (§9) slide in on the same screen. The next post is prefetched while this one is shown.
 
 ## 5. Explanation area variants (p15)
 
@@ -280,7 +321,8 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 
 ```
 ┌──────────────────────────────────────────┐
-│ Part 3 of 4 · Post 2 of 6                │
+│ Post 14 of 24 · Part 3 of 4              │
+│ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░  │
 ├──────────────────────────────────────────┤
 │ ┌─ POST ───────────────────────────────┐ │
 │ │ (PostCard already visible)           │ │
@@ -291,38 +333,41 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 │ ┌─ EXPLANATION AREA ───────────────────┐ │
 │ │ (empty, same height)                 │ │
 │ └──────────────────────────────────────┘ │
-│                          [ Fact sheet ▸ ]│
+│                         [ Fact sheet ▸ ] │
 │ [Agree with label] [Disagree with label] │
 │     (disabled)           (disabled)      │
 └──────────────────────────────────────────┘
 ```
 
-- The delay is fixed at ~800 ms in every condition and for every post, so timing never hints at correctness.
-- Both buttons, "Why?" and [Fact sheet ▸] are disabled during the delay. `trial_shown` is logged (and `labelShownAt` set) in a `requestAnimationFrame` after the label paints, so the delay isn't counted.
+- The delay is fixed at ~800 ms in every condition and for every post, so timing never hints at correctness. It stays in v2 because it is part of the design.
+- Buttons, "Why?", [Fact sheet ▸] and all shortcut keys are disabled during the delay. `trial_shown` is logged in a `requestAnimationFrame` after the label paints, so the delay isn't counted.
 - Focus starts on the page heading, not on a button, so a stray Enter can't decide the trial.
 
 ## 9. Per-post confidence strip (`PostRatingStrip`)
 
 ```
 ┌──────────────────────────────────────────┐
-│ Part 3 of 4 · Post 2 of 6                │
+│ Post 14 of 24 · Part 3 of 4              │
+│ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░  │
 ├──────────────────────────────────────────┤
-│ You chose: Disagree with label           │
+│ (post, label and explanation stay        │
+│  on screen above)                        │
 │                                          │
-│ How confident are you in your decision?  │
-│ 1 = Not at all confident                 │
-│ 7 = Extremely confident                  │
-│  1   2   3   4   5   6   7               │
-│ ( ) ( ) ( ) ( ) ( ) ( ) ( )              │
-│ (required: Next stays disabled until a   │
-│  value is chosen)                        │
-│                              [ Next ]    │
+│ [Agree with label] [■Disagree w. label]  │
+│         (locked after the choice)        │
+│ ┌─ slides in ──────────────────────────┐ │
+│ │ How sure are you?                    │ │
+│ │ [1] [2] [3] [4] [5] [6] [7]          │ │
+│ │ not at all          completely       │ │
+│ └──────────────────────────────────────┘ │
+│ Saving… 5   [ Undo ]   (1 s)             │
+│ 1–7 rate · Esc closes a panel            │
 └──────────────────────────────────────────┘
 ```
 
-- Shown after every post, on the same route as the trial; the decision is already locked and can't be changed. Wording and anchors are the `confidence` item in `surveyItems.json`.
-- Confidence is **required**: there is no skip, Next enables only once a value is chosen, and it disables after one press. Each choice logs `confidence_submit`; the last value is stored in the trial's `confidence` (1–7).
-- The record is saved to `localStorage` after the decision and again after Next. Post 6 leads to the block survey.
+- Inline on the trial screen: after Agree or Disagree, the chosen button stays highlighted and locked, and the chip row slides in under it (no slide when `prefers-reduced-motion` is set). Chips are at least 44 px.
+- Confidence is **required**. Tapping a chip (or pressing `1`–`7`) shows "Saving… · Undo" for 1 s, then saves the trial and shows the next (prefetched) post. There is no Next button. Each chip choice logs `confidence_submit`; the value at submit is stored in `confidence` (1–7).
+- Undo within the 1 s window cancels the submit and lets the participant pick again. Post 6 of a part leads to the block survey.
 
 ## 10. Block survey (`BlockSurveyScreen`)
 
@@ -330,41 +375,32 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 ┌──────────────────────────────────────────┐
 │ About the AI labels in Part 2            │
 ├──────────────────────────────────────────┤
-│ 1 = Not at all      7 = Extremely        │
-│  1. The AI labels are deceptive.         │
-│     ( )( )( )( )( )( )( )                │
-│  2. The AI labels behave in an           │
-│     underhanded manner.                  │
-│     ( )( )( )( )( )( )( )                │
-│  ⋮  items 3–11                           │
-│ 12. I am familiar with the AI labels.    │
-│     ( )( )( )( )( )( )( )                │
+│ 1 = Not at all · 7 = Extremely           │
+│                      1 2 3 4 5 6 7       │
+│  1 Deceptive         ○ ○ ○ ● ○ ○ ○       │
+│  2 Underhanded       ○ ○ ● ○ ○ ○ ○       │
+│ ▶3 Suspicious        ○ ○ ○ ○ ○ ○ ○       │
+│  ⋮ items 4–11                            │
+│ 12 Familiar          ○ ○ ○ ○ ○ ○ ○       │
 ├──────────────────────────────────────────┤
-│ 1 = Strongly disagree 7 = Strongly agree │
-│ 13. The AI labels were fair to the       │
-│     people who posted.                   │
-│     ( )( )( )( )( )( )( )                │
-│ 14. The AI labels treated posts          │
-│     consistently.                        │
-│     ( )( )( )( )( )( )( )                │
+│ 1 Strongly disagree · 7 Strongly agree   │
+│ 13 Fair to posters   ○ ○ ○ ○ ○ ○ ○       │
+│ 14 Consistent        ○ ○ ○ ○ ○ ○ ○       │
 ├──────────────────────────────────────────┤
-│ 15. How tense did you feel while judging │
-│     the posts in this part?              │
-│     1 = not at all  7 = extremely tense  │
-│     ( )( )( )( )( )( )( )                │
-│ 16. How irritated, stressed or annoyed   │
-│     did you feel during this part?       │
-│     Very low                  Very high  │
-│     0 ├───────────●───────────┤ 100      │
-│                  50 (not yet set)        │
+│ 15 How tense did you feel in this part?  │
+│    [1][2][3][4][5][6][7]                 │
+│ 16 How irritated, stressed or annoyed?   │
+│    Very low ├─────●─────┤ Very high      │
+│             50 (not yet set)             │
 ├──────────────────────────────────────────┤
-│                          [ Continue ]    │
+│ 2 of 16 answered · keys 1–7 answer ▶ row │
+│                       [ Continue ] (off) │
 └──────────────────────────────────────────┘
 ```
 
-- Fixed order: 12 Jian items (`jian-01`…`jian-12`; items 1–5 are reverse-scored into `trustResponses[].scored` at submit and recomputed at export), then the 2 fairness items, then `tension` (1–7), then `frustrationTlx` (NASA-TLX frustration, 0–100 in steps of 5).
-- All 16 items are required, and Continue names any that are missing. The slider starts at 50 but only counts once the participant moves it (`frustrationTlxTouched`), so an untouched default is never stored. The value shows under the thumb.
-- Logs `block_survey_submit` and saves the block's `survey` record; `nWrongDetected` is computed from the block's trials. The heading says "Part N" and never names the condition. Continue disables once pressed.
+- One compact screen. The 12 Jian items are a matrix (rows = items, columns = 1–7); the short stems here stand for the full item text from `surveyItems.json`, which the app shows. Then the 2 fairness items, `tension` (1–7 chips) and `frustrationTlx` (NASA-TLX frustration, 0–100 in steps of 5). Items 1–5 are reverse-scored by the server.
+- Keyboard: `▶` marks the focused row; a number key answers it and moves focus to the next row. The counter "x of 16 answered" updates live, and Continue enables only at 16 of 16.
+- The slider starts at 50 but only counts once moved (`frustrationTlxTouched`). Logs `block_survey_submit`; `nWrongDetected` is computed by the server. The heading says "Part N" and never names the condition. On phones each trust item becomes its own chip row (§15).
 
 ## 11. Exit survey (`ExitSurveyScreen`)
 
@@ -372,37 +408,31 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 ┌──────────────────────────────────────────┐
 │ A few last questions                     │
 ├──────────────────────────────────────────┤
-│ Age range        [ 18–24          ▾ ]    │
-│ Gender (opt.)    [ prefer not say ▾ ]    │
-│ Education        [ some college   ▾ ]    │
+│ Age  [18–24][25–34][35–44][45+][skip]    │
+│ Gender (optional)                        │
+│   [woman][man][non-binary][other][skip]  │
+│ Education [ some college        ▾ ]      │
 │                                          │
-│ How often do you use social media? *     │
-│ ( ) never      ( ) less than weekly      │
-│ ( ) weekly     ( ) daily  ( ) many/day   │
-│                                          │
-│ How often have you seen accuracy or      │
-│ fact-check labels on real platforms? *   │
-│ ( ) never  ( ) rarely  ( ) sometimes     │
-│ ( ) often                                │
+│ Social media use? *                      │
+│   [never][<weekly][weekly][daily][many]  │
+│ Seen fact-check labels before? *         │
+│   [never][rarely][sometimes][often]      │
 │                                          │
 │ Which part did you prefer? *             │
-│ ( ) Part 1  [thumbnail]                  │
-│ ( ) Part 2  [thumbnail]                  │
-│ ( ) Part 3  [thumbnail]                  │
-│ ( ) Part 4  [thumbnail]                  │
-│ ( ) No preference                        │
+│   [Part 1][Part 2][Part 3][Part 4][none] │
 │                                          │
 │ Any comments? (no personal info)         │
 │ ┌──────────────────────────────────────┐ │
 │ │                                      │ │
+│ │                                      │ │
 │ └──────────────────────────────────────┘ │
-│                            [ Submit ]    │
+│                               [ Submit ] │
 └──────────────────────────────────────────┘
 ```
 
-- Required: social media use, label exposure and preferred part. The parts are shown as thumbnails in the session's own order, and the export maps them back to A/B/C/D.
+- One screen. Questions with 6 or fewer options are chips or radios; only education (more options) stays a select. Required: social media use, label exposure and preferred part. Parts are shown in the session's own order, and the export maps them back to A/B/C/D.
 - The comment is capped at 1000 characters.
-- Logs `exit_survey_submit`, and sets `status = completed` and `completedAt`.
+- Logs `exit_survey_submit`, sets `status = completed` and `completedAt`, and sets `localStorage["xai-study:participated"] = "1"`.
 
 ## 12. Debrief (`DebriefScreen`)
 
@@ -410,72 +440,70 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 ┌──────────────────────────────────────────┐
 │ Thank you!                               │
 ├──────────────────────────────────────────┤
-│ • The AI labels were not made by a real  │
-│   AI. Every label was scripted by the    │
-│   research team.                         │
+│ • The AI labels were scripted by the     │
+│   research team, not made by a real AI.  │
 │ • 8 of the 24 labels were wrong on       │
 │   purpose: 4 true posts were labeled     │
-│   misleading and 4 false posts were      │
-│   labeled accurate.                      │
+│   misleading, 4 false posts accurate.    │
 │ • Agreeing with a wrong label is common  │
 │   and says nothing bad about you.        │
-│ • Riverton, Alder County, every account  │
-│   and every agency were made up.         │
+│ • Riverton, every account and agency     │
+│   were made up.                          │
 │                                          │
 │ [ Show the real facts ▾ ]                │
 │ ┌──────────────────────────────────────┐ │
 │ │ Tap water met all 12 limits in March │ │
-│ │  → TRUE. All 12 tests were within    │ │
-│ │    safety limits.                    │ │
-│ │ Parking now costs $4 an hour         │ │
-│ │  → FALSE. It is still $2 an hour.    │ │
+│ │ → TRUE. All 12 tests were within     │ │
+│ │   safety limits.                     │ │
 │ │ ⋮ (all 8 wrong-label posts)          │ │
 │ └──────────────────────────────────────┘ │
 │                                          │
-│ Please call the researcher now.          │
+│ Your participant number: 7               │
+│ To withdraw your data or ask a           │
+│ question, email: study email (TBD)       │
+│ You can close this tab now.              │
 └──────────────────────────────────────────┘
 ```
 
-- Logs `session_complete`, and triggers the optional POST to `VITE_SUBMIT_URL` if one is set.
-- The facts list covers all 8 wrong-label posts (p03, p04, p09, p10, p15, p16, p21, p22), whichever ones this participant saw, so no false claim leaves the room uncorrected.
-- No back button and no navigation away. A declined consent lands here too, with only the thank-you and contact lines.
+- Self-guided: no "call the researcher". The participant number is shown so a withdrawal request by email can name the session; the contact address is a placeholder until ethics approves it.
+- "Show the real facts" lists all 8 wrong-label posts (p03, p04, p09, p10, p15, p16, p21, p22), whichever this participant saw, so no false claim goes uncorrected. Logs `session_complete`.
+- No back button. A declined consent lands here too, with only the thank-you and contact lines.
 
 ## 13. Admin (`AdminScreen`, `/admin`, opened by URL only)
 
 ```
 ┌──────────────────────────────────────────┐
-│ Researcher admin                         │
+│ Study dashboard · updated 14:32:05       │
 ├──────────────────────────────────────────┤
-│ New session                              │
-│ Participant ID [  7  ]  [ Preview ]      │
-│ ┌─ Assignment preview, pid 7 ──────────┐ │
-│ │ Williams order   C → D → B → A       │ │
-│ │ Set rotation     1                   │ │
-│ │ Part 1 · C · S4  20 23 21 19 22 24   │ │
-│ │ Part 2 · D · S1  04 01 05 03 06 02   │ │
-│ │ Part 3 · B · S3  13 16 18 14 15 17   │ │
-│ │ Part 4 · A · S2  11 07 10 12 09 08   │ │
-│ │ wrong-label positions                │ │
-│ │   3,5 · 1,4 · 2,5 · 3,5              │ │
-│ └──────────────────────────────────────┘ │
-│ ⚠ pid 7 already has a session (attempt 2)│
-│                     [ Start session ]    │
+│ ┌─────────┐┌─────────┐┌───────┐┌──────┐  │
+│ │Completed││In prog. ││Compl. ││Median│  │
+│ │ 11 / 32 ││    2    ││ 85 %  ││17 min│  │
+│ └─────────┘└─────────┘└───────┘└──────┘  │
+│ Cycle 1: 11/16 · Cycle 2: 0/16           │
 ├──────────────────────────────────────────┤
-│ Sessions                                 │
-│ pid  started      status     trials      │
-│ 5    10-20 09:02  completed  24/24       │
-│ 6    10-20 10:15  completed  24/24       │
-│ 7    10-21 13:40  abandoned  11/24       │
+│ Cond Detect   FA/Miss  Trust  Tension    │
+│ A    ██░░ 41% 55/27%   ████   ██░        │
+│ B    ██░░ 45% 59/32%   █████  █░░        │
+│ C    ███░ 64% 68/59%   ████   ██░        │
+│ D    ██░░ 50% 64/36%   ████   █░░        │
 ├──────────────────────────────────────────┤
-│ [ Export JSON ]  [ Export CSV ]          │
-│ [ Clear all data ]  (needs export first) │
+│ Balance ABDC 3 · BCAD 3 · CDBA 3 · DACB 2│
+├──────────────────────────────────────────┤
+│ pid status    order prog  last act.      │
+│  12 in_prog.  DACB  9/24  2 min  [Ab]    │
+│  11 completed CDBA 24/24  1 h            │
+│   4 abandoned DACB  3/24  3 h    [Del]   │
+├──────────────────────────────────────────┤
+│ Export [trials.csv] [surveys.csv]        │
+│        [events.csv] [exit.csv] [json]    │
+│ Token [ •••••• ]   Preview pid [ 7 ]▸    │
 └──────────────────────────────────────────┘
 ```
 
-- "Start session" logs `session_start` for the new session. Exports aren't logged.
-- The preview comes from `assign(pid)` in `counterbalance.ts`: order `williams[(pid-1) % 4]` (pid 7 → CDBA), rotation `floor((pid-1)/4) % 4`, and set `S[(conditionIndex + rotation) % 4]`. The post order shown is illustrative; the two wrong labels are never both in positions 1–2.
-- A duplicate pid shows the warning, and continuing creates a new `sessionId` with the same pid.
-- "Clear all data" stays disabled until an export has been done in this browser, and then asks for confirmation.
+- **Data and KPIs only: there is no start-session form.** Refreshes every 15 s from `GET /api/admin/kpis` and `GET /api/admin/sessions`. KPI definitions are in `data-model.md` §8.6; they use completed sessions only and exclude pilot pids ≥ 900.
+- The condition table uses small inline SVG bars (no chart library): detection, false-alarm vs miss detection, trust and tension. The balance row shows completed sessions per Williams order.
+- Sessions table: pid, status, order, progress x/24, last activity, with **Mark abandoned** (`[Ab]`) and **Delete (withdrawal)** (`[Del]`, typed confirmation). Export buttons download the five files.
+- Without `ADMIN_TOKEN` the page works only on the server machine (loopback); from anywhere else the API returns 403 and the page asks for the token. "Preview pid" shows any pid's assignment without creating anything.
 
 ## 14. Consequence banner (optional, off by default)
 
@@ -498,13 +526,68 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 - Not built unless the team adds it. When on, it is set per session (`consequenceBanner = true`) and shows on every trial in every condition, above the post, at a fixed height.
 - It is static text: no interaction and no extra events. The flag is exported with the session so analysis can separate the two groups.
 
+## 15. Phone layout (360 px)
+
+The trial on a phone. Everything stacks in one column; the progress bar stays at the top, the buttons are full width, and the fact sheet opens as a bottom sheet over the lower half instead of a side panel.
+
+```
+┌──────────────────────────────────────────┐
+│ Post 14/24 · Part 3/4                    │
+│ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░  │
+├──────────────────────────────────────────┤
+│ ┌──────────────────────────────────────┐ │
+│ │ Riverton Neighbors ✔ · 6h            │ │
+│ │ Good news: Riverton tap water met    │ │
+│ │ all 12 safety limits in March.       │ │
+│ └──────────────────────────────────────┘ │
+│ AI label: ⚠ Likely misleading            │
+│ (explanation area)                       │
+│ [ Fact sheet ▴ ]                         │
+│                                          │
+│ [      Agree with label       ]          │
+│ [     Disagree with label     ]          │
+├──────────────────────────────────────────┤
+│ ┌─ bottom sheet (Fact sheet) ──────────┐ │
+│ │ ═══ drag or Esc to close             │ │
+│ │ March Water Quality Report           │ │
+│ │ All 12 results were within safety    │ │
+│ │ limits.                              │ │
+│ │ Source: Riverton Water Dept (fict.)  │ │
+│ └──────────────────────────────────────┘ │
+└──────────────────────────────────────────┘
+```
+
+- Same content and order as §4; only the layout changes. Touch targets are at least 44 px. The confidence chips (§9) slide in under the buttons as on desktop.
+- The bottom sheet closes with the handle, a tap outside or `Esc`, and logs the same `fact_sheet_open` / `fact_sheet_close` events as the side panel.
+- The block survey matrix becomes one chip row per item:
+
+```
+┌──────────────────────────────────────────┐
+│ About the AI labels in Part 2            │
+├──────────────────────────────────────────┤
+│ 3. I am suspicious of the AI labels'     │
+│    intent, action, or outputs.           │
+│ [1] [2] [3] [4] [5] [6] [7]              │
+│ not at all            extremely          │
+│                                          │
+│ 4. I am wary of the AI labels.           │
+│ [1] [2] [3] [4] [5] [6] [7]              │
+│                                          │
+│ ⋮                                        │
+├──────────────────────────────────────────┤
+│ 5 of 16 answered    [ Continue ] (off)   │
+└──────────────────────────────────────────┘
+```
+
 ---
 
 ## Screen flow
 
 ```mermaid
 flowchart TD
-    Admin["Admin: new session + preview"] -->|"Start session"| Consent
+    Welcome["Welcome: participation code"] -->|"Start, new code"| Consent
+    Welcome -->|"Continue, or same code"| Resume["Resume at saved cursor"]
+    Welcome -->|"already took part"| Thanks["Thank-you message"]
     Consent -->|"I do not agree"| Debrief
     Consent -->|"I agree"| Instr["Instructions"]
     Instr --> Practice["Practice post"]
@@ -514,13 +597,15 @@ flowchart TD
     Fact -->|"close"| Trial
     Trial -->|"Why? (C only)"| Factors["Factor rows expanded"]
     Factors --> Trial
-    Trial -->|"Agree / Disagree with label"| Conf["Confidence 1-7 + Next"]
+    Trial -->|"Agree / Disagree, A or D"| Conf["Inline confidence chips 1-7, 1 s Undo"]
     Conf -->|"posts 1-5"| Checking
     Conf -->|"post 6"| Survey["Block survey"]
     Survey -->|"parts 1-3"| Checking
     Survey -->|"part 4"| Exit["Exit survey"]
     Exit --> Debrief
-    Debrief -->|"researcher reopens /admin"| Admin
+    Resume --> Checking
+    Debrief --> End["Close the tab"]
+    Admin["Admin dashboard: KPIs, sessions, exports"]
 ```
 
 ---
