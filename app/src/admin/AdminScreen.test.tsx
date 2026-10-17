@@ -8,22 +8,36 @@ const mocks = vi.hoisted(() => ({
   abandon: vi.fn(),
   remove: vi.fn(),
   getAssignmentPreview: vi.fn(),
+  getExportIndex: vi.fn(),
 }));
 
-vi.mock("../api/client", () => ({
-  api: {
-    admin: {
-      getKpis: mocks.getKpis,
-      listSessions: mocks.listSessions,
-      abandon: mocks.abandon,
-      remove: mocks.remove,
-      getAssignmentPreview: mocks.getAssignmentPreview,
-      exportUrl: (name: string) => `/api/admin/export/${name}`,
+// exportUrl is the real implementation (reads the admin token from sessionStorage).
+vi.mock("../api/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../api/client")>();
+  return {
+    ...actual,
+    api: {
+      admin: {
+        getKpis: mocks.getKpis,
+        listSessions: mocks.listSessions,
+        abandon: mocks.abandon,
+        remove: mocks.remove,
+        getAssignmentPreview: mocks.getAssignmentPreview,
+        getExportIndex: mocks.getExportIndex,
+        exportUrl: actual.api.admin.exportUrl,
+      },
     },
-  },
-}));
+  };
+});
 
 import AdminScreen, { REFRESH_MS, relativeTime } from "./AdminScreen";
+import ExportPanel, { DOWNLOAD_GAP_MS } from "./ExportPanel";
+
+const ALL_EXPORTS = [
+  "participants.csv", "kpis.csv", "trials.csv", "surveys.csv", "events.csv", "exit.csv", "sessions.json",
+] as const;
+
+const exportIndex = ALL_EXPORTS.map((name, i) => ({ name, description: `About ${name}`, rows: (i + 1) * 10 }));
 
 const cond = (c: string, over: Record<string, unknown> = {}) => ({
   condition: c,
@@ -106,6 +120,7 @@ beforeEach(() => {
   mocks.listSessions.mockResolvedValue([row]);
   mocks.abandon.mockResolvedValue(undefined);
   mocks.remove.mockResolvedValue(undefined);
+  mocks.getExportIndex.mockResolvedValue(exportIndex);
 });
 
 afterEach(() => {
@@ -223,13 +238,18 @@ describe("AdminScreen", () => {
     expect(screen.queryByText(/new session/i)).not.toBeInTheDocument();
   });
 
-  it("renders export links", async () => {
+  it("renders the export panel and refetches the index on each dashboard refresh", async () => {
     render(<AdminScreen />);
-    await screen.findByTestId("kpi-completed");
     await waitFor(() => expect(screen.getByText("8 / 32")).toBeInTheDocument());
-    for (const name of ["trials.csv", "surveys.csv", "events.csv", "exit.csv", "sessions.json"]) {
-      expect(screen.getByRole("link", { name })).toHaveAttribute("href", `/api/admin/export/${name}`);
+    for (const name of ALL_EXPORTS) {
+      expect(await screen.findByRole("link", { name: `Download ${name}` })).toHaveAttribute(
+        "href",
+        `/api/admin/export/${name}`,
+      );
     }
+    const calls = mocks.getExportIndex.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(mocks.getExportIndex.mock.calls.length).toBeGreaterThan(calls));
   });
 
   it("previews a pid assignment without correctness data", async () => {
@@ -278,6 +298,96 @@ describe("AdminScreen", () => {
       await vi.advanceTimersByTimeAsync(REFRESH_MS);
     });
     expect(mocks.getKpis).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("ExportPanel", () => {
+  function spyClicks() {
+    const hrefs: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
+      hrefs.push(this.getAttribute("href") ?? "");
+    });
+    return hrefs;
+  }
+
+  it("renders the index with descriptions, row counts and highlights", async () => {
+    render(<ExportPanel refreshKey={0} />);
+    const participants = await screen.findByTestId("export-participants.csv");
+    expect(within(participants).getByText("Start here — one row per participant")).toBeInTheDocument();
+    expect(within(participants).getByText("About participants.csv")).toBeInTheDocument();
+    expect(within(participants).getByText("10")).toBeInTheDocument();
+    expect(participants).toHaveClass("admin__export--featured");
+    expect(within(screen.getByTestId("export-kpis.csv")).getByText("Dashboard numbers")).toBeInTheDocument();
+    const json = screen.getByTestId("export-sessions.json");
+    expect(within(json).getByText("70")).toBeInTheDocument();
+    expect(json).not.toHaveClass("admin__export--featured");
+    expect(within(json).getByRole("link", { name: "Download sessions.json" })).toHaveAttribute(
+      "href",
+      "/api/admin/export/sessions.json",
+    );
+    expect(screen.queryByText(/row counts are unavailable/)).not.toBeInTheDocument();
+  });
+
+  it("falls back to the 7 names with links and no counts when the index fails", async () => {
+    mocks.getExportIndex.mockRejectedValue(err(500));
+    render(<ExportPanel refreshKey={0} />);
+    expect(await screen.findByText(/row counts are unavailable/)).toBeInTheDocument();
+    for (const name of ALL_EXPORTS) {
+      const r = screen.getByTestId(`export-${name}`);
+      expect(within(r).getByRole("link", { name: `Download ${name}` })).toHaveAttribute(
+        "href",
+        `/api/admin/export/${name}`,
+      );
+      expect(within(r).getAllByText("—")).toHaveLength(2); // description + rows
+    }
+    expect(screen.getByText("Start here — one row per participant")).toBeInTheDocument();
+  });
+
+  it("Download all clicks each CSV in sequence and skips sessions.json by default", async () => {
+    vi.useFakeTimers();
+    const hrefs = spyClicks();
+    render(<ExportPanel refreshKey={0} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Download all CSVs" }));
+    expect(hrefs).toHaveLength(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DOWNLOAD_GAP_MS);
+    });
+    expect(hrefs).toHaveLength(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DOWNLOAD_GAP_MS * 10);
+    });
+    expect(hrefs).toEqual(ALL_EXPORTS.filter((n) => n.endsWith(".csv")).map((n) => `/api/admin/export/${n}`));
+    expect(document.querySelectorAll("a[hidden]")).toHaveLength(0);
+  });
+
+  it("Download all includes sessions.json when the raw JSON box is ticked", async () => {
+    vi.useFakeTimers();
+    const hrefs = spyClicks();
+    render(<ExportPanel refreshKey={0} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    fireEvent.click(screen.getByLabelText(/Include raw JSON/));
+    fireEvent.click(screen.getByRole("button", { name: "Download all CSVs" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DOWNLOAD_GAP_MS * 10);
+    });
+    expect(hrefs).toEqual(ALL_EXPORTS.map((n) => `/api/admin/export/${n}`));
+  });
+
+  it("appends the stored admin token to link and download-all URLs", async () => {
+    sessionStorage.setItem("xai-study:adminToken", "s3cr t");
+    const hrefs = spyClicks();
+    render(<ExportPanel refreshKey={0} />);
+    expect(await screen.findByRole("link", { name: "Download kpis.csv" })).toHaveAttribute(
+      "href",
+      "/api/admin/export/kpis.csv?token=s3cr%20t",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Download all CSVs" }));
+    expect(hrefs[0]).toBe("/api/admin/export/participants.csv?token=s3cr%20t");
   });
 });
 

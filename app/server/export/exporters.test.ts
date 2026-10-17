@@ -2,11 +2,12 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type Database from "better-sqlite3";
 import { toCsv } from "./csv";
 import {
-  trialsCsv, surveysCsv, eventsCsv, exitCsv, sessionsJson,
-  TRIAL_COLUMNS, SURVEY_COLUMNS, EVENT_COLUMNS, EXIT_COLUMNS,
+  trialsCsv, surveysCsv, eventsCsv, exitCsv, sessionsJson, participantsCsv, kpisCsv, exportIndex,
+  TRIAL_COLUMNS, SURVEY_COLUMNS, EVENT_COLUMNS, EXIT_COLUMNS, PARTICIPANT_COLUMNS, KPI_COLUMNS,
 } from "./exporters";
+import { computeKpis } from "../kpi";
 import { openDb } from "../db/db";
-import { createSession, insertTrial, insertEvents, insertBlockSurvey, insertExitSurvey } from "../db/repo";
+import { createSession, setStatus, insertTrial, insertEvents, insertBlockSurvey, insertExitSurvey } from "../db/repo";
 import type { Assignment, EventSubmission } from "../../shared/api";
 import type { Trial, BlockSurvey, ExitSurvey, Likert7 } from "../../shared/types";
 
@@ -251,5 +252,143 @@ describe("exporters", () => {
     expect(text).toContain(sessionId);
     expect(text).toContain("7-1-1");
     expect(text).toContain("factor_expand");
+  });
+});
+
+// ---------- participants.csv / kpis.csv / index ----------
+describe("participants.csv", () => {
+  const HASH = "deadbeefcafef00d0123456789abcdef0123456789abcdef0123456789abcdef";
+  const opts = { consequenceBanner: false, anxiety: false, postBankHash: "abc", appVersion: "0.1.0" };
+
+  function seedCompleted(db: Database.Database) {
+    const s = createSession(db, assignment, { ...opts, participantHash: HASH });
+    // block 1 (C): wrong miss detected, correct agreed, wrong false_alarm not detected
+    insertTrial(db, s.sessionId, trial({ decisionTimeMs: 1000, confidence: 6 }));
+    insertTrial(db, s.sessionId, trial({
+      trialId: "7-1-2", positionInBlock: 2, trialIndex: 2, postId: "p08", groundTruth: "TRUE", isAiCorrect: true,
+      errorType: null, difficulty: null, agreed: true, detectedError: null, decisionTimeMs: 2000, confidence: 5,
+      factSheetOpened: false,
+    }));
+    insertTrial(db, s.sessionId, trial({
+      trialId: "7-1-3", positionInBlock: 3, trialIndex: 3, postId: "p09", aiLabel: "misleading", groundTruth: "TRUE",
+      errorType: "false_alarm", difficulty: "clear", agreed: true, detectedError: false, decisionTimeMs: 4000, confidence: 4,
+      factSheetOpened: false,
+    }));
+    insertBlockSurvey(db, s.sessionId, survey(1, "C"));
+    insertExitSurvey(db, s.sessionId, exit);
+    db.prepare("UPDATE sessions SET started_at = ? WHERE session_id = ?").run("2026-11-03T14:00:00.000Z", s.sessionId);
+    setStatus(db, s.sessionId, "completed", "2026-11-03T14:17:20.000Z");
+    return s.sessionId;
+  }
+
+  it("empty DB -> header only, in the contract column order", () => {
+    const fresh = openDb(":memory:");
+    expect(participantsCsv(fresh)).toBe(PARTICIPANT_COLUMNS.join(",") + "\r\n");
+    expect(PARTICIPANT_COLUMNS.slice(0, 19)).toEqual([
+      "pid", "sessionId", "isPilot", "status", "conditionOrder", "setRotation", "startedAt", "completedAt",
+      "durationMin", "trialsSaved", "surveysSaved", "agreementRate", "wrongDetected", "falseAlarmDetected",
+      "missDetected", "detectionRate", "meanConfidence", "medianDecisionMs", "factSheetOpenRate",
+    ]);
+    expect(PARTICIPANT_COLUMNS.slice(19, 25)).toEqual(["agreement_A", "detected_A", "trust_A", "fairness_A", "tension_A", "frustration_A"]);
+    expect(PARTICIPANT_COLUMNS.slice(37, 43)).toEqual(["agreement_D", "detected_D", "trust_D", "fairness_D", "tension_D", "frustration_D"]);
+    expect(PARTICIPANT_COLUMNS.slice(-7)).toEqual([
+      "ageRange", "gender", "education", "socialMediaUse", "labelExposure", "preferredCondition", "comment",
+    ]);
+    expect(PARTICIPANT_COLUMNS).toHaveLength(19 + 24 + 7);
+  });
+
+  it("computes totals, rates (3 dp), duration (1 dp) and per-condition fields", () => {
+    const db = openDb(":memory:");
+    const id = seedCompleted(db);
+    const csv = participantsCsv(db);
+    expect(csv.split("\r\n")[0]).toBe(PARTICIPANT_COLUMNS.join(","));
+    const [r] = records(csv);
+    expect(r).toMatchObject({
+      pid: "7", sessionId: id, isPilot: "FALSE", status: "completed", conditionOrder: "CDBA", setRotation: "1",
+      startedAt: "2026-11-03T14:00:00.000Z", completedAt: "2026-11-03T14:17:20.000Z", durationMin: "17.3",
+      trialsSaved: "3", surveysSaved: "1", agreementRate: "0.667", wrongDetected: "1", falseAlarmDetected: "0",
+      missDetected: "1", detectionRate: "0.5", meanConfidence: "5", medianDecisionMs: "2000", factSheetOpenRate: "0.333",
+      agreement_C: "0.667", detected_C: "1", fairness_C: "5.5", tension_C: "3", frustration_C: "35",
+      agreement_A: "", detected_A: "", trust_A: "", fairness_A: "", tension_A: "", frustration_A: "",
+      ageRange: "18-24", gender: "", education: "bachelors", preferredCondition: "C", comment: exit.comment,
+    });
+    expect(r.trust_C).toBe(String(Math.round(survey(1, "C").trustMean * 1000) / 1000));
+  });
+
+  it("includes in-progress and pilot sessions, flags pilots, leaves duration empty when not completed", () => {
+    const db = openDb(":memory:");
+    createSession(db, { ...assignment, pid: 905, seed: 905 }, opts);
+    createSession(db, assignment, opts);
+    const rows = records(participantsCsv(db));
+    expect(rows.map((r) => [r.pid, r.isPilot, r.status])).toEqual([["7", "FALSE", "in_progress"], ["905", "TRUE", "in_progress"]]);
+    expect(rows[0]).toMatchObject({ durationMin: "", completedAt: "", agreementRate: "", detectionRate: "", trialsSaved: "0", wrongDetected: "0" });
+  });
+
+  it("never contains the participant hash", () => {
+    const db = openDb(":memory:");
+    seedCompleted(db);
+    expect(db.prepare("SELECT participant_hash AS h FROM sessions").get()).toEqual({ h: HASH });
+    expect(participantsCsv(db)).not.toContain(HASH);
+    expect(participantsCsv(db)).not.toMatch(/hash/i);
+    expect(kpisCsv(db)).not.toContain(HASH);
+  });
+});
+
+describe("kpis.csv", () => {
+  const now = new Date("2026-10-17T12:00:00.000Z");
+
+  it("rows match computeKpis in long form", () => {
+    const db = openDb(":memory:");
+    const s = createSession(db, assignment, { consequenceBanner: false, anxiety: false, postBankHash: "abc", appVersion: "0.1.0" });
+    insertTrial(db, s.sessionId, trial());
+    setStatus(db, s.sessionId, "completed", "2026-10-17T10:00:00.000Z");
+    const k = computeKpis(db, now);
+    const rows = records(kpisCsv(db, now));
+    expect(parseCsv(kpisCsv(db, now))[0]).toEqual(KPI_COLUMNS);
+    expect(rows[0]).toEqual({ section: "meta", key: "all", metric: "generatedAt", value: now.toISOString() });
+    const get = (section: string, key: string, metric: string) =>
+      rows.find((r) => r.section === section && r.key === key && r.metric === metric)?.value;
+    expect(get("summary", "all", "completed")).toBe(String(k.sessions.completed));
+    expect(get("summary", "all", "completed")).toBe("1");
+    expect(get("summary", "all", "targetN")).toBe(String(k.target.n));
+    for (const c of k.byCondition) {
+      for (const [m, v] of Object.entries(c)) {
+        if (m === "condition") continue;
+        expect(get("condition", c.condition, m)).toBe(v === null ? "" : String(v));
+      }
+    }
+    expect(get("condition", "C", "detectionRate")).toBe("1");
+    for (const e of k.byErrorType) expect(get("errorType", e.errorType, "detectionRate")).toBe(e.detectionRate === null ? "" : String(e.detectionRate));
+    expect(get("errorType", "miss", "detectionRate")).toBe("1");
+    for (const b of k.balance) expect(get("balance", b.conditionOrder, "completed")).toBe(String(b.completed));
+    expect(get("balance", "CDBA", "completed")).toBe("1");
+    expect(get("daily", "2026-10-17", "completed")).toBe("1");
+    const expected = 1 + 11 + 13 * 4 + 2 * 2 + k.balance.length + k.dailyCompleted.length;
+    expect(rows).toHaveLength(expected);
+  });
+
+  it("empty DB still lists every metric, with empty rates", () => {
+    const rows = records(kpisCsv(openDb(":memory:"), now));
+    expect(rows.find((r) => r.metric === "completionRate")?.value).toBe("");
+    expect(rows.filter((r) => r.section === "daily")).toHaveLength(0);
+    expect(rows.filter((r) => r.section === "balance")).toHaveLength(4);
+  });
+});
+
+describe("exportIndex", () => {
+  it("lists all 7 exports with descriptions and data row counts", () => {
+    const db = openDb(":memory:");
+    const s = createSession(db, assignment, { consequenceBanner: false, anxiety: false, postBankHash: "abc", appVersion: "0.1.0" });
+    insertTrial(db, s.sessionId, trial());
+    insertEvents(db, s.sessionId, [event(1), event(2)]);
+    const idx = exportIndex(db);
+    expect(idx.map((e) => e.name)).toEqual([
+      "participants.csv", "trials.csv", "surveys.csv", "events.csv", "exit.csv", "kpis.csv", "sessions.json",
+    ]);
+    for (const e of idx) expect(e.description.length).toBeGreaterThan(10);
+    const rows = Object.fromEntries(idx.map((e) => [e.name, e.rows]));
+    expect(rows).toMatchObject({ "participants.csv": 1, "trials.csv": 1, "surveys.csv": 0, "events.csv": 2, "exit.csv": 0, "sessions.json": 1 });
+    expect(rows["kpis.csv"]).toBe(records(kpisCsv(db)).length);
+    expect(rows["trials.csv"]).toBe(records(trialsCsv(db)).length);
   });
 });

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { StudyProvider, routeForCursor, useStudy } from "./state/StudyContext";
+import LandingScreen from "./study/LandingScreen";
 import WelcomeScreen from "./study/WelcomeScreen";
 import ConsentScreen from "./study/ConsentScreen";
 import InstructionsScreen from "./study/InstructionsScreen";
@@ -57,7 +58,8 @@ export default function App() {
       <StudyProvider>
         <SessionLogger>
         <Routes>
-          <Route path="/" element={<WelcomeScreen />} />
+          <Route path="/" element={<LandingScreen />} />
+          <Route path="/start" element={<WelcomeScreen />} />
           {/* Admin is reached by URL only (no link from the participant pages). */}
           <Route path="/admin" element={<AdminScreen />} />
           <Route path="/consent" element={<ParticipantGuard><ConsentScreen /></ParticipantGuard>} />

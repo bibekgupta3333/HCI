@@ -1,3 +1,5 @@
+Superseded: the browser participated flag was removed; storage is cleared after completion (see CONTRACT.md).
+
 # Contract addendum v2: self-start, once-only, admin = data + KPIs, fast UI
 
 Read `CONTRACT.md` first; this file **overrides** it where they differ. Product decisions (from the PI, 2026-10-17):

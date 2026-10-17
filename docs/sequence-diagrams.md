@@ -1,6 +1,6 @@
 # Sequence Diagrams (v3: AI accuracy labels on social media posts)
 
-This document shows how the study app's modules work together at runtime for the flows that matter most to data quality. It covers assigning a participant, running a trial in each of the four conditions, opening the fact sheet, handling the deliberately wrong labels (`false_alarm` and `miss`), the per-post confidence rating, the block surveys, recovering from a refresh or crash, and exporting the data. Each diagram uses the module names from `_shared-decisions.md`: `StudyContext`, `labelEngine`, `counterbalance`, `rng`, `logger`, `conditionRegistry`, the shared components (`PostCard`, `LabelPanel`, `FactSheetPanel`, `PostRatingStrip`), the screens in `src/study/`, and the local server (`Server API`, backed by the `SQLite` file `app/data/study.db`). Participants read made-up posts from the fictional town of Riverton, each carrying a scripted AI label ("Likely accurate" or "Likely misleading"), and click **Agree with label** or **Disagree with label**. Event names, field names and export columns are exactly those in `data-model.md` (the authority; its §2.9 event list is the full set of `type` values), and participant-facing wording is quoted from `stimuli.md`. Every section follows the same pattern: a short explanation, the Mermaid diagram, then notes on edge cases. The browser talks only to the study's Express server (`/api`, see `app/CONTRACT.md`), on the same laptop or, for participants on their own devices, over HTTPS through a reverse proxy. The server holds the post bank with its correctness fields, computes the assignment, derives the truth fields of each trial and writes everything to SQLite; the browser keeps only the active session id (`xai-study:activeSessionId`) and, after the exit survey, the `xai-study:participated` flag in `localStorage`. **v2:** participants start the study themselves with a participation code (diagram 1), confidence is an inline chip row on the trial screen (diagram 8), and `/admin` is read-only data and KPIs (diagrams 11 and 12). Persistence moved from browser `localStorage` to this server in the build (see `architecture.md` ADR-4).
+This document shows how the study app's modules work together at runtime for the flows that matter most to data quality. It covers assigning a participant, running a trial in each of the four conditions, opening the fact sheet, handling the deliberately wrong labels (`false_alarm` and `miss`), the per-post confidence rating, the block surveys, recovering from a refresh or crash, and exporting the data. Each diagram uses the module names from `_shared-decisions.md`: `StudyContext`, `labelEngine`, `counterbalance`, `rng`, `logger`, `conditionRegistry`, the shared components (`PostCard`, `LabelPanel`, `FactSheetPanel`, `PostRatingStrip`), the screens in `src/study/`, and the local server (`Server API`, backed by the `SQLite` file `app/data/study.db`). Participants read made-up posts from the fictional town of Riverton, each carrying a scripted AI label ("Likely accurate" or "Likely misleading"), and click **Agree with label** or **Disagree with label**. Event names, field names and export columns are exactly those in `data-model.md` (the authority; its §2.9 event list is the full set of `type` values), and participant-facing wording is quoted from `stimuli.md`. Every section follows the same pattern: a short explanation, the Mermaid diagram, then notes on edge cases. The browser talks only to the study's Express server (`/api`, see `app/CONTRACT.md`), on the same laptop or, for participants on their own devices, over HTTPS through a reverse proxy. The server holds the post bank with its correctness fields, computes the assignment, derives the truth fields of each trial and writes everything to SQLite; the browser keeps only the active session id (`xai-study:activeSessionId`) while a session runs, and clears every study key once the exit survey is saved (diagram 9.1), so nothing is left in the browser after completion. **v2:** participants start the study themselves with a participation code (diagram 1), confidence is an inline chip row on the trial screen (diagram 8), and `/admin` is read-only data and KPIs (diagrams 11 and 12). Persistence moved from browser `localStorage` to this server in the build (see `architecture.md` ADR-4).
 
 The previous v2.1 version of this document is archived at [archive/v2.1-agent-permission/sequence-diagrams.md](archive/v2.1-agent-permission/sequence-diagrams.md).
 
@@ -15,6 +15,7 @@ The previous v2.1 version of this document is archived at [archive/v2.1-agent-pe
 7. [Wrong-label handling](#7-wrong-label-handling)
 8. [Per-post confidence rating and the next trial](#8-per-post-confidence-rating-and-the-next-trial)
 9. [Block survey and advancing to the next block](#9-block-survey-and-advancing-to-the-next-block)
+   - 9.1 [Exit survey, clearing the browser, and debrief](#91-exit-survey-clearing-the-browser-and-debrief)
 10. [Refresh and crash recovery](#10-refresh-and-crash-recovery)
 11. [Admin export](#11-admin-export)
 12. [Admin KPI polling](#12-admin-kpi-polling)
@@ -37,10 +38,8 @@ sequenceDiagram
     participant LS as localStorage
 
     P->>W: open the study site at /
-    W->>LS: read xai-study:participated and activeSessionId
-    alt participated flag set
-        W-->>P: You have already taken part. Thank you
-    else active session id stored
+    W->>LS: read xai-study:activeSessionId
+    opt active session id stored
         W-->>P: offer Continue, see diagram 10
     end
     P->>W: type participation code, press Start or Enter
@@ -83,7 +82,7 @@ sequenceDiagram
 ```
 
 **Edge cases**
-- **Once-only.** A code that already completed, or whose session was abandoned, gets 409 and the thank-you message. The server check is the real guard; the `participated` flag in the browser only saves a round trip. A person who types a *different* code is not caught (see `system-design.md` R-15).
+- **Once-only.** A code that already completed, or whose session was abandoned, gets 409 and the thank-you message. The server check is the only guard: the browser keeps no "participated" flag, and after a finished study it holds no study data at all (diagram 9.1), so a returning visitor on the same device sees the normal Welcome screen until they type a used code. A person who types a *different* code is not caught (see `system-design.md` R-15).
 - **Same code, other device.** A code with an `in_progress` session resumes it (200) on any device, with `resume_count` + 1.
 - **Concurrency.** `BEGIN IMMEDIATE` takes SQLite's write lock before the pid is chosen, so two people pressing Start at the same moment get different pids. The unique index on `participant_hash` stops one code from creating two sessions.
 - **Stale sessions and pid reuse.** Before allocating, any `in_progress` session whose `last_activity_at` is older than `STALE_MINUTES` (default 120) is marked abandoned. Its pid is then free for the newcomer, which keeps each 16-participant cycle balanced. Pilot pids 901+ are never auto-assigned.
@@ -525,7 +524,55 @@ sequenceDiagram
 - **`nWrongDetected`.** It is computed from the block's stored trial records, not from anything on screen, so it is also recomputable from `trials.csv`. It is the H3 predictor for tension and frustration.
 - **Double submit.** Continue is disabled after the first click. A second submission for the same block hits the primary key `(session_id, block_index)` and the server answers 409.
 - **Back navigation.** The browser Back button doesn't return to the block's posts. The router guard redirects to the step given by the server cursor.
-- **Exit survey.** The exit survey (`ageRange`, `gender`, `education`, `socialMediaUse`, `labelExposure`, `preferredCondition`, `comment`) uses the same validation and save pattern. Only `gender` and `comment` are optional. Submitting it logs `exit_survey_submit`; the server checks that all 4 block surveys exist, saves it, sets `status = "completed"` and `completedAt`, and moves to `DebriefScreen` (which logs `session_complete`), which explains that the labels were scripted, that 8 of the 24 were wrong on purpose, and shows the facts for every wrong label.
+- **Exit survey.** The exit survey (`ageRange`, `gender`, `education`, `socialMediaUse`, `labelExposure`, `preferredCondition`, `comment`) uses the same validation and save pattern. Only `gender` and `comment` are optional. Submitting it logs `exit_survey_submit`; the server checks that all 4 block surveys exist, saves it, sets `status = "completed"` and `completedAt`, and the client then clears its storage and shows `DebriefScreen` (diagram 9.1).
+
+### 9.1 Exit survey, clearing the browser, and debrief
+
+Once the exit survey is saved on the server, the participant's answers are all in SQLite, so the browser no longer needs anything. The client flushes the last events, then removes every `xai-study:` key from `localStorage` and `sessionStorage`, except the researcher's `xai-study:adminToken`, and only then shows the debrief. The debrief renders from data the client already holds in memory (the pid and the wrong-label facts). **Next participant** on the debrief returns to the Welcome screen, so the next person on a shared lab device starts fresh. There is no browser "participated" flag; once-only is enforced only by the server's hashed-code check (diagram 1).
+
+```mermaid
+sequenceDiagram
+    actor P as Participant
+    participant Exit as ExitSurveyScreen
+    participant Log as logger
+    participant SC as StudyContext
+    participant API as Server API
+    participant DB as SQLite
+    participant LS as localStorage and sessionStorage
+    participant Deb as DebriefScreen
+    participant W as WelcomeScreen
+
+    P->>Exit: answer the exit survey, click Submit
+    Exit->>Log: event exit_survey_submit
+    Exit->>API: POST exit survey
+    API->>API: check all 4 block surveys exist
+    API->>DB: INSERT exit survey, status = completed, completedAt, COMMIT
+    API-->>Exit: 201 saved
+    Exit->>Log: flush events
+    Log->>API: POST events batch
+    API->>DB: INSERT OR IGNORE events on session and seq
+    Exit->>SC: session completed, clear browser storage
+    SC->>SC: keep pid and debrief data in memory
+    SC->>LS: remove every xai-study key except xai-study:adminToken
+    SC->>Deb: navigate to DebriefScreen
+    Deb->>Log: event session_complete, sent with sendBeacon
+    Deb-->>P: thank-you, Show the real facts, pid, contact
+    alt participant taps Next participant
+        P->>Deb: click Next participant
+        Deb->>SC: reset in-memory state
+        SC->>W: navigate to /
+        W-->>P: empty code field and Start, no Continue
+    else participant closes the tab
+        Note over Deb,LS: nothing about the participant is left in the browser
+    end
+```
+
+**Edge cases**
+- **Order matters.** Storage is cleared only after the server has confirmed the exit survey (201) and the event flush has been sent. If the save fails, nothing is cleared: the screen shows Retry and the session can still resume.
+- **`session_complete` after clearing.** The debrief's own event is sent with the session id held in memory, not read from storage. If it is lost, the session is still `completed` on the server, because `status` and `completedAt` are set by the exit-survey save.
+- **What is kept.** Only `xai-study:adminToken`, the researcher's own admin login, survives, so a lab laptop that is also used for `/admin` doesn't need to log in again. Keys outside the `xai-study:` prefix are not touched.
+- **Reload on the debrief.** Because storage is empty, a reload of the debrief lands on the Welcome screen. That is the intended state for the next participant; the debrief text is also available by email (`study-protocol.md` §13.3).
+- **Returning on the same device.** The person sees a fresh Welcome screen. If they type the same code, the server answers 409 and they see "You've already taken part. Thank you!"; a different code is not caught (`system-design.md` R-15).
 
 ---
 

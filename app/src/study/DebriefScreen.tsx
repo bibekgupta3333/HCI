@@ -1,10 +1,10 @@
 // Debrief (wireframes.md §12; content from study-protocol.md §11, self-guided per CONTRACT-v2 §C). Lists the real facts for all 8
 // wrong-label posts, whichever ones this participant saw. The facts are copied verbatim from the
 // "Debrief fact" lines in docs/stimuli.md; the client never imports posts.json.
+// Browser storage is already wiped by the exit survey; the pid comes from the in-memory session.
 import { useEffect, useState } from "react";
-import { useStudy } from "../state/StudyContext";
-
-export const ACTIVE_SESSION_KEY = "xai-study:activeSessionId";
+import { useNavigate } from "react-router-dom";
+import { clearParticipantStorage, useStudy } from "../state/StudyContext";
 
 export interface DebriefFact {
   postId: string;
@@ -33,17 +33,20 @@ export const DEBRIEF_FACTS: readonly DebriefFact[] = [
 ];
 
 export default function DebriefScreen() {
-  const { session } = useStudy();
+  const { session, dispatch } = useStudy();
+  const navigate = useNavigate();
   const [showFacts, setShowFacts] = useState(false);
   const pid = session?.pid ?? null;
 
   useEffect(() => {
-    try {
-      localStorage.removeItem(ACTIVE_SESSION_KEY);
-    } catch {
-      /* storage unavailable: nothing to clear */
-    }
+    clearParticipantStorage(); // safety net; idempotent
   }, []);
+
+  function onNextParticipant() {
+    clearParticipantStorage();
+    dispatch({ type: "RESET" });
+    navigate("/", { replace: true });
+  }
 
   return (
     <main className="screen debrief-screen">
@@ -122,6 +125,11 @@ export default function DebriefScreen() {
       <p className="debrief-close">
         <strong>You can close this page now.</strong>
       </p>
+      <div className="button-row">
+        <button type="button" className="btn btn--link debrief-next" onClick={onNextParticipant}>
+          Next participant
+        </button>
+      </div>
     </main>
   );
 }

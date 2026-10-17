@@ -1,10 +1,11 @@
-// Welcome (route "/"): self-start with a participation code, continue an active session,
-// or a thank-you message once this browser has finished the study (CONTRACT-v2 §A, §C).
+// Welcome (route "/start", linked from the landing page at "/"): self-start with a participation code, or continue an active session
+// (CONTRACT-v2 §A, §C). Once-per-person is enforced by the server (409 -> thank-you message);
+// browser storage is wiped after each completed session, so there is no local "participated" flag.
 import React, { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { ApiClientError } from "../api/client";
 import {
-  AlreadyParticipatedError, getStoredSessionId, hasParticipated, routeForCursor, setStoredSessionId, useStudy,
+  AlreadyParticipatedError, getStoredSessionId, routeForCursor, setStoredSessionId, useStudy,
 } from "../state/StudyContext";
 
 const CODE_MIN = 3;
@@ -14,22 +15,12 @@ const INVALID_MSG = `Please enter a code between ${CODE_MIN} and ${CODE_MAX} cha
 
 export default function WelcomeScreen(): JSX.Element {
   const { session, startSession, resume } = useStudy();
-  const [participated] = useState(hasParticipated);
   const [activeId, setActiveId] = useState<string | null>(getStoredSessionId);
   const [code, setCode] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (session && session.status === "in_progress") return <Navigate to={routeForCursor(session.cursor)} replace />;
-
-  if (participated) {
-    return (
-      <main className="screen screen-welcome">
-        <h1>Post Review Study</h1>
-        <p className="welcome__thanks" role="status">{ALREADY_MSG}</p>
-      </main>
-    );
-  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -71,6 +62,11 @@ export default function WelcomeScreen(): JSX.Element {
 
   return (
     <main className="screen screen-welcome">
+      <p className="welcome__back">
+        <Link to="/" className="btn btn--link">
+          ← Back
+        </Link>
+      </p>
       <h1>Post Review Study</h1>
       <p className="welcome__intro">
         You'll judge 24 short made-up social media posts, each shown with an AI accuracy label.

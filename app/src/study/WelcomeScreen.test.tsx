@@ -19,7 +19,7 @@ vi.mock("../api/client", async (importOriginal) => {
 
 import { ApiClientError } from "../api/client";
 import {
-  ACTIVE_SESSION_KEY, PARTICIPATED_KEY, StudyProvider, hasParticipated, markParticipated,
+  ACTIVE_SESSION_KEY, StudyProvider, clearParticipantStorage, markParticipated,
 } from "../state/StudyContext";
 import WelcomeScreen from "./WelcomeScreen";
 
@@ -49,10 +49,11 @@ function makeSession(cursor: Cursor): SessionView {
 
 function renderApp() {
   return render(
-    <MemoryRouter initialEntries={["/"]}>
+    <MemoryRouter initialEntries={["/start"]}>
       <StudyProvider>
         <Routes>
-          <Route path="/" element={<WelcomeScreen />} />
+          <Route path="/" element={<p>LANDING PAGE</p>} />
+          <Route path="/start" element={<WelcomeScreen />} />
           <Route path="/consent" element={<p>CONSENT SCREEN</p>} />
           <Route path="/trial/:block/:pos" element={<p>TRIAL SCREEN</p>} />
         </Routes>
@@ -63,6 +64,7 @@ function renderApp() {
 
 beforeEach(() => {
   localStorage.clear();
+  sessionStorage.clear();
   mocks.startOrResume.mockReset();
   mocks.resumeSession.mockReset();
 });
@@ -78,6 +80,12 @@ describe("WelcomeScreen", () => {
     expect(screen.getByText(/we store a scrambled version, never the code itself/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
     expect(screen.queryByRole("link", { name: /admin/i })).not.toBeInTheDocument();
+  });
+
+  it("has a Back link to the landing page", async () => {
+    renderApp();
+    await userEvent.click(screen.getByRole("link", { name: "← Back" }));
+    expect(screen.getByText("LANDING PAGE")).toBeInTheDocument();
   });
 
   it("rejects a too-short code without calling the server", async () => {
@@ -154,23 +162,38 @@ describe("WelcomeScreen", () => {
     expect(localStorage.getItem(ACTIVE_SESSION_KEY)).toBeNull();
   });
 
-  it("shows only the thank-you message once participated", () => {
-    localStorage.setItem(PARTICIPATED_KEY, "1");
+  it("ignores a legacy participated flag: no thank-you message without a server 409", () => {
+    localStorage.setItem("xai-study:participated", "1");
     renderApp();
-    expect(screen.getByText("You've already taken part in this study — thank you!")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Your participation code")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText("You've already taken part in this study — thank you!")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Your participation code")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
   });
 });
 
-describe("participated helpers", () => {
-  it("markParticipated sets the flag and clears the active session id", () => {
+describe("clearParticipantStorage", () => {
+  it("removes every xai-study: key from both storages but keeps the admin token and other apps' keys", () => {
     localStorage.setItem(ACTIVE_SESSION_KEY, "s-42");
-    expect(hasParticipated()).toBe(false);
+    localStorage.setItem("xai-study:participated", "1");
+    localStorage.setItem("xai-study:other", "x");
+    localStorage.setItem("unrelated", "keep");
+    sessionStorage.setItem("xai-study:adminToken", "tok");
+    sessionStorage.setItem("xai-study:draft", "d");
+    sessionStorage.setItem("unrelated", "keep");
+    clearParticipantStorage();
+    expect(localStorage.length).toBe(1);
+    expect(localStorage.getItem("unrelated")).toBe("keep");
+    expect(sessionStorage.getItem("xai-study:adminToken")).toBe("tok");
+    expect(sessionStorage.getItem("xai-study:draft")).toBeNull();
+    expect(sessionStorage.getItem("unrelated")).toBe("keep");
+    clearParticipantStorage(); // idempotent
+    expect(sessionStorage.getItem("xai-study:adminToken")).toBe("tok");
+  });
+
+  it("markParticipated is a deprecated alias that clears storage and sets no flag", () => {
+    localStorage.setItem(ACTIVE_SESSION_KEY, "s-42");
     markParticipated();
-    expect(localStorage.getItem(PARTICIPATED_KEY)).toBe("1");
     expect(localStorage.getItem(ACTIVE_SESSION_KEY)).toBeNull();
-    expect(hasParticipated()).toBe(true);
+    expect(localStorage.getItem("xai-study:participated")).toBeNull();
   });
 });
-

@@ -1,6 +1,8 @@
 // Session state for the participant flow. Browser-side persistence is only the active session id
-// (localStorage "xai-study:activeSessionId") and the participated flag ("xai-study:participated");
-// everything else lives on the server.
+// (localStorage "xai-study:activeSessionId"); everything else lives on the server. Once the exit
+// survey is stored on the server, clearParticipantStorage() wipes all "xai-study:" keys so the next
+// person on a shared lab device starts fresh. Once-per-person is enforced only by the server's
+// hashed participation code (409 already_participated); there is no browser "participated" flag.
 import React, { createContext, useCallback, useContext, useMemo, useReducer, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { CreateSessionRequest, Cursor, SessionView } from "../../shared/api";
@@ -8,7 +10,9 @@ import { api, ApiClientError } from "../api/client";
 import { initialStudyState, studyReducer, type StudyAction, type StudyState } from "./studyReducer";
 
 export const ACTIVE_SESSION_KEY = "xai-study:activeSessionId";
-export const PARTICIPATED_KEY = "xai-study:participated";
+export const STORAGE_PREFIX = "xai-study:";
+/** Admin token (sessionStorage, same key as api/client.ts) must survive a participant wipe. */
+const ADMIN_TOKEN_KEY = "xai-study:adminToken";
 
 /** Thrown by startSession when the server answers 409 already_participated. */
 export class AlreadyParticipatedError extends Error {
@@ -53,22 +57,35 @@ export function setStoredSessionId(id: string | null): void {
   }
 }
 
-/** Convenience flag set after the exit survey succeeds; the server check is the real guard. */
-export function markParticipated(): void {
+function removePrefixedKeys(storage: Storage, keep: readonly string[]): void {
+  const doomed: string[] = [];
+  for (let i = 0; i < storage.length; i++) {
+    const k = storage.key(i);
+    if (k !== null && k.startsWith(STORAGE_PREFIX) && !keep.includes(k)) doomed.push(k);
+  }
+  for (const k of doomed) storage.removeItem(k);
+}
+
+/**
+ * Removes every "xai-study:" key from localStorage and sessionStorage (except the admin token).
+ * Called only after the exit survey is stored on the server, and again on the debrief (idempotent).
+ */
+export function clearParticipantStorage(): void {
   try {
-    localStorage.setItem(PARTICIPATED_KEY, "1");
+    removePrefixedKeys(localStorage, []);
   } catch {
     /* storage unavailable */
   }
-  setStoredSessionId(null);
+  try {
+    removePrefixedKeys(sessionStorage, [ADMIN_TOKEN_KEY]);
+  } catch {
+    /* storage unavailable */
+  }
 }
 
-export function hasParticipated(): boolean {
-  try {
-    return localStorage.getItem(PARTICIPATED_KEY) === "1";
-  } catch {
-    return false;
-  }
+/** @deprecated Use clearParticipantStorage(); kept as an alias for older callers. */
+export function markParticipated(): void {
+  clearParticipantStorage();
 }
 
 export interface StartSessionOptions {

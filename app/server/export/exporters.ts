@@ -6,6 +6,8 @@
 import type Database from "better-sqlite3";
 import { toCsv } from "./csv";
 import { allEventRows, allExitRows, allSessionsFull, allSurveyRows, allTrialRows } from "../db/repo";
+import { computeKpis, median, PILOT_PID_MIN } from "../kpi";
+import type { Kpis } from "../kpi";
 
 type Row = Record<string, unknown>;
 
@@ -135,4 +137,169 @@ export function exitCsv(db: Database.Database): string { return toCsv(exitRows(d
 /** Array of full sessions (session + blocks + trials + surveys + exit + events), pretty-printed. */
 export function sessionsJson(db: Database.Database): string {
   return JSON.stringify(allSessionsFull(db), null, 2);
+}
+
+// ---------- participants.csv: one analysis-ready row per session (all statuses, pilots flagged) ----------
+// Built straight from SQL so participant_hash can never leak in (it is never selected).
+
+const CONDS = ["A", "B", "C", "D"] as const;
+
+export const PARTICIPANT_COLUMNS = [
+  "pid", "sessionId", "isPilot", "status", "conditionOrder", "setRotation", "startedAt", "completedAt",
+  "durationMin", "trialsSaved", "surveysSaved", "agreementRate", "wrongDetected", "falseAlarmDetected",
+  "missDetected", "detectionRate", "meanConfidence", "medianDecisionMs", "factSheetOpenRate",
+  ...CONDS.flatMap((c) => [`agreement_${c}`, `detected_${c}`, `trust_${c}`, `fairness_${c}`, `tension_${c}`, `frustration_${c}`]),
+  "ageRange", "gender", "education", "socialMediaUse", "labelExposure", "preferredCondition", "comment",
+];
+
+/** Round to `dp` decimals; null for null/non-finite. */
+export function round(v: number | null | undefined, dp: number): number | null {
+  if (v === null || v === undefined || !Number.isFinite(v)) return null;
+  const f = 10 ** dp;
+  return Math.round(v * f) / f;
+}
+const ratio = (num: number, den: number) => (den === 0 ? null : round(num / den, 3));
+const avg = (xs: number[]) => (xs.length === 0 ? null : xs.reduce((a, b) => a + b, 0) / xs.length);
+
+interface PSession {
+  session_id: string; pid: number; status: string; condition_order: string; set_rotation: number;
+  started_at: string; completed_at: string | null;
+}
+interface PTrial {
+  session_id: string; condition: string; is_ai_correct: number; error_type: string | null; agreed: number;
+  detected_error: number | null; confidence: number; decision_time_ms: number; fact_sheet_opened: number;
+}
+interface PSurvey {
+  session_id: string; condition: string; trust_mean: number; fairness_mean: number; tension: number; frustration_tlx: number;
+}
+interface PExit {
+  session_id: string; age_range: string; gender: string | null; education: string; social_media_use: string;
+  label_exposure: string; preferred_condition: string; comment: string;
+}
+
+function groupBy<T extends { session_id: string }>(rows: T[]): Map<string, T[]> {
+  const m = new Map<string, T[]>();
+  for (const r of rows) {
+    const list = m.get(r.session_id);
+    if (list) list.push(r); else m.set(r.session_id, [r]);
+  }
+  return m;
+}
+
+export function participantRows(db: Database.Database): Row[] {
+  const sessions = db.prepare(
+    `SELECT session_id, pid, status, condition_order, set_rotation, started_at, completed_at
+       FROM sessions ORDER BY pid, started_at, session_id`,
+  ).all() as PSession[];
+  const trials = groupBy(db.prepare(
+    `SELECT session_id, condition, is_ai_correct, error_type, agreed, detected_error, confidence, decision_time_ms, fact_sheet_opened
+       FROM trials`,
+  ).all() as PTrial[]);
+  const surveys = groupBy(db.prepare(
+    `SELECT session_id, condition, trust_mean, fairness_mean, tension, frustration_tlx FROM block_surveys`,
+  ).all() as PSurvey[]);
+  const exits = new Map((db.prepare(
+    `SELECT session_id, age_range, gender, education, social_media_use, label_exposure, preferred_condition, comment
+       FROM exit_surveys`,
+  ).all() as PExit[]).map((x) => [x.session_id, x]));
+
+  return sessions.map((s) => {
+    const ts = trials.get(s.session_id) ?? [];
+    const ss = surveys.get(s.session_id) ?? [];
+    const x = exits.get(s.session_id);
+    const wrong = ts.filter((t) => t.is_ai_correct === 0);
+    const detected = (rows: PTrial[]) => rows.filter((t) => t.is_ai_correct === 0 && t.detected_error === 1).length;
+    const dur = s.status === "completed" && s.completed_at
+      ? (Date.parse(s.completed_at) - Date.parse(s.started_at)) / 60000 : NaN;
+    const row: Row = {
+      pid: s.pid,
+      sessionId: s.session_id,
+      isPilot: s.pid >= PILOT_PID_MIN,
+      status: s.status,
+      conditionOrder: s.condition_order,
+      setRotation: s.set_rotation,
+      startedAt: s.started_at,
+      completedAt: s.completed_at,
+      durationMin: dur >= 0 ? round(dur, 1) : null,
+      trialsSaved: ts.length,
+      surveysSaved: ss.length,
+      agreementRate: ratio(ts.filter((t) => t.agreed === 1).length, ts.length),
+      wrongDetected: detected(wrong),
+      falseAlarmDetected: detected(wrong.filter((t) => t.error_type === "false_alarm")),
+      missDetected: detected(wrong.filter((t) => t.error_type === "miss")),
+      detectionRate: ratio(detected(wrong), wrong.length),
+      meanConfidence: round(avg(ts.map((t) => t.confidence)), 3),
+      medianDecisionMs: round(median(ts.map((t) => t.decision_time_ms)), 1),
+      factSheetOpenRate: ratio(ts.filter((t) => t.fact_sheet_opened === 1).length, ts.length),
+      ageRange: x?.age_range,
+      gender: x?.gender,
+      education: x?.education,
+      socialMediaUse: x?.social_media_use,
+      labelExposure: x?.label_exposure,
+      preferredCondition: x?.preferred_condition,
+      comment: x?.comment,
+    };
+    for (const c of CONDS) {
+      const ct = ts.filter((t) => t.condition === c);
+      const sv = ss.find((v) => v.condition === c);
+      row[`agreement_${c}`] = ratio(ct.filter((t) => t.agreed === 1).length, ct.length);
+      row[`detected_${c}`] = ct.length === 0 ? null : detected(ct);
+      row[`trust_${c}`] = round(sv?.trust_mean, 3);
+      row[`fairness_${c}`] = round(sv?.fairness_mean, 3);
+      row[`tension_${c}`] = sv?.tension;
+      row[`frustration_${c}`] = sv?.frustration_tlx;
+    }
+    return row;
+  });
+}
+
+export function participantsCsv(db: Database.Database): string { return toCsv(participantRows(db), PARTICIPANT_COLUMNS); }
+
+// ---------- kpis.csv: computeKpis(db) in long/tidy form ----------
+export const KPI_COLUMNS = ["section", "key", "metric", "value"];
+
+export function kpiRowsFrom(k: Kpis): Row[] {
+  const rows: Row[] = [{ section: "meta", key: "all", metric: "generatedAt", value: k.generatedAt }];
+  const add = (section: string, key: string, metric: string, value: unknown) => rows.push({ section, key, metric, value });
+  const summary: [string, number | null][] = [
+    ["started", k.sessions.started], ["inProgress", k.sessions.inProgress], ["completed", k.sessions.completed],
+    ["abandoned", k.sessions.abandoned], ["completionRate", k.sessions.completionRate],
+    ["targetN", k.target.n], ["targetMinimum", k.target.minimum],
+    ["cycle1Completed", k.target.cycle1Completed], ["cycle2Completed", k.target.cycle2Completed],
+    ["durationMedianMin", k.durationMin.median], ["durationP90Min", k.durationMin.p90],
+  ];
+  for (const [m, v] of summary) add("summary", "all", m, v);
+  for (const c of k.byCondition) {
+    for (const [m, v] of Object.entries(c)) if (m !== "condition") add("condition", c.condition, m, v);
+  }
+  for (const e of k.byErrorType) {
+    add("errorType", e.errorType, "n", e.n);
+    add("errorType", e.errorType, "detectionRate", e.detectionRate);
+  }
+  for (const b of k.balance) add("balance", b.conditionOrder, "completed", b.completed);
+  for (const d of k.dailyCompleted) add("daily", d.date, "completed", d.n);
+  return rows;
+}
+
+export function kpiRows(db: Database.Database, now: Date = new Date()): Row[] { return kpiRowsFrom(computeKpis(db, now)); }
+export function kpisCsv(db: Database.Database, now: Date = new Date()): string { return toCsv(kpiRows(db, now), KPI_COLUMNS); }
+
+// ---------- export index (GET /api/admin/export) ----------
+export interface ExportIndexEntry { name: string; description: string; rows: number }
+
+const count = (db: Database.Database, table: string) =>
+  (db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as { n: number }).n;
+
+export const EXPORT_INDEX: { name: string; description: string; rows: (db: Database.Database) => number }[] = [
+  { name: "participants.csv", description: "One analysis-ready row per session (all statuses, pilots flagged): totals, detection, per-condition scores and exit answers.", rows: (db) => count(db, "sessions") },
+  { name: "trials.csv", description: "One row per trial: post, AI label, truth, agreement, detection, confidence, timing and explanation use.", rows: (db) => count(db, "trials") },
+  { name: "surveys.csv", description: "One row per block survey: 12 trust items (raw and scored), trust mean, fairness, tension, frustration.", rows: (db) => count(db, "block_surveys") },
+  { name: "events.csv", description: "Interaction log: one row per client event (fact sheet, Why?, factor expands, visibility).", rows: (db) => count(db, "events") },
+  { name: "exit.csv", description: "One row per exit survey: demographics, social media use, label exposure, preferred condition, comment.", rows: (db) => count(db, "exit_surveys") },
+  { name: "kpis.csv", description: "Dashboard KPIs in long form (section, key, metric, value); completed non-pilot sessions only.", rows: (db) => kpiRows(db).length },
+  { name: "sessions.json", description: "Full nested record of every session (blocks, trials, surveys, exit, events) for archiving.", rows: (db) => count(db, "sessions") },
+];
+
+export function exportIndex(db: Database.Database): ExportIndexEntry[] {
+  return EXPORT_INDEX.map((e) => ({ name: e.name, description: e.description, rows: e.rows(db) }));
 }

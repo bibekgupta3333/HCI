@@ -1,6 +1,6 @@
 # Wireframes: AI label study app (low fidelity)
 
-This document gives a low-fidelity ASCII wireframe for every screen in the v3 study app, where participants judge made-up social media posts from the fictional town of Riverton and decide whether to agree with an AI accuracy label. The goal is that every team member builds the same layout, and that the report can show the planned interface next to screenshots of the running app. Each wireframe is at most 46 characters wide so it reads on a phone and in the PDF. The real app works from 360 px phones to 1280 px laptops (see `architecture.md`); on wide screens the trial puts the post and the label side by side, and on phones it stacks them (§15). Treat these as content and order, not pixel layout. **v2:** the study is self-guided and once-only (Welcome screen, §0), each post takes two taps (decision, then an inline confidence chip, §9), a progress bar and keyboard hints sit on every trial, the block survey is one matrix screen (§10), and `/admin` is a read-only KPI dashboard (§13). Under each wireframe, 2–4 notes say what is logged and which interaction rules apply. Field and event names follow `data-model.md`. Participant-facing wording (instructions, the practice post, post cards, fact sheets, B/C/D text) is copied from `stimuli.md`, which wins if the two ever differ; `_shared-decisions.md` is binding on the post bank and condition rules.
+This document gives a low-fidelity ASCII wireframe for every screen in the v3 study app, where participants judge made-up social media posts from the fictional town of Riverton and decide whether to agree with an AI accuracy label. The goal is that every team member builds the same layout, and that the report can show the planned interface next to screenshots of the running app. Each wireframe is at most 46 characters wide so it reads on a phone and in the PDF. The real app works from 360 px phones to 1280 px laptops (see `architecture.md`); on wide screens the trial puts the post and the label side by side, and on phones it stacks them (§15). Treat these as content and order, not pixel layout. **v2:** the study is self-guided and once-only (public landing page at `/`, §0a, then the participation-code screen at `/start`, §0b), each post takes two taps (decision, then an inline confidence chip, §9), a progress bar and keyboard hints sit on every trial, the block survey is one matrix screen (§10), and `/admin` is a read-only KPI dashboard (§13). Under each wireframe, 2–4 notes say what is logged and which interaction rules apply. Field and event names follow `data-model.md`. Participant-facing wording (instructions, the practice post, post cards, fact sheets, B/C/D text) is copied from `stimuli.md`, which wins if the two ever differ; `_shared-decisions.md` is binding on the post bank and condition rules.
 
 Conventions: `[ Button ]` is a button, `[1]` a tappable chip, `○`/`●` an empty/filled matrix cell, `▓░` the progress bar, `( )` is a radio option, `▸` is a collapsed row, `▾` an expanded one, `✓`/`⚠` are the two label icons, and `♡`/`↻` are likes and reposts.
 
@@ -8,10 +8,102 @@ The previous design (v2.1, approving an AI agent's actions) has its own wirefram
 
 ---
 
-## 0. Welcome (`WelcomeScreen`, `/`)
+## 0a. Landing page (`LandingScreen`, `/`)
+
+The public page that the recruitment link and QR code open. Desktop (about 1280 px; the hero puts the text and an illustration side by side, and "Who can take part" and "Your privacy" sit in two columns):
 
 ```
 ┌──────────────────────────────────────────┐
+│ You have a session in progress.          │
+│                             [ Continue ] │
+├──────────────────────────────────────────┤
+│ Post Review Study       ┌──────────────┐ │
+│                         │ ▭ post       │ │
+│ Help us understand how  │ ✓ AI label   │ │
+│ people use AI labels on │ [Agree] [..] │ │
+│ social media posts.     └──────────────┘ │
+│                          (illustration)  │
+│ [ Take part ]  How it works ↓            │
+├──────────────────────────────────────────┤
+│ How it works                             │
+│ ① Enter a  ② Read 24 short   ③ Answer a  │
+│   code.      made-up posts;    few quick │
+│              agree or not      questions.│
+│              with each label             │
+│ About 15–20 minutes · phone or computer  │
+├──────────────────────────────────────────┤
+│ Who can take part   │ Your privacy       │
+│ • Anyone aged 18+   │ • Anonymous        │
+│   who reads English │ • Only a scrambled │
+│ • Once per person   │   code is kept     │
+│ • No experience     │ • Stop at any time │
+│   needed            │ • Contact: (TBD)   │
+├──────────────────────────────────────────┤
+│ Questions                                │
+│ ▸ How long does it take?                 │
+│ ▸ Do I need to know about AI?            │
+│ ▸ Can I stop?                            │
+│ ▸ What if I close the tab?               │
+├──────────────────────────────────────────┤
+│ CEN5728 Advanced HCI · Group 4 · (inst.) │
+└──────────────────────────────────────────┘
+```
+
+Phone (360 px; one column, full-width buttons, the illustration under the call to action):
+
+```
+┌────────────────────────────────┐
+│ Session in progress            │
+│ [         Continue           ] │
+├────────────────────────────────┤
+│ Post Review Study              │
+│ Help us understand how people  │
+│ use AI labels on social media  │
+│ posts.                         │
+│ [         Take part          ] │
+│ How it works ↓                 │
+│        (illustration)          │
+├────────────────────────────────┤
+│ How it works                   │
+│ ① Enter a participation code.  │
+│ ② Read 24 short made-up posts  │
+│   and say whether you agree    │
+│   with each AI label.          │
+│ ③ Answer a few quick questions.│
+│ About 15–20 min · phone or PC  │
+├────────────────────────────────┤
+│ Who can take part              │
+│ • Anyone aged 18 or over who   │
+│   reads English                │
+│ • Once per person              │
+│ • No experience needed         │
+├────────────────────────────────┤
+│ Your privacy                   │
+│ • Taking part is anonymous     │
+│ • Only a scrambled version of  │
+│   your code is kept            │
+│ • You can stop at any time     │
+│ • Questions? Contact (TBD)     │
+├────────────────────────────────┤
+│ Questions                      │
+│ ▸ How long does it take?       │
+│ ▸ Do I need to know about AI?  │
+│ ▸ Can I stop?                  │
+│ ▸ What if I close the tab?     │
+├────────────────────────────────┤
+│ CEN5728 · Group 4 · (inst.)    │
+└────────────────────────────────┘
+```
+
+- **Take part** goes to `/start` (§0b). "How it works ↓" scrolls to the steps. A "Skip to main content" link is the first focusable element. Nothing is logged: no session exists yet, and the page makes no API call.
+- The **session in progress** banner, with **Continue**, appears only when the browser holds `xai-study:activeSessionId`. Continue resumes at the saved cursor; if the server no longer has the session, the banner is replaced by "We couldn't find your previous session. Choose 'Take part' and enter your code to continue."
+- The wording follows the recruitment rules in `study-protocol.md` §6: plain and neutral, with no hint that labels can be wrong or are scripted. The FAQ items are collapsed `<details>`: how long (about 15–20 minutes), AI knowledge (none needed), stopping (at any time, no penalty), closing the tab (continue with the same code within 2 hours). The contact address and institution are placeholders until ethics approves them.
+
+## 0b. Welcome / participation code (`WelcomeScreen`, `/start`)
+
+```
+┌──────────────────────────────────────────┐
+│ ← Back                                   │
 │ Judging AI labels on social media posts  │
 ├──────────────────────────────────────────┤
 │ Read 24 made-up posts, each with an AI   │
@@ -36,8 +128,8 @@ The previous design (v2.1, approving an AI agent's actions) has its own wirefram
 ```
 
 - **Start** (or Enter) sends `POST /api/sessions { participantCode }`. 201 → consent; 200 → resumes at the saved cursor; 409 → the "already taken part" state below; 400 → "Please enter 3–120 characters". The raw code is never stored; the server keeps only its salted hash.
-- **Continue** appears only when the browser holds `xai-study:activeSessionId`. No researcher step and no pid entry anywhere.
-- When `localStorage["xai-study:participated"]` is set (after a finished exit survey) or the server answers 409, the screen shows only:
+- **← Back** returns to the landing page (`/`). **Continue** appears only when the browser holds `xai-study:activeSessionId`. No researcher step and no pid entry anywhere.
+- When the server answers 409 (the code already has a completed or abandoned session), the screen shows only the message below. Nothing in the browser triggers it: after a finished study the browser holds no study data, so a returning visitor sees the normal screen above until they type a used code.
 
 ```
 ┌──────────────────────────────────────────┐
@@ -432,7 +524,7 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 
 - One screen. Questions with 6 or fewer options are chips or radios; only education (more options) stays a select. Required: social media use, label exposure and preferred part. Parts are shown in the session's own order, and the export maps them back to A/B/C/D.
 - The comment is capped at 1000 characters.
-- Logs `exit_survey_submit`, sets `status = completed` and `completedAt`, and sets `localStorage["xai-study:participated"] = "1"`.
+- Logs `exit_survey_submit` and sets `status = completed` and `completedAt`. Once the server has saved the survey and the last events are flushed, the client removes every `xai-study:` key from `localStorage` and `sessionStorage` (except `xai-study:adminToken`) and then shows the debrief. Nothing about the participant is left in the browser.
 
 ## 12. Debrief (`DebriefScreen`)
 
@@ -462,12 +554,17 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 │ To withdraw your data or ask a           │
 │ question, email: study email (TBD)       │
 │ You can close this tab now.              │
+├──────────────────────────────────────────┤
+│ Shared device? Hand it to the next       │
+│ person:                                  │
+│                   [ Next participant ]   │
 └──────────────────────────────────────────┘
 ```
 
 - Self-guided: no "call the researcher". The participant number is shown so a withdrawal request by email can name the session; the contact address is a placeholder until ethics approves it.
 - "Show the real facts" lists all 8 wrong-label posts (p03, p04, p09, p10, p15, p16, p21, p22), whichever this participant saw, so no false claim goes uncorrected. Logs `session_complete`.
 - No back button. A declined consent lands here too, with only the thank-you and contact lines.
+- The debrief is drawn from data already in memory (pid, wrong-label facts); browser storage has been cleared by the time it shows. **Next participant** returns to the landing page (`/`) with no **Continue** banner, and the next person taps **Take part** for an empty code field; a reload of the page does the same.
 
 ## 13. Admin (`AdminScreen`, `/admin`, opened by URL only)
 
@@ -494,15 +591,24 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 │  11 completed CDBA 24/24  1 h            │
 │   4 abandoned DACB  3/24  3 h    [Del]   │
 ├──────────────────────────────────────────┤
-│ Export [trials.csv] [surveys.csv]        │
-│        [events.csv] [exit.csv] [json]    │
+│ Export                                   │
+│ participants.csv  Start here       32 [↓]│
+│   One analysis-ready row per session     │
+│ trials.csv        Per trial       768 [↓]│
+│ surveys.csv       Block surveys   128 [↓]│
+│ events.csv        Interactions   9412 [↓]│
+│ exit.csv          Exit surveys     32 [↓]│
+│ kpis.csv          Dashboard        81 [↓]│
+│ sessions.json     Full archive     32 [↓]│
+│ [ Download all CSVs ] ☐ Include raw JSON │
+├──────────────────────────────────────────┤
 │ Token [ •••••• ]   Preview pid [ 7 ]▸    │
 └──────────────────────────────────────────┘
 ```
 
 - **Data and KPIs only: there is no start-session form.** Refreshes every 15 s from `GET /api/admin/kpis` and `GET /api/admin/sessions`. KPI definitions are in `data-model.md` §8.6; they use completed sessions only and exclude pilot pids ≥ 900.
 - The condition table uses small inline SVG bars (no chart library): detection, false-alarm vs miss detection, trust and tension. The balance row shows completed sessions per Williams order.
-- Sessions table: pid, status, order, progress x/24, last activity, with **Mark abandoned** (`[Ab]`) and **Delete (withdrawal)** (`[Del]`, typed confirmation). Export buttons download the five files.
+- Sessions table: pid, status, order, progress x/24, last activity, with **Mark abandoned** (`[Ab]`) and **Delete (withdrawal)** (`[Del]`, typed confirmation). The export panel lists all seven files from `GET /api/admin/export`, each with a one-line description, its current row count and a download link (`[↓]`). `participants.csv` is marked **Start here** (one row per participant) and `kpis.csv` **Dashboard numbers**. **Download all CSVs** fetches the six CSVs one after another; ticking "Include raw JSON" adds `sessions.json`. If the index fails to load, the seven links still show, without counts.
 - Without `ADMIN_TOKEN` the page works only on the server machine (loopback); from anywhere else the API returns 403 and the page asks for the token. "Preview pid" shows any pid's assignment without creating anything.
 
 ## 14. Consequence banner (optional, off by default)
@@ -585,8 +691,11 @@ The trial on a phone. Everything stacks in one column; the progress bar stays at
 
 ```mermaid
 flowchart TD
-    Welcome["Welcome: participation code"] -->|"Start, new code"| Consent
-    Welcome -->|"Continue, or same code"| Resume["Resume at saved cursor"]
+    Landing["Landing page (/): how it works, who, privacy, FAQ"] -->|"Take part"| Welcome["Welcome (/start): participation code"]
+    Landing -->|"Continue banner"| Resume["Resume at saved cursor"]
+    Welcome -->|"Back"| Landing
+    Welcome -->|"Start, new code"| Consent
+    Welcome -->|"Continue, or same code"| Resume
     Welcome -->|"already took part"| Thanks["Thank-you message"]
     Consent -->|"I do not agree"| Debrief
     Consent -->|"I agree"| Instr["Instructions"]
@@ -604,6 +713,7 @@ flowchart TD
     Survey -->|"part 4"| Exit["Exit survey"]
     Exit --> Debrief
     Resume --> Checking
+    Debrief -->|"Next participant"| Landing
     Debrief --> End["Close the tab"]
     Admin["Admin dashboard: KPIs, sessions, exports"]
 ```

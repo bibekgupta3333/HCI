@@ -32,19 +32,18 @@
  *   .admin__balance-count     "n / expected"
  *   .admin__status            status cell; plus .admin__status--in_progress / --completed / --abandoned
  *   .admin__confirm           inline delete confirmation (role=dialog)
- *   .admin__exports           list of export links
- *   .admin__export-link       one export link (styled as a button)
+ *   (export section: see the admin__export* classes listed in ExportPanel.tsx)
  *   .admin__preview           pid preview result box
  *   (charts use the kpi__* classes listed in KpiCharts.tsx)
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
 import type { AdminSessionRow, Assignment, Kpis } from "../../shared/api";
+import ExportPanel from "./ExportPanel";
 import { BarCell, DASH, PairBar, ProgressMeter, Sparkline, fmtNum, fmtPct } from "./KpiCharts";
 
 export const ADMIN_TOKEN_KEY = "xai-study:adminToken";
 export const REFRESH_MS = 15_000;
-const EXPORTS = ["trials.csv", "surveys.csv", "events.csv", "exit.csv", "sessions.json"] as const;
 const ORDERS = ["ABDC", "BCAD", "CDBA", "DACB"] as const;
 const CONDITION_NAMES: Record<string, string> = {
   A: "No explanation",
@@ -122,6 +121,7 @@ export default function AdminScreen() {
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [paused, setPaused] = useState(false);
+  const [refreshCount, setRefreshCount] = useState(0);
 
   const [deleting, setDeleting] = useState<AdminSessionRow | null>(null);
   const [deleteText, setDeleteText] = useState("");
@@ -146,6 +146,7 @@ export default function AdminScreen() {
     } finally {
       inFlight.current = false;
       setLoading(false);
+      setRefreshCount((n) => n + 1);
     }
   }, []);
 
@@ -484,18 +485,7 @@ export default function AdminScreen() {
         )}
       </section>
 
-      <section className="admin__section" aria-labelledby="admin-export-title">
-        <h2 id="admin-export-title" className="admin__section-title">Export</h2>
-        <ul className="admin__exports">
-          {EXPORTS.map((name) => (
-            <li key={name}>
-              <a className="admin__export-link" href={api.admin.exportUrl(name)} download>
-                {name}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <ExportPanel refreshKey={refreshCount} />
 
       <section className="admin__section" aria-labelledby="admin-preview-title">
         <h2 id="admin-preview-title" className="admin__section-title">Assignment preview</h2>

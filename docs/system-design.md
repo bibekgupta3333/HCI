@@ -30,9 +30,10 @@ Where this doc and `_shared-decisions.md` disagree, `_shared-decisions.md` wins.
 
 | ID | Requirement |
 |---|---|
-| FR-1 | The participant starts the session themselves on the Welcome screen (`/`) by typing a participation code (3–120 characters, e.g. a university email or student ID) and pressing Start or Enter. No researcher action is needed. The server assigns the `pid` (lowest free slot, abandoned slots reused). |
-| FR-1a | **Once-only.** The server stores only `HMAC-SHA256(salt, normalisedCode)`. A code with a completed or abandoned session is refused (409 `already_participated`, shown as "You've already taken part. Thank you!"); a code with a session in progress resumes it. After the exit survey the browser sets a `participated` flag that shows the thank-you message straight away. |
-| FR-1b | **Continue.** If the browser holds an active session id, the Welcome screen offers Continue. Typing the same code on another device also resumes. |
+| FR-0 | **Landing page.** The study link and QR code open a public landing page at `/` (`LandingScreen`): a hero with the study name, a one-line pitch and a **Take part** button (→ `/start`); "How it works" in 3 steps (enter a participation code; read 24 short made-up posts and say whether you agree with each AI label; answer a few quick questions; about 15–20 minutes, phone or computer); who can take part (anyone aged 18 or over who reads English, once per person, no experience needed); privacy (anonymous, only a scrambled version of the code is kept, stop at any time, contact placeholder); a collapsed FAQ; and a footer. When the browser holds an active session id, a "You have a session in progress" banner offers **Continue**. Its wording follows the recruitment rules (`study-protocol.md` §6), so it never hints that labels can be wrong. It makes no API call and logs nothing. |
+| FR-1 | The participant starts the session themselves on the Welcome screen (`/start`, reached from **Take part**; a **← Back** link returns to `/`) by typing a participation code (3–120 characters, e.g. a university email or student ID) and pressing Start or Enter. No researcher action is needed. The server assigns the `pid` (lowest free slot, abandoned slots reused). |
+| FR-1a | **Once-only.** The server stores only `HMAC-SHA256(salt, normalisedCode)`. A code with a completed or abandoned session is refused (409 `already_participated`, shown as "You've already taken part. Thank you!"); a code with a session in progress resumes it. The browser keeps no "participated" flag: once the exit survey is saved, it clears all study data (every `xai-study:` key in `localStorage` and `sessionStorage` except `xai-study:adminToken`), and the debrief offers **Next participant**, so the next person on a shared device starts fresh. |
+| FR-1b | **Continue.** If the browser holds an active session id, the landing page banner and the Welcome screen both offer Continue. Typing the same code on another device also resumes. |
 | FR-2 | The participant must give informed consent before seeing any post. If they decline, the app goes straight to `DebriefScreen` and records no trial data. |
 | FR-3 | `InstructionsScreen` explains the task ("an AI has labeled each post; check whether you agree"), the two labels, the fact sheet, and the two buttons. It ends with one practice post that is not in the bank. |
 | FR-4 | All 24 posts and their fact sheets load from `src/data/posts.json`, and the survey items from `src/data/surveyItems.json`. All four condition views read the same post objects through `labelEngine.buildPresentation(post, condition)`. |
@@ -52,6 +53,7 @@ Where this doc and `_shared-decisions.md` disagree, `_shared-decisions.md` wins.
 | FR-16 | `logger.ts` records the per-trial record (§5.4), the per-block record, and a timestamped event stream. It is the only module that calls `labelEngine.getTruth(postId)`. |
 | FR-17 | The server writes each trial, event batch and survey to SQLite the moment it is submitted, and stamps `last_activity_at` on every participant write. |
 | FR-18 | `/admin` lists sessions and exports all of them as JSON and as CSV (one row per trial, plus block-survey, event and exit-survey CSVs). It cannot start sessions. Admin routes require `ADMIN_TOKEN` when set, and answer only from loopback when it is not. |
+| FR-18c | **Analysis-ready exports.** Besides the per-record files, `/admin` exports `participants.csv` (one row per session, every status, pilots flagged with `isPilot`: totals, detection overall and by error type, per-condition agreement, detection, trust, fairness, tension and frustration, and the exit answers; never `participant_hash`) and `kpis.csv` (the dashboard KPIs in long form: `section, key, metric, value`). `GET /api/admin/export` returns an index of all 7 files with a one-line description and the current row count; the export panel shows these next to each download link and offers **Download all CSVs**. Columns: `data-model.md` §8.7–§8.9. |
 | FR-18a | **KPIs.** `/admin` shows, refreshed every 15 s from `GET /api/admin/kpis`: completed / target (N = 32, minimum 16), in progress, completion rate, median and p90 duration; per condition A–D trials, agreement, detection (all, false alarm, miss), fact-sheet open rate, mean confidence, median decision time, mean trust, fairness, tension and frustration; detection per error type; completed sessions per condition order (balance); completions per day. Completed sessions only; pilot pids ≥ 900 excluded. |
 | FR-18b | **Stale sessions.** An in-progress session with no activity for `STALE_MINUTES` (default 120) is marked abandoned when the next session starts, and its pid is reused. |
 | FR-19 | If the page is reloaded mid-session, the app resumes at the first trial or survey with no saved response. The resumed trial gets `resumed = true`. |
@@ -102,8 +104,8 @@ Where this doc and `_shared-decisions.md` disagree, `_shared-decisions.md` wins.
 | FR-15 | Proposal: preferred condition | H4, H5 (supporting) |
 | FR-16, NFR-3 | Proposal: "time-to-decision"; CLAUDE.md: log C expansions | H6, H1b |
 | FR-21 | False alarm vs miss, the v3 headline comparison | H1a, H1b, H3 |
-| FR-17 – FR-19, NFR-5 | Proposal: survey/data collection layer | All |
-| FR-1, FR-1a, FR-1b, FR-2, FR-20, NFR-8 | Ethics, deception, self-guided once-only session, debrief | — (one person = one row set, so the within-subjects design holds) |
+| FR-17 – FR-19, FR-18c, NFR-5 | Proposal: survey/data collection layer | All (FR-18c: one row per participant for the within-subjects tests) |
+| FR-0, FR-1, FR-1a, FR-1b, FR-2, FR-20, NFR-8 | Ethics, deception, self-guided once-only session, debrief | — (one person = one row set, so the within-subjects design holds) |
 | FR-12a, FR-12b, FR-18a, NFR-2 | v2 PI decision: fast, interactive, any device; KPIs for monitoring unmoderated collection | All (data quality and balance) |
 | NFR-7 | Errors must be found from the data, not from cues | RQ1, RQ2 |
 | FR-22 | Optional consequence banner and anxiety scale (Deepthi's "drop if too big") | RQ3 (exploratory) |
@@ -118,8 +120,11 @@ Where this doc and `_shared-decisions.md` disagree, `_shared-decisions.md` wins.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Welcome
-    Welcome --> AlreadyTookPart : flag set or code returns 409
+    [*] --> Landing
+    Landing --> Welcome : Take part
+    Landing --> Resume : Continue banner
+    Welcome --> Landing : Back
+    Welcome --> AlreadyTookPart : code returns 409
     AlreadyTookPart --> [*]
     Welcome --> Consent : new code, 201
     Welcome --> Resume : code in progress 200, or Continue
@@ -137,12 +142,13 @@ stateDiagram-v2
     }
     Block --> Block : parts 2 to 4
     Block --> ExitSurvey : fourth part done
-    ExitSurvey --> Debrief : submitted
+    ExitSurvey --> Debrief : saved, events flushed, storage cleared
+    Debrief --> Landing : Next participant
     Debrief --> [*]
 ```
 
 - `Confidence` is the `PostRatingStrip` chip row inside `TrialScreen`. It is a second step on the same screen, and the route doesn't change. Tapping a chip (or pressing `1`–`7`) submits after a 1 s Undo window.
-- `Welcome` is `/`. It shows the participation-code field, Continue when an active session id is stored, or the thank-you message when the participated flag is set.
+- `Landing` is `/`, the public page the recruitment link opens (FR-0). It shows the study, who can take part and privacy, and a Continue banner when an active session id is stored. `Welcome` is `/start`. It shows a Back link, the participation-code field, Continue when an active session id is stored, or the thank-you message when the server answers 409. Nothing in the browser marks a finished participant: storage is cleared after the exit survey is saved.
 - The route is `/trial/:block/:pos`, and `StudyContext` holds the indices, so a reload lands in the right place (FR-19).
 - Stored records use `blockIndex` 1–4 and `positionInBlock` 1–6. The trial id is `${pid}-${blockIndex}-${positionInBlock}`.
 
@@ -160,7 +166,9 @@ stateDiagram-v2
     AbandonConfirm --> Dashboard
     Dashboard --> DeleteConfirm : withdrawal request by email
     DeleteConfirm --> Dashboard : all rows of the session deleted
-    Dashboard --> Export : download CSV or JSON
+    Dashboard --> Export : export index with descriptions and row counts
+    Export --> Download : one file, or Download all CSVs
+    Download --> Export
     Export --> Dashboard
     Forbidden --> [*]
 ```
@@ -180,8 +188,9 @@ All screens are in `src/study/`. "Logged" means an event goes to `logger.ts` as 
 
 | Screen | Shows | Inputs | Logged / stored |
 |---|---|---|---|
-| `WelcomeScreen` (`/`) | Study title, 2-line description, "About 15–20 minutes", participation-code field with a one-line privacy note ("Only used to make sure each person takes part once; stored scrambled."), Start; Continue when an active session is stored; "You've already taken part. Thank you!" when the participated flag is set or the server returns 409 | Code (3–120 characters), Start / Enter, Continue | `POST /api/sessions` → 201 new, 200 resumed, 409 already participated |
-| `AdminScreen` | KPI cards, per-condition table with inline SVG bars, balance grid, sessions table (pid, status, order, progress x/24, started, last activity), Abandon / Delete, export buttons, token field, pid preview. No start form. | Token, pid (preview), buttons | Nothing participant-side; reads `/api/admin/kpis` and `/api/admin/sessions` every 15 s |
+| `LandingScreen` (`/`) | Hero (study name, one-line pitch, **Take part**, "How it works ↓"), 3 steps, who can take part, privacy, FAQ (collapsed), footer; a "You have a session in progress" banner with Continue when an active session id is stored. Wording per the recruitment rules (`study-protocol.md` §6) | Take part, Continue, FAQ toggles | Nothing (no session yet); Continue calls `POST /api/sessions/:id/resume` |
+| `WelcomeScreen` (`/start`) | ← Back link to `/`, study title, 2-line description, "About 15–20 minutes", participation-code field with a one-line privacy note ("Only used to make sure each person takes part once; stored scrambled."), Start; Continue when an active session is stored; "You've already taken part. Thank you!" when the server returns 409 (never from browser state) | Code (3–120 characters), Start / Enter, Continue | `POST /api/sessions` → 201 new, 200 resumed, 409 already participated |
+| `AdminScreen` | KPI cards, per-condition table with inline SVG bars, balance grid, sessions table (pid, status, order, progress x/24, started, last activity), Abandon / Delete, export panel (7 files, each with a description, row count and download link, plus Download all CSVs), token field, pid preview. No start form. | Token, pid (preview), buttons | Nothing participant-side; reads `/api/admin/kpis` and `/api/admin/sessions` every 15 s, and `/api/admin/export` for the export index |
 | `ConsentScreen` | Short plain text plus a "Read full consent details" disclosure: purpose ("how people judge AI labels on social media posts"), about 15–20 min, self-guided (contact email instead of "call the researcher"), voluntary, may stop at any time, anonymous data use, contact. The deception isn't disclosed until the debrief, which ethics must approve. | "I agree" / "I do not agree" | `consent {given}` |
 | `InstructionsScreen` | The scenario, a labeled tour of a `PostCard` and `LabelPanel`, the two labels (✓ Likely accurate, ⚠ Likely misleading), what "Fact sheet ▸" does, and the note "The AI can make mistakes" (the same for every pid). Then 1 practice post (below). | "Start" (enabled after the practice post is answered) | `instructions_viewed {durationMs}`, `practice_done {agreed, factSheetOpened}` (not a trial record) |
 | `TrialScreen` | Progress bar "Post n of 24" + "Part x of 4", keyboard hint line, `PostCard`, `LabelPanel`, the condition's explanation area, "Fact sheet ▸", "Agree with label" / "Disagree with label", then `PostRatingStrip` | Agree/Disagree (`A`/`D`); then a confidence chip 1–7 (`1`–`7`), which submits after a 1 s Undo window. `F` fact sheet; in C: "Why?" (`W`) and the row toggles | `trial_shown`, `factsheet_opened`/`factsheet_closed`, `explanation_opened`/`explanation_closed`, `factor_expanded`/`factor_collapsed {key}`, `decision {agreed}`, `confidence {value}`, `visibility {state}`, `trial_saved` |
@@ -360,7 +369,7 @@ Target: about **15–20 minutes** (NFR-9). The pilot (§9.3) times each phase fr
 
 | Phase | Contents | Estimated time |
 |---|---|---|
-| Welcome | Participation code, Start | 0.3 min |
+| Landing + Welcome | Read the landing page, Take part, participation code, Start | 0.5 min |
 | Consent | Short text (full details in a disclosure), agree/decline | 1 min |
 | Instructions + practice | 3 bullets and the inline practice post, no reading lock | 1–1.5 min |
 | Trials | 4 parts × 6 posts = 24 trials at about 18–25 s each (800 ms delay, reading, optional fact sheet, two taps) | 7.5–10 min |
@@ -623,7 +632,7 @@ Each condition view has its own owner, as the proposal asks. Infrastructure is s
 | R-11 | **C's "Why?" is never opened** | H1b and H2 reduce to "C ≈ A" | `explanationOpened` is logged and reported; the instructions mention "Why?" as neutrally as "Fact sheet ▸" |
 | R-12 | **Matched sets aren't equivalent** | Set difficulty confounded with condition | Set rotation pairs each set with each condition 4 times per cycle; `(1|postId)`; per-set detection checked in the pilot |
 | R-13 | **Data loss** | Missing participants unbalance the cycle | Save after every trial; resume on reload or with the same code; export after every session day; pids of abandoned sessions are reused for the next participant (ADR-12 in `architecture.md`) |
-| R-15 | **Duplicate participation with different codes** | The same person appears twice, so their data is not independent and they have already seen the debrief (they know 8 labels are wrong) | The server refuses a repeated code (409) and the browser flag thanks a returning visitor, but a new code gets through. Ask for an institutional code (university email or student ID) in the invitation; consent says to take part once; the exit survey can ask "Have you done this study before?"; at analysis, flag sessions from the same day with near-identical answer patterns. Accept the residual risk and report it. |
+| R-15 | **Duplicate participation with different codes** | The same person appears twice, so their data is not independent and they have already seen the debrief (they know 8 labels are wrong) | The server refuses a repeated code (409); this is the only guard, since the browser keeps nothing after completion, so a new code gets through. Ask for an institutional code (university email or student ID) in the invitation; consent says to take part once; the exit survey can ask "Have you done this study before?"; at analysis, flag sessions from the same day with near-identical answer patterns. Accept the residual risk and report it. |
 | R-16 | **Unmoderated attention** (no researcher in the room; phones, distractions, speeding) | Noisy detection and decision times; inflated agreement from clicking through | Keep and export every attention signal: `hiddenMs`, `hiddenCount`, `blurCount`, `timingFlag` (hidden or > 120 s), fact-sheet use, per-trial decision time and total session duration. Pre-register exclusion rules (e.g. median decision time < 2 s, or many flagged trials). `/admin` shows median and p90 duration to spot speeders early. |
 | R-17 | **Admin data exposed on a reachable server** | Privacy breach | Admin routes answer only from loopback unless `ADMIN_TOKEN` is set; serve participants over HTTPS through a reverse proxy; the participation code is only stored as a salted hash |
 | R-14 | **Approval not obtained** (domain change, 4th condition, affect measures) | The project doesn't match what was approved | Written rationale in `research-positioning.md`; Professor Hamam's approval and ethics approval before any real data |
@@ -653,7 +662,8 @@ There is no code yet. These suites are written alongside the engine.
 - From another machine, check that `/admin` returns 403 without a token.
 - Run a full session in Chrome, Firefox and Edge. Reload mid-trial and mid-survey, and check that the session resumes.
 - Confirm the four views keep the buttons in exactly the same place, including C with every row expanded.
-- Export JSON and CSV, and load the CSV in R or pandas with no manual cleanup.
+- Open the landing page on desktop and a 360 px phone, follow **Take part** to `/start` and **← Back**, and check the Continue banner after leaving mid-session.
+- Export JSON and all CSVs (check the export index's row counts match the dashboard), and load `participants.csv` and `trials.csv` in R or pandas with no manual cleanup.
 
 ### 9.3 Pilot run
 

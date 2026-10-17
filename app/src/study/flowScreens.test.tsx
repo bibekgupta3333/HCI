@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   },
   advance: vi.fn(),
   dispatch: vi.fn(),
-  markParticipated: vi.fn(),
+  clearParticipantStorage: vi.fn(),
   log: vi.fn(),
   flush: vi.fn(),
   navigate: vi.fn(),
@@ -20,11 +20,16 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("../api/client", () => ({ api: mocks.api }));
-vi.mock("../state/StudyContext", () => ({
-  useStudy: () => ({ session: mocks.session, advance: mocks.advance, state: {}, dispatch: mocks.dispatch }),
-  markParticipated: mocks.markParticipated,
-  routeForCursor: () => "/",
-}));
+vi.mock("../state/StudyContext", async (orig) => {
+  const actual = await orig<typeof import("../state/StudyContext")>();
+  // Spy on the real implementation so storage effects can be asserted.
+  mocks.clearParticipantStorage.mockImplementation(actual.clearParticipantStorage);
+  return {
+    useStudy: () => ({ session: mocks.session, advance: mocks.advance, state: {}, dispatch: mocks.dispatch }),
+    clearParticipantStorage: mocks.clearParticipantStorage,
+    routeForCursor: () => "/",
+  };
+});
 vi.mock("../logging/logger", () => ({
   useLogger: () => ({ log: mocks.log, flush: mocks.flush, nextSeq: () => 1 }),
 }));
@@ -75,6 +80,8 @@ const loggedTypes = () => mocks.log.mock.calls.map((c) => c[0].type);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
+  sessionStorage.clear();
   mocks.session = session;
   mocks.api.consent.mockResolvedValue({ ...session, consentAt: "x" });
   mocks.api.submitExitSurvey.mockResolvedValue({ ...session, status: "completed" });
@@ -230,11 +237,13 @@ describe("ExitSurveyScreen", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/Age range.*Education.*Social media use.*Label exposure.*Preferred part/);
     expect(group(/Age range/)).toHaveAttribute("aria-invalid", "true");
     expect(mocks.api.submitExitSurvey).not.toHaveBeenCalled();
-    expect(mocks.markParticipated).not.toHaveBeenCalled();
+    expect(mocks.clearParticipantStorage).not.toHaveBeenCalled();
   });
 
-  it("maps 'Part 2' to the condition shown in block 2, submits, marks participated and goes to debrief", async () => {
+  it("maps 'Part 2' to the condition shown in block 2, submits, then clears storage and goes to debrief", async () => {
     const user = userEvent.setup();
+    localStorage.setItem("xai-study:activeSessionId", "s-1");
+    sessionStorage.setItem("xai-study:adminToken", "tok");
     wrap(<ExitSurveyScreen />);
     await fillRequired(user, "Part 2");
     await user.click(within(group(/Gender/)).getByRole("radio", { name: "Woman" }));
@@ -247,9 +256,25 @@ describe("ExitSurveyScreen", () => {
     });
     expect(loggedTypes()).toEqual(["exit_survey_submit", "session_complete"]);
     expect(mocks.dispatch).toHaveBeenCalledWith({ type: "SESSION_LOADED", session: { ...session, status: "completed" } });
-    expect(mocks.markParticipated).toHaveBeenCalledTimes(1);
-    expect(mocks.markParticipated.mock.invocationCallOrder[0])
-      .toBeLessThan(mocks.navigate.mock.invocationCallOrder[0]);
+    expect(mocks.clearParticipantStorage).toHaveBeenCalledTimes(1);
+    const clearAt = mocks.clearParticipantStorage.mock.invocationCallOrder[0];
+    expect(mocks.api.submitExitSurvey.mock.invocationCallOrder[0]).toBeLessThan(clearAt);
+    expect(mocks.flush.mock.invocationCallOrder[0]).toBeLessThan(clearAt);
+    expect(mocks.dispatch.mock.invocationCallOrder[0]).toBeLessThan(clearAt);
+    expect(clearAt).toBeLessThan(mocks.navigate.mock.invocationCallOrder[0]);
+    expect(localStorage.getItem("xai-study:activeSessionId")).toBeNull();
+    expect(sessionStorage.getItem("xai-study:adminToken")).toBe("tok");
+  });
+
+  it("still clears storage and goes to debrief when the logger flush fails after a successful submit", async () => {
+    const user = userEvent.setup();
+    mocks.flush.mockRejectedValueOnce(new Error("offline"));
+    localStorage.setItem("xai-study:activeSessionId", "s-1");
+    wrap(<ExitSurveyScreen />);
+    await fillRequired(user, "Part 1");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith("/debrief"));
+    expect(localStorage.getItem("xai-study:activeSessionId")).toBeNull();
   });
 
   it("maps 'No preference' to none and leaves gender null when skipped", async () => {
@@ -261,22 +286,26 @@ describe("ExitSurveyScreen", () => {
     expect(mocks.api.submitExitSurvey.mock.calls[0][1]).toMatchObject({ preferredCondition: "none", gender: null });
   });
 
-  it("does not mark participated when saving fails", async () => {
+  it("clears nothing when saving fails", async () => {
     const user = userEvent.setup();
+    localStorage.setItem("xai-study:activeSessionId", "s-1");
     mocks.api.submitExitSurvey.mockRejectedValueOnce(new Error("down"));
     const { container } = wrap(<ExitSurveyScreen />);
     await fillRequired(user, "Part 1");
     await user.click(screen.getByRole("button", { name: "Submit" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/try again/);
-    expect(mocks.markParticipated).not.toHaveBeenCalled();
+    expect(mocks.clearParticipantStorage).not.toHaveBeenCalled();
+    expect(localStorage.getItem("xai-study:activeSessionId")).toBe("s-1");
+    expect(mocks.dispatch).not.toHaveBeenCalled();
     expect(mocks.navigate).not.toHaveBeenCalled();
     expectNoResearcher(container.textContent ?? "");
   });
 });
 
 describe("DebriefScreen", () => {
-  it("is self-guided: explains the scripted labels, quotes the pid, and clears the active session id", () => {
+  it("is self-guided: explains the scripted labels, quotes the pid from memory, and clears storage", () => {
     localStorage.setItem("xai-study:activeSessionId", "s-1");
+    sessionStorage.setItem("xai-study:adminToken", "tok");
     const { container } = wrap(<DebriefScreen />);
     const text = container.textContent ?? "";
     expect(screen.getByText(/8 of the 24 labels were deliberately wrong/)).toBeInTheDocument();
@@ -290,6 +319,22 @@ describe("DebriefScreen", () => {
     expect(screen.getByText("You can close this page now.")).toBeInTheDocument();
     expectNoResearcher(text);
     expect(localStorage.getItem("xai-study:activeSessionId")).toBeNull();
+    expect(sessionStorage.getItem("xai-study:adminToken")).toBe("tok");
+  });
+
+  it("renders the pid even when storage was already cleared", () => {
+    expect(localStorage.length).toBe(0);
+    wrap(<DebriefScreen />);
+    expect(screen.getByText("7")).toBeInTheDocument();
+  });
+
+  it("'Next participant' resets the study context and goes to the welcome page", async () => {
+    const user = userEvent.setup();
+    wrap(<DebriefScreen />);
+    expect(screen.getByText("You can close this page now.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Next participant" }));
+    expect(mocks.dispatch).toHaveBeenCalledWith({ type: "RESET" });
+    expect(mocks.navigate).toHaveBeenCalledWith("/", { replace: true });
   });
 
   it("'Show the real facts' reveals all 8 wrong-label facts", async () => {

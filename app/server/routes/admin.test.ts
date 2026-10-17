@@ -184,7 +184,7 @@ describe("DELETE /sessions/:id", () => {
 describe("GET /export/:name", () => {
   const datePrefix = /^attachment; filename="\d{4}-\d{2}-\d{2}-xai-study-/;
 
-  for (const name of ["trials.csv", "surveys.csv", "events.csv", "exit.csv"]) {
+  for (const name of ["trials.csv", "surveys.csv", "events.csv", "exit.csv", "participants.csv", "kpis.csv"]) {
     it(`serves ${name} as CSV with a BOM and attachment header`, async () => {
       createSession(db, assignment(6), OPTS);
       const res = await request(makeApp(db))
@@ -217,6 +217,50 @@ describe("GET /export/:name", () => {
   it("returns 404 for unknown export names", async () => {
     await request(makeApp(db)).get("/api/admin/export/secrets.txt").expect(404);
     await request(makeApp(db)).get("/api/admin/export/constructor").expect(404);
+  });
+});
+
+describe("GET /export (index)", () => {
+  it("returns name, description and row count for all 7 exports", async () => {
+    createSession(db, assignment(8), OPTS);
+    const res = await request(makeApp(db)).get("/api/admin/export").expect(200);
+    expect(res.headers["content-type"]).toMatch(/^application\/json/);
+    expect(res.body.map((e: { name: string }) => e.name).sort()).toEqual(
+      ["events.csv", "exit.csv", "kpis.csv", "participants.csv", "sessions.json", "surveys.csv", "trials.csv"],
+    );
+    for (const e of res.body) {
+      expect(typeof e.description).toBe("string");
+      expect(Number.isInteger(e.rows)).toBe(true);
+    }
+    const byName = Object.fromEntries(res.body.map((e: { name: string; rows: number }) => [e.name, e.rows]));
+    expect(byName["participants.csv"]).toBe(1);
+    expect(byName["sessions.json"]).toBe(1);
+    expect(byName["trials.csv"]).toBe(0);
+  });
+
+  it("every indexed name is downloadable", async () => {
+    const app = makeApp(db);
+    const res = await request(app).get("/api/admin/export").expect(200);
+    for (const e of res.body) await request(app).get(`/api/admin/export/${e.name}`).expect(200);
+  });
+
+  it("applies the token and loopback rules", async () => {
+    await request(makeApp(db, "secret")).get("/api/admin/export").expect(401);
+    await request(makeApp(db, "secret")).get("/api/admin/export/participants.csv").expect(401);
+    await request(makeApp(db, "secret")).get("/api/admin/export").set("x-admin-token", "secret").expect(200);
+    await request(makeApp(db, "secret")).get("/api/admin/export/kpis.csv?token=secret").expect(200);
+    const remote = makeApp(db, undefined, { remoteAddress: "10.0.0.9" });
+    for (const p of ["/api/admin/export", "/api/admin/export/participants.csv", "/api/admin/export/kpis.csv"]) {
+      expect((await request(remote).get(p).expect(403)).body.error).toBe("forbidden");
+    }
+  });
+
+  it("participants.csv download never contains the stored hash", async () => {
+    const hash = "f".repeat(64);
+    createSession(db, assignment(9), { ...OPTS, participantHash: hash });
+    const res = await request(makeApp(db)).get("/api/admin/export/participants.csv").expect(200);
+    expect(res.text).toContain("isPilot");
+    expect(res.text).not.toContain(hash);
   });
 });
 

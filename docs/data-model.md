@@ -822,7 +822,7 @@ Scoring (done at submit in `BlockSurveyScreen` and recomputed at analysis time):
 
 Session data is stored by the local Express server in one SQLite file, `app/data/study.db` by default (set with `DB_PATH`). The schema is [app/server/db/schema.sql](../app/server/db/schema.sql), applied idempotently (`CREATE TABLE IF NOT EXISTS`) every time the server starts. Column names are the snake_case form of the field names in §2 and §3 (`decisionTimeMs` → `decision_time_ms`); the mapping lives only in `server/db/repo.ts`, so the API, the exports and this document all use the camelCase names. Booleans are stored as `0`/`1`, and arrays and nested objects as JSON text (except `factorsExpanded`, stored pipe-separated as in the CSV).
 
-The browser stores two things in `localStorage`: the active session id (`xai-study:activeSessionId`), so a reload can ask the server for the session, and, once the exit survey has been saved, `xai-study:participated = "1"`, so the Welcome screen thanks a returning visitor. Nothing else is written in the browser, and the client never receives the correctness fields or the participant hash.
+The browser stores one thing in `localStorage` while a session runs: the active session id (`xai-study:activeSessionId`), so a reload can ask the server for the session. Once the exit survey has been saved and the last events flushed, the client removes every `xai-study:` key from `localStorage` and `sessionStorage` except the researcher's `xai-study:adminToken`, so nothing is stored in the browser after completion. There is no browser "participated" flag; once-only is enforced only by `participant_hash` on the server (409 `already_participated`). The client never receives the correctness fields or the participant hash.
 
 | Table | Primary key | One row per | Holds (field names from §2) |
 |---|---|---|---|
@@ -874,7 +874,7 @@ Rules:
 
 ## 8. Export formats (`/admin`)
 
-All exports are built by `server/export/exporters.ts` from the same SQLite tables, so the files always agree. They are downloaded from `/admin` or from `GET /api/admin/export/<file>` (with `?token=` when `ADMIN_TOKEN` is set), and named `<YYYY-MM-DD>-xai-study-<file>`. CSV files use UTF-8, a header row, comma separators, RFC 4180 quoting, `TRUE`/`FALSE` for booleans, and an empty field for null. Lists inside a cell are joined with a pipe (`|`), with no spaces; an empty list is an empty field. Every session in the database is exported, whatever its status; `trials.csv` has a `status` column so the analysis can keep only `completed` sessions. The column order below is binding (it is the list in `app/CONTRACT.md`).
+All exports are built by `server/export/exporters.ts` from the same SQLite tables, so the files always agree. They are downloaded from `/admin` or from `GET /api/admin/export/<file>` (with `?token=` when `ADMIN_TOKEN` is set), and named `<YYYY-MM-DD>-xai-study-<file>`. CSV files use UTF-8, a header row, comma separators, RFC 4180 quoting, `TRUE`/`FALSE` for booleans, and an empty field for null. Lists inside a cell are joined with a pipe (`|`), with no spaces; an empty list is an empty field. Every session in the database is exported, whatever its status; `trials.csv` has a `status` column so the analysis can keep only `completed` sessions. The column order below is binding (it is the list in `app/CONTRACT.md`). There are seven files: `participants.csv` (§8.7, one analysis-ready row per session: **start the analysis here**), `trials.csv`, `surveys.csv`, `events.csv`, `exit.csv`, `kpis.csv` (§8.8) and `sessions.json`. The CSVs are sent with a UTF-8 byte-order mark so Excel opens them correctly. `GET /api/admin/export` lists all seven (§8.9).
 
 ### 8.1 `trials.csv` (long format, one row per trial)
 
@@ -1009,6 +1009,53 @@ The `/admin` dashboard reads these live from SQLite (type `Kpis` in `app/shared/
 
 KPIs are a monitoring aid. They are not the analysis: the hypothesis tests in `system-design.md` §6 run on the exports, with mixed models and exclusions.
 
+### 8.7 `participants.csv` (wide format, one row per session)
+
+The analysis-ready summary: one row per session in the database, of every status, ordered by `pid`. It is computed in `participantRows()` straight from SQL, and `participant_hash` is never selected, so it cannot appear. Pilot sessions are kept and flagged, not dropped. Rates are 0–1 rounded to 3 decimals, and a rate or mean with an empty denominator is an empty cell. The totals are over the trials **saved so far**, so filter on `status = completed` (and `isPilot = FALSE`) before analysis.
+
+| # | Column | Example | Notes |
+|---|---|---|---|
+| 1 | `pid` | 7 | |
+| 2 | `sessionId` | 3f0c9a8e-… | join key to every other file |
+| 3 | `isPilot` | FALSE | TRUE when `pid ≥ 900` |
+| 4 | `status` | completed | `in_progress` / `completed` / `abandoned` |
+| 5 | `conditionOrder` | CDBA | |
+| 6 | `setRotation` | 1 | |
+| 7 | `startedAt` | 2026-11-03T14:00:12.000Z | |
+| 8 | `completedAt` | 2026-11-03T14:17:40.000Z | empty unless completed |
+| 9 | `durationMin` | 17.5 | `completedAt − startedAt` in minutes, 1 decimal; completed sessions only |
+| 10 | `trialsSaved` | 24 | 0–24 |
+| 11 | `surveysSaved` | 4 | 0–4 |
+| 12 | `agreementRate` | 0.708 | share of saved trials with `agreed = TRUE` (H4) |
+| 13 | `wrongDetected` | 5 | wrong-label trials with `detectedError = TRUE` (0–8) (H1, H2) |
+| 14 | `falseAlarmDetected` | 3 | of those, `errorType = false_alarm` (0–4) (H1a) |
+| 15 | `missDetected` | 2 | of those, `errorType = miss` (0–4) (H1a, H1b) |
+| 16 | `detectionRate` | 0.625 | `wrongDetected / wrong-label trials saved` |
+| 17 | `meanConfidence` | 5.417 | mean `confidence` (1–7) |
+| 18 | `medianDecisionMs` | 9312.4 | median `decisionTimeMs` (hidden time removed) (H6) |
+| 19 | `factSheetOpenRate` | 0.333 | share of saved trials with `factSheetOpened = TRUE` (H6) |
+| 20–43 | `agreement_X`, `detected_X`, `trust_X`, `fairness_X`, `tension_X`, `frustration_X` | | six columns per condition, in the order A, B, C, D (`agreement_A … frustration_A`, then `agreement_B …`). `agreement_X`: agreement rate in X; `detected_X`: wrong labels caught in X (0–2); `trust_X`: that block's scored `trustMean`; `fairness_X`: `fairnessMean`; `tension_X`: `tension`; `frustration_X`: `frustrationTlx`. Empty while that block has no trials or no survey (H1–H5, within-subjects contrasts) |
+| 44–50 | `ageRange`, `gender`, `education`, `socialMediaUse`, `labelExposure`, `preferredCondition`, `comment` | | the exit survey (§2.12); empty until it is submitted. `comment` is free text: redact before sharing |
+
+### 8.8 `kpis.csv` (long format, one row per KPI value)
+
+The dashboard numbers of §8.6 (`computeKpis()`), flattened so they can be pasted into the report or plotted. Columns: `section`, `key`, `metric`, `value`. Like the dashboard, it counts **completed, non-pilot** sessions only. A `null` KPI is an empty `value`.
+
+| `section` | `key` | `metric` values |
+|---|---|---|
+| `meta` | `all` | `generatedAt` (ISO time of the export) |
+| `summary` | `all` | `started`, `inProgress`, `completed`, `abandoned`, `completionRate`, `targetN`, `targetMinimum`, `cycle1Completed`, `cycle2Completed`, `durationMedianMin`, `durationP90Min` |
+| `condition` | `A`–`D` | one row per `byCondition` field: `trials`, `agreementRate`, `wrongTrials`, `detectionRate`, `falseAlarmDetection`, `missDetection`, `factSheetOpenRate`, `meanConfidence`, `medianDecisionMs`, `trustMean`, `fairnessMean`, `tensionMean`, `frustrationMean` |
+| `errorType` | `falseAlarm`, `miss` | `n`, `detectionRate` |
+| `balance` | `ABDC`, `BCAD`, `CDBA`, `DACB` | `completed` |
+| `daily` | UTC date, e.g. `2026-11-03` | `completed` |
+
+Example rows: `condition,C,detectionRate,0.64` and `balance,CDBA,completed,3`.
+
+### 8.9 Export index (`GET /api/admin/export`)
+
+Admin-only, `Cache-Control: no-store`. Returns a JSON array with one `{ name, description, rows }` entry per file, in this order: `participants.csv`, `trials.csv`, `surveys.csv`, `events.csv`, `exit.csv`, `kpis.csv`, `sessions.json`. `description` is the one-line summary shown on the `/admin` export panel, and `rows` is the current count: sessions for `participants.csv` and `sessions.json`, table rows for `trials.csv`, `surveys.csv`, `events.csv` and `exit.csv`, and KPI rows for `kpis.csv`. The panel uses it to show each file's description and count next to its download link, and **Download all CSVs** fetches the six CSVs one after another (plus `sessions.json` when "Include raw JSON" is ticked). Any other name under `/api/admin/export/<name>` returns 404.
+
 ## 9. Data integrity and validation
 
 ### 9.1 Startup validator (`validatePost()` per post, plus bank-level checks, run when the server starts)
@@ -1078,7 +1125,7 @@ Counterbalancing checks (unit test on `counterbalance.ts`):
 - **No PII stored.** No names, raw emails or student IDs, IP addresses, social media handles or exact birth dates. Age is collected as a range, and social media use only as a frequency. `appVersion` is stored, but no user-agent fingerprint.
 - **Fictional content.** Riverton, Alder County, every account handle, display name, agency and fact sheet in `posts.json` is invented and does not describe real people, places, brands or organizations. Every `factSheet.source` is marked "(fictional)" (check 9). No post makes a health-risk claim that could cause harm if believed, and the debrief shows the true facts for every wrong label.
 - **Free text.** The exit comment is the only free-text field. Participants are told not to include identifying details, and the researcher checks comments before sharing the data.
-- **Storage.** Data stays in the SQLite file on the study server (`app/data/study.db`, git-ignored) and is never sent anywhere else. Remote participants reach it over HTTPS. Admin routes answer only from loopback unless `ADMIN_TOKEN` is set. The browser keeps only the active session id and the `participated` flag. Exports and `.db` backups are stored in the team's private course drive. A withdrawal deletes every row of that session from the database.
+- **Storage.** Data stays in the SQLite file on the study server (`app/data/study.db`, git-ignored) and is never sent anywhere else. Remote participants reach it over HTTPS. Admin routes answer only from loopback unless `ADMIN_TOKEN` is set. The browser keeps only the active session id, and clears all study keys once the exit survey is saved. Exports and `.db` backups are stored in the team's private course drive. A withdrawal deletes every row of that session from the database.
 
 ## Related docs
 

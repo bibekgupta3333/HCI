@@ -61,7 +61,24 @@ const getAdminAssignmentPreview = (pid: number) =>
 
 const enc = encodeURIComponent;
 
-export type ExportName = "trials.csv" | "surveys.csv" | "events.csv" | "exit.csv" | "sessions.json";
+export const EXPORT_NAMES = [
+  "participants.csv",
+  "kpis.csv",
+  "trials.csv",
+  "surveys.csv",
+  "events.csv",
+  "exit.csv",
+  "sessions.json",
+] as const;
+
+export type ExportName = (typeof EXPORT_NAMES)[number];
+
+/** One entry of GET /api/admin/export (the export index). */
+export interface ExportIndexEntry {
+  name: ExportName;
+  description: string;
+  rows: number;
+}
 
 export const api = {
   /** @deprecated Admin-only now; use `api.admin.getAssignmentPreview`. */
@@ -98,6 +115,8 @@ export const api = {
     remove: async (id: string): Promise<void> => {
       await request<void>("DELETE", `/admin/sessions/${enc(id)}`, undefined, true);
     },
+    /** GET /api/admin/export: one entry per downloadable file, with its current row count. */
+    getExportIndex: () => request<ExportIndexEntry[]>("GET", "/admin/export", undefined, true),
     exportUrl: (name: ExportName): string => {
       const token = adminToken();
       return `/api/admin/export/${name}` + (token ? `?token=${enc(token)}` : "");

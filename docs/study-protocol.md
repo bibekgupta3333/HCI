@@ -69,7 +69,7 @@ There are only two exclusions. Nobody is excluded for demographics, social media
 
 ### 3.3 Once per person: the participation code
 
-**What the participant does.** On the Welcome screen, before consent, the participant types a short personal **participation code**, such as their university email or student ID. A one-line note under the field explains that the code is used only to stop people taking part twice, and that it isn't stored.
+**What the participant does.** On the Welcome screen (`/start`, reached from **Take part** on the landing page), before consent, the participant types a short personal **participation code**, such as their university email or student ID. A one-line note under the field explains that the code is used only to stop people taking part twice, and that it isn't stored.
 
 **What the server does** (`app/CONTRACT-v2.md` §A):
 - It normalises the code (trims spaces, lowercases) and checks the length (3–120 characters).
@@ -84,7 +84,7 @@ There are only two exclusions. Nobody is excluded for demographics, social media
 | New code | A new session starts, and the server assigns the next pid. |
 | Same code, session still in progress (within 2 h of their last activity) | The session **resumes** where they left off, on the same or a different device (§12). |
 | Same code, session completed or abandoned | "You've already taken part. Thank you!" No new session is created. |
-| Same browser that has already completed the study | The Welcome screen shows "You've already taken part. Thank you!" straight away. This browser flag (`xai-study:participated`) is a convenience; the server check is the real guard. |
+| Same device or browser after finishing | Nothing is remembered: once the exit survey is saved on the server, the app clears all of its study data from the browser, so the landing page shows no Continue banner and the Welcome screen a fresh **Start**. If the person types their code again, the server refuses it as above. |
 
 **Limitations, and why they're acceptable:**
 - Someone could take part twice by typing **two different codes**, for example their email and then their student ID, on different browsers. The app can't detect this without collecting real identities, which would cost more privacy than the risk is worth.
@@ -94,6 +94,7 @@ There are only two exclusions. Nobody is excluded for demographics, social media
   - the debrief asks people not to share the study's details;
   - a repeat participant would know the wrong labels and show near-ceiling detection. That pattern can be spotted in the data, and the team decides on such sessions **before** looking at condition results (§12.1);
   - in-person lab sessions (§10) give an extra check, because the team member present sees each person.
+- The browser keeps **no** record that someone has taken part. Once-only rests entirely on the server's check of the hashed code, so a returning person is stopped only if they type the same code again.
 - Typos are a second limit. A participant who mistypes their code on a return visit gets a new session instead of resuming. The admin dashboard shows this as an abandoned session plus a new one, which is harmless: the abandoned pid is reused.
 
 ## 4. Ethics and risk
@@ -195,10 +196,12 @@ The app stores only the consent timestamp: no signature, no name. [PLACEHOLDER: 
 > Approved by [PLACEHOLDER: IRB/ethics approval number].
 
 Rules for recruitment:
-- Generate the QR code from the final study URL, and test it on a phone before printing.
+- The link and the QR code point to the **landing page** (the study URL's root, `/`), not to `/start`. The landing page repeats this message's facts (what, time, who, once per person, privacy, contact) and has the **Take part** button, so people who arrive from a poster or a forwarded link get the same information.
+- Generate the QR code from the final study URL, and test it on a phone before printing: it should open the landing page, and **Take part** should open the code screen.
 - Don't mention that the labels can be wrong, that they're scripted, or words such as "errors", "mistakes", "false alarms", "misses", "fake news" or "fact-checking".
 - Recruitment is open to everyone. Spread it beyond the class where possible: other departments, campus noticeboards, friends and family over 18. A mixed sample makes the results more general than a sample of HCI students.
 - Don't post the link anywhere minors are the main audience.
+- **The landing page text is recruitment text**, so every rule above applies to it, and it must agree with this message: anyone aged 18 or over who reads English, once per person, about 15–20 minutes, anonymous with only a scrambled code kept, stop at any time, the contact address. It and its FAQ must not hint that labels can be wrong or scripted. Replace its contact and institution placeholders when ethics approves them, and re-check the page whenever this message changes.
 
 ## 7. Deployment checklist
 
@@ -220,7 +223,7 @@ Do this once before the pilot. Repeat the starred items (★) if the build chang
   - `PARTICIPANT_SALT`: a long random string (for example `openssl rand -hex 32`). **Set it once and never change it during data collection.** Changing it would let people take part again and break resume.
   - `HOST` (Option 1: `0.0.0.0`), `PORT` (default 3001), and optionally `STALE_MINUTES` (default 120; leave it) and `DB_PATH` (default `data/study.db`).
 - [ ] ★ Build and start: `npm run build && npm start`. Keep it running under a process manager or a terminal that won't be closed. Disable the machine's sleep mode.
-- [ ] Open the study URL on **a desktop browser and a phone**. Check that the Welcome screen loads over HTTPS.
+- [ ] Open the study URL on **a desktop browser and a phone**. Check that the landing page loads over HTTPS, that **Take part** opens the code screen (`/start`), and that **← Back** returns.
 - [ ] Open `/admin?token=…`. Check that the KPI cards load and the sessions table is empty. From another device, check that `/admin` without the token is refused.
 - [ ] In the admin panel, preview the assignments for pids 1–4 and 16. Check them against the sheet in §8.
 - [ ] Run the pilot (§15), then clear the pilot data before the main study (§15.3).
@@ -283,7 +286,7 @@ The admin panel (`/admin`, protected by `ADMIN_TOKEN`) **doesn't start sessions*
 
 Rules:
 - **Don't look at per-condition results** beyond this sanity check until data collection closes. Decisions about excluding sessions are made blind to condition (§12.1).
-- **Exports:** use the export buttons for JSON and CSV. Store the files as in §14.2.
+- **Exports:** use **Download all CSVs** plus `sessions.json` on the export panel. Each file shows its row count; check `participants.csv`'s count against the sessions table. Store the files as in §14.2.
 - Pilot pids (≥ 900) are excluded from every KPI automatically.
 
 ## 10. Optional in-person lab sessions
@@ -291,8 +294,9 @@ Rules:
 The same app and URL can be used in a lab, for example for people who prefer it, or to recruit in person. The team member's only job is to show the URL and stay out of the way. No moderator script controls the session. Everything the participant needs is on screen.
 
 **Setup.**
-- Lab laptop (or the participant's own device) on the study URL, notifications off, browser in a normal (not private) window.
-- Before each new person, check that the Welcome screen shows **Start**, not "Continue" or "already taken part". If it shows either, the previous participant's browser state is still there: use a fresh browser profile, or clear the site data for the study URL.
+- Lab laptop (or the participant's own device) on the study URL, notifications off, browser in a normal window. A private window or a fresh browser profile isn't needed.
+- The app cleans up after itself: as soon as the exit survey is saved on the server, it removes all study data from the browser. When a participant finishes, tap **Next participant** on the debrief screen (or reload the study URL) to return to the landing page for the next person. Nobody needs to clear site data by hand.
+- Before each new person, check that the landing page shows no "session in progress" banner. If it shows one with **Continue**, the previous person left before finishing: don't tap it. The next person taps **Take part**, types their own code and taps **Start** as usual; the unfinished session becomes abandoned after 2 hours.
 
 **Script** (say it as written, then stay silent):
 
@@ -312,7 +316,7 @@ The same app and URL can be used in a lab, for example for people who prefer it,
 
 | # | Screen | What the participant does | Approx. time | Cumulative |
 |---|---|---|---|---|
-| 1 | Welcome | Reads the 2-line description; types the participation code; **Start** (or **Continue** if resuming) | 0.5 min | 0.5 min |
+| 1 | Landing page, then Welcome (`/start`) | Reads the landing page (how it works, who can take part, privacy, FAQ); **Take part**; types the participation code; **Start** (or **Continue** in the landing banner if resuming) | 0.5 min | 0.5 min |
 | 2 | Consent | Reads the short text (full details on demand), ticks the box, Continue | 1 min | 1.5 min |
 | 3 | Instructions + practice | One screen with 3 bullet points and 1 practice post (not logged as a trial) | 1.5 min | 3 min |
 | 4 | Part 1: 6 posts | Per post: ~800 ms "AI is checking…", then **Agree/Disagree**, then a confidence chip **1–7**. That's two taps; there's a 1 s Undo. Fact sheet and "Why?" (C) are optional. | 2–2.5 min | 5.5 min |
@@ -333,7 +337,8 @@ There's nobody on hand to fix problems, so the app and the contact email do this
 | **Closed tab or browser** | Within **2 hours** of the last activity, the participant reopens the URL. On the same browser they tap **Continue**; on any browser they type the **same code** and tap **Start**. The session resumes where it stopped. |
 | **Device change** (for example from a phone to a laptop) | Same as above: open the URL on the new device and type the same code within 2 hours. The resume count is logged. |
 | **Returns after more than 2 hours** | The session has been marked abandoned and its pid reused, so the code now gets "You've already taken part". If they email, explain that the partial answers are kept unless they ask for deletion. [TEAM DECISION: whether to let them restart by deleting the abandoned session on `/admin`, which frees the code. This is only acceptable if they never reached the debrief, which is always true for an abandoned session.] |
-| **"You've already taken part"** | Expected for anyone who completed the study, and in the cases above. The message is final; nobody gets a second session after a completed one. If someone emails to say they've never taken part (for example a shared lab browser), check `/admin`. If the server shows no session for their code, the browser flag is stale: tell them to use another browser or clear the site's data. |
+| **"You've already taken part"** | Shown only when the server refuses the typed code (409), never from browser state. Expected for anyone who completed the study, and in the cases above. The message is final; nobody gets a second session after a completed one. If someone emails to say they've never taken part, they may be typing a code someone else already used (for example a shared lab account): ask them to use their own university email or student ID. |
+| **Finishes, then returns on the same device** | The browser holds nothing from their session, so they see a fresh **Start**. If they type the same code, the server stops them with "You've already taken part". If they type a different code, they get through; this is the limit in §3.3. |
 | **Mistyped code on return** | A new session starts. The old one becomes abandoned after 2 h and its pid is reused. No action. |
 | **Technical failure** (blank screen, error message, "not saved" warning) | The screen points to the contact email. Ask the participant for the device, browser, the screen it failed on and any error text, and pass it to the technical owner. Don't ask for their code by email unless it's needed to find the session. If a bug affects a screen everyone sees, pause recruitment, fix it, and log the build change (§16). |
 | **Distress** | §4.4. |
@@ -371,6 +376,8 @@ The debrief screen appears automatically after the exit survey. It must match th
 > Please **don't tell anyone else that some labels were wrong** until the study is finished, because people who know in advance would behave differently and that would spoil our results.
 >
 > You can now close this page.
+>
+> **[Next participant]** (returns to the landing page; for shared lab devices)
 
 The support-contact line and the closing line are new in v3.1. [TEAM DECISION: confirm with the flow-screens owner that both are in `DebriefScreen.tsx`.]
 
@@ -400,12 +407,16 @@ If someone who stopped early, or anyone else, writes to the contact email about 
 ### 14.1 Where the data lives
 
 - **Server:** a single SQLite file, `app/data/study.db` (or `DB_PATH`), on the study machine. It holds sessions (including `participant_hash`), trials, events and surveys. The file and its `-wal`/`-shm` siblings are never committed to git.
-- **Browser:** only the active session id and the "participated" flag. No answers are kept in the browser after they're saved to the server.
-- **Exports:** JSON and CSV files from `/admin`. The analysis works from these.
+- **Browser:** only the active session id, and only while a session is in progress. Once the exit survey is saved, the app removes every `xai-study:` key from `localStorage` and `sessionStorage` (except the researcher's `xai-study:adminToken`), so nothing about the participant stays in the browser after they finish.
+- **Exports:** JSON and CSV files from `/admin`. The analysis works from these:
+  - **`participants.csv` is the starting point**: one row per session with the per-participant totals, the per-condition scores (`agreement_A` … `frustration_D`) and the exit answers. Keep `status = completed` and `isPilot = FALSE` before any test. It never contains the participation-code hash.
+  - `trials.csv` (one row per trial) for the trial-level mixed models (H1–H2, H6), `surveys.csv` for item-level trust and fairness, `events.csv` for interaction sequences, `exit.csv` for the exit survey on its own.
+  - `kpis.csv` holds the dashboard numbers (completed, non-pilot only) for the monitoring section of the report. It is not the analysis.
+  - `sessions.json` is the complete archive: every CSV can be rebuilt from it.
 
 ### 14.2 Backups, exports and storage
 
-- **Daily** while collection is open: run the `.backup` command (§7.2) and an export of all sessions from `/admin` (JSON and all CSVs). Copy both to [PLACEHOLDER: team private course drive location]. Access is limited to Group 4 members and the instructor.
+- **Daily** while collection is open: run the `.backup` command (§7.2) and an export of all sessions from `/admin` (**Download all CSVs**, which gives all six CSVs, plus `sessions.json`). Copy both to [PLACEHOLDER: team private course drive location]. Access is limited to Group 4 members and the instructor.
 - Folder layout: `study/backups/<YYYYMMDD>/` (database copies), `study/raw/<YYYYMMDD>/` (exports), `study/clean/` (redacted working copies), `study/pilot/` (pilot only, never mixed with main data).
 - Never store data on personal laptops, USB sticks, email or public repositories.
 - Check, once a day, that the completed count on `/admin` matches the newest export.
@@ -468,7 +479,7 @@ From then on, withdrawal works by pid only.
   With option (a), pilot pids 1–6 get the rows for pids 1–6 in §8 instead. That also covers all four orders.
 - **At least 2 pilots on a phone and at least 2 on a desktop/laptop.** Each pilot uses their own code.
 - Members who wrote post content (the post bank and the B/C/D text) are marked in the pilot log, and their detection rates aren't used to judge post difficulty.
-- Each pilot also tries the incidents at least once across the team: refresh mid-part, close the tab and resume with the same code on another device, and a second attempt after completing ("already taken part").
+- Each pilot also tries the incidents at least once across the team: refresh mid-part, close the tab and resume with the same code on another device, and a second attempt after completing with the same code on the same device (the Welcome screen shows a fresh **Start**; typing the code again gives "already taken part").
 
 ### 15.2 What to check
 
@@ -481,7 +492,7 @@ From then on, withdrawal works by pid only.
 | Agree/Disagree clarity | Ask: "On a 'Likely misleading' label, what did Agree mean?" | Everyone answers correctly. If not, revise the instructions or button text. |
 | "Why?" panel use (C) | `explanationOpened`, `factorsExpanded` | Opened at least once by most pilots; if never, check the button's visibility. |
 | Two-tap flow and Undo | Pilot notes | No accidental submissions. Undo noticed. |
-| Once-only and resume | The incident tries in §15.1 | Resume works across devices; a repeat attempt is blocked; the browser flag shows the thank-you message. |
+| Once-only and resume | The incident tries in §15.1 | Resume works across devices; a repeat attempt with the same code is blocked by the server; after the debrief, no `xai-study:` key except `xai-study:adminToken` is left in DevTools > Application, and **Next participant** opens a fresh landing page with no Continue banner. |
 | Wording clarity | "Was any post, label, reason or fact sheet unclear?" | Fix unclear wording in `stimuli.md` and `posts.json`. |
 | Stress items | "Were the tension and frustration questions clear and comfortable to answer?" | Clear; no pilot uncomfortable. |
 | Admin and export | KPIs load; exports open in R or pandas | Loads with no manual cleanup; the pilot is excluded from KPIs (option b) or lives in its own database (option a). |

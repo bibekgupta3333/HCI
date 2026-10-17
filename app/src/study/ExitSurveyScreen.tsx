@@ -2,14 +2,15 @@
 // so each is a chip group (native radios inside role=radiogroup, ≥ 44 px targets via CSS).
 // Fields follow the ExitSurvey enums in shared/types.ts. Preferred part is shown as "Part 1–4"
 // and mapped to the condition letter via session.conditionOrder; letters are never shown.
-// On success: SESSION_LOADED, markParticipated() (browser once-only flag), then /debrief.
+// On success (and after the logger flush is attempted): SESSION_LOADED, clearParticipantStorage()
+// so the next person on a shared device starts fresh, then /debrief. On failure nothing is cleared.
 import { useId, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
-import { markParticipated, useStudy } from "../state/StudyContext";
+import { clearParticipantStorage, useStudy } from "../state/StudyContext";
 import { useLogger } from "../logging/logger";
 import type { ExitSurvey } from "../../shared/types";
-import type { ExitSurveySubmission } from "../../shared/api";
+import type { ExitSurveySubmission, SessionView } from "../../shared/api";
 
 type Opt<T extends string> = { value: T; label: string };
 
@@ -144,23 +145,26 @@ export default function ExitSurveyScreen() {
 
     setBusy(true);
     setError(null);
+    let completed: SessionView;
     try {
-      const completed = await api.submitExitSurvey(session.sessionId, body);
-      const base = { trialId: null, blockIndex: null, condition: null, postId: null, factorKey: null, tMs: null };
-      logger?.log({ ...base, type: "exit_survey_submit" });
-      logger?.log({ ...base, type: "session_complete" });
-      try {
-        await logger?.flush();
-      } catch {
-        /* events are retried by the logger */
-      }
-      dispatch({ type: "SESSION_LOADED", session: completed });
-      markParticipated();
-      navigate("/debrief");
+      completed = await api.submitExitSurvey(session.sessionId, body);
     } catch {
       setError("Your answers could not be saved. Please check your connection and try again.");
       setBusy(false);
+      return;
     }
+    const base = { trialId: null, blockIndex: null, condition: null, postId: null, factorKey: null, tMs: null };
+    logger?.log({ ...base, type: "exit_survey_submit" });
+    logger?.log({ ...base, type: "session_complete" });
+    try {
+      await logger?.flush();
+    } catch {
+      /* best effort: the responses themselves are already stored */
+    }
+    // Responses are on the server: keep the completed session in memory for the debrief, then wipe storage.
+    dispatch({ type: "SESSION_LOADED", session: completed });
+    clearParticipantStorage();
+    navigate("/debrief");
   }
 
   const isMissing = (name: string) => missing.includes(name);

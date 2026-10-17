@@ -1,7 +1,9 @@
 import express from "express";
 import type Database from "better-sqlite3";
 import { getSession, listSessions, setStatus, deleteSession } from "../db/repo";
-import { trialsCsv, surveysCsv, eventsCsv, exitCsv, sessionsJson } from "../export/exporters";
+import {
+  trialsCsv, surveysCsv, eventsCsv, exitCsv, sessionsJson, participantsCsv, kpisCsv, exportIndex,
+} from "../export/exporters";
 import type { PostBank } from "../../shared/types";
 import { assignFromBank } from "../../shared/counterbalance";
 import { computeKpis } from "../kpi";
@@ -13,6 +15,8 @@ const EXPORTS: Record<string, { build: Exporter; contentType: string; bom: boole
   "surveys.csv": { build: surveysCsv, contentType: "text/csv; charset=utf-8", bom: true },
   "events.csv": { build: eventsCsv, contentType: "text/csv; charset=utf-8", bom: true },
   "exit.csv": { build: exitCsv, contentType: "text/csv; charset=utf-8", bom: true },
+  "participants.csv": { build: participantsCsv, contentType: "text/csv; charset=utf-8", bom: true },
+  "kpis.csv": { build: (db) => kpisCsv(db), contentType: "text/csv; charset=utf-8", bom: true },
   "sessions.json": { build: sessionsJson, contentType: "application/json; charset=utf-8", bom: false },
 };
 
@@ -106,6 +110,11 @@ export function adminRouter(deps: { db: Database.Database; adminToken?: string; 
     if (!s) return void res.status(404).json({ error: "not_found", detail: "session not found" });
     deleteSession(db, s.sessionId);
     res.status(204).end();
+  });
+
+  router.get("/export", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
+    res.json(exportIndex(db));
   });
 
   router.get("/export/:name", (req, res) => {
