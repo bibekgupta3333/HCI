@@ -1,112 +1,132 @@
 # Research positioning
 
-This document explains why the v2 design moves the study's domain from loan approval to approving an AI agent's actions (TaskPilot permission prompts), and how the course study can become a publishable paper. It records the domain-selection analysis, the nearest prior work and the gap, LLM-era work to add to the literature review, candidate contributions, the v2 hypotheses, a two-study plan, target venues, threats to validity, and what the team must do before switching. It follows `_shared-decisions.md`. Items marked **(partially verified)** have not been fully checked against the primary source and must be confirmed before anything is submitted.
+This document explains where the v3 study (AI accuracy labels on made-up social media posts) sits in the research literature and how the course study could become a publishable paper. It covers the decision history (loan approval → agent permission prompts → content labels), an honest assessment of how crowded the area is, the specific combination the novelty rests on, the research questions and hypotheses, candidate contributions, ways to strengthen the design, threats to validity, the study plan, target venues, and what the team must do before claiming a gap. It follows `_shared-decisions.md`, which wins on any conflict. Items marked **(partially verified)** have not been fully checked against the primary source and must be confirmed before anything is submitted. The v2.1 version of this document, with the full earlier domain comparison, is in `archive/v2.1-agent-permission/research-positioning.md`.
 
-## 1. Why not loans
-
-Loan approval is one of the most heavily used tasks in XAI and human-AI decision-making research. The literature review already leans on lending-adjacent work (Zhang et al. [29], income prediction), and the field has moved further since. The closest threat is **He, Aishwarya & Gadiraju, IUI 2025, "Is Conversational XAI All You Need? Human-AI Decision Making With a Conversational XAI Assistant"** (DOI 10.1145/3708359.3712133). It used a loan task with N = 306 and found that a conversational explainer increased understanding and trust compared with an XAI dashboard, but made overreliance worse. The authors attribute this to an *illusion of explanatory depth*. That is close to our H3a/H3b story: a richer, more engaging explanation increases agreement without improving how well people catch errors.
-
-A reviewer who sees a three-level explanation study on loans would likely call it a replication with a smaller sample and a simpler explainer. The loan domain also has two practical weaknesses for us. Student participants have little feel for underwriting, and the fairness question (H4) depends on protected attributes that we deliberately leave out of the cases.
-
-## 2. Domains considered
-
-Each domain was scored 1–5 on six design-fit criteria and the scores were summed (maximum 30). The table shows the three criteria that decided the choice. Content moderation was considered but not scored.
-
-| Domain | Saturation of prior work | On-screen verifiability of planted errors | Fit for student participants | Total (/30) | Verdict |
-|---|---|---|---|---|---|
-| Loan approval | Very high (IUI 2025 loan study) | High (numbers vs thresholds) | Weak | 23 | Dropped: reads as a replication |
-| Phishing / scam email | High (security usability) | High | Strong | 23 | Absorbed into the agent design through the prompt-injection rule |
-| AI-text detectors (academic integrity) | Medium | Low (no ground truth on screen) | Strong | 21 | Dropped: errors can't be checked on screen |
-| **Agentic action approval** | **Low, very current** | **High (cost, contact list, "Triggered by")** | **Strong** | **26** | **Chosen** |
-| Deepfake detection | Medium | Low (perceptual, not rule-based) | Medium | 15 | Dropped |
-| Symptom triage | Medium–high | Medium | Weak (needs medical framing, ethics) | 19 | Dropped |
-| Resume screening | High (bias studies) | High | Medium | 24 | Fallback if the team must keep the fairness hypothesis |
-| Content moderation | High | Medium (policy judgment calls) | Medium | not scored | Dropped |
-
-Agentic approval keeps everything the proposal needs: a stated rule set, objectively checkable calls, and wrong calls that contradict visible information. It also adds a new error type (prompt injection) that loans can't express.
-
-## 3. Nearest prior work and the gap
-
-- **He, Demartini & Gadiraju, CHI 2025, "Plan-Then-Execute: An Empirical Study of User Trust and Team Performance When Using LLM Agents As A Daily Assistant"** (DOI 10.1145/3706598.3713218). N = 248. Users trusted plausible-but-wrong agent plans, and involving users in planning or execution didn't consistently calibrate their trust. It varies *user involvement*, not explanation depth.
-- **Microsoft Research, 2026 preprint on displays for approving computer-use agents** (arXiv 2602.16844). **Preprint, partially verified.** It varies what the agent's display shows during oversight.
-- **arXiv 2608.27443** (2026 preprint). Non-programmers approved most "ask" permission prompts. It varies the permission policy and approval mode, not the rationale. **Partially verified.**
-- **ConLeash** (arXiv 2605.11360). It addresses consent fatigue from repeated agent permission requests. **Partially verified.**
-
-**Gap.** None of this work varies *how deeply the agent explains its own permission call* (none, static, interactive) while planting calls that contradict rules the participant can see. Our design does exactly that, and it separates over-permission (`false_allow`) from over-caution (`false_block`) and splits overreach by the rule it breaks.
-
-## 4. LLM-era related work to add
-
-These are not yet in `literature.txt` and should be added in the literature-review update (section 10).
-
-- **Kim et al., CHI 2025, "Fostering Appropriate Reliance on Large Language Models: The Role of Explanations, Sources, and Inconsistencies"** (DOI 10.1145/3706598.3714020). Explanations increased reliance on both correct and incorrect LLM answers. Sources and inconsistencies within explanations reduced reliance on incorrect ones. This directly supports H3a and motivates the factor rows in Condition C.
-- **Si et al., NAACL 2024, "Large Language Models Help Humans Verify Truthfulness – Except When They Are Convincingly Wrong."** Fluent LLM explanations led people to over-trust wrong answers. This motivates the Study 2 fluent-vs-terse arm.
-- **Steyvers et al., 2025, "What Large Language Models Know and What People Think They Know," *Nature Machine Intelligence* 7:221–231.** It shows a *calibration gap*: people overestimate LLM accuracy from default explanations, and longer explanations raise confidence without improving accuracy.
-- **Spatharioti, Rothschild, Goldstein & Hofman, CHI 2025, "Effects of LLM-based Search on Decision Making: Speed, Accuracy, and Overreliance."** LLM search users were as accurate as traditional-search users when the model was right, but overrelied on it when it was wrong. Confidence highlighting helped them catch errors.
-- **Wilson et al., AIES 2025, "No Thoughts Just AI: Biased LLM Hiring Recommendations Alter Human Decision Making and Limit Human Autonomy."** People adopted a simulated LLM's racial preferences in resume screening. This is relevant to the resume-screening fallback and to the perceived-control framing. (Title and venue found by web search; full text **partially verified**.)
-- **Langer, Blank & Chanowitz, 1978** (already reference [18]). The "placebic because" is the theoretical anchor for H3a, now applied to a first-person agent rationale.
-
-No other new citations should be added until someone has checked them against the primary source.
-
-## 5. Candidate contributions
+## 1. Decision history
 
 ```mermaid
 flowchart LR
-  G["Gap: no study varies rationale depth in agent permission prompts"] --> C1["C1: none / static / interactive comparison with planted overreach"]
-  G --> C2["C2: prompt injection as a verifiable error type (H3c)"]
-  G --> C3["C3: perceived control as agentic analogue of fairness (H4)"]
-  C1 --> C4["C4: open stimuli + static study app"]
-  C2 --> C4
-  C3 --> C4
+  V1["v1: loan approval (proposal.txt)"] -->|"saturated, reads as a replication"| V2["v2 / v2.1: agent permission prompts"]
+  V2 -->|"harder story, unfamiliar attack scenarios"| V3["v3: AI accuracy labels on made-up posts"]
+  V3 --> N1["False alarm vs miss"]
+  V3 --> N2["Four explanation depths A-D"]
+  V3 --> N3["Affect: tension and TLX frustration"]
 ```
 
-- **C1.** The first within-subjects comparison of no, static and interactive rationale in AI-agent permission prompts, with planted overreach (`false_allow`) and over-caution (`false_block`) that participants can check against an always-visible delegation policy.
-- **C2.** Prompt injection as a verifiable error type for human oversight. H3c tests whether overreach triggered by text inside an email or web page is caught less often than overreach on cost or on a lookalike recipient, including when the injected text comes from a trusted sender (case-12).
-- **C3.** Perceived control and accountability, measured as the agentic analogue of fairness, alongside trust, agreement, detection and decision time in the same participants.
-- **C4.** Open materials: the 15-case bank with matched sets, the condition texts, and the static React app, so others can replicate the study or extend it online.
+### v1: loan approval (the approved proposal)
+Loan approval is one of the most heavily used tasks in XAI research. The closest prior study is **He, Aishwarya & Gadiraju, IUI 2025, "Is Conversational XAI All You Need? Human-AI Decision Making With a Conversational XAI Assistant"** (DOI 10.1145/3708359.3712133). It used a loan task with N = 306 and found that a richer, conversational explainer raised trust but made overreliance worse. A three-level explanation study on loans would read as a smaller replication of it. Students also have little feel for underwriting.
 
-## 6. Research questions and hypotheses (v2)
+### v2 / v2.1: AI agent permission prompts
+v2 moved to supervising a scripted assistant agent that proposed purchases, emails and file shares and approved or refused each one against a short set of user rules. It scored best in the v2 domain comparison (26/30), because the area was new and the planted errors could be checked on screen. v2.1 added a counterfactual condition D, an error-type comparison (wrongly approved vs wrongly refused actions) and affect measures. Its weaknesses were practical: the story took longer to explain to participants, some planted errors relied on attack scenarios most students had never heard of, and fairness had to be replaced with "perceived control".
 
-The research questions stay the same as in `proposal.txt` (agreement, trust, error detection), except that the fourth asks about perceived control instead of fairness.
+### v3: AI accuracy labels on social media posts (Deepthi's proposal)
+The team chose v3 on 2026-10-17 for four reasons:
 
-| ID | Hypothesis (v2) | Changed from v1? |
-|---|---|---|
-| H1 | Agreement goes up with depth, A < B < C. | No |
-| H2 | Trust (Jian et al. [15]) is higher in B and C than in A. | No (items reworded to "the assistant") |
-| H3a | On wrong calls, agreement is higher in B than in A, because a fluent first-person rationale works as a placebic "because". | Wording only (first-person agent voice) |
-| H3b | (Exploratory) On wrong calls, agreement is lower in C than in B, because the breakdown makes checking cheap. | No |
-| H3c | (New, exploratory) Detection of `false_allow` depends on the broken rule. Prompt-injection overreach is caught least often in every condition. | **New** |
-| H4 | Perceived control is highest in C and lowest in A. | **Yes** (was fairness) |
-| H5 | Decision time is longest in C, and longer times go with better detection. | No |
+1. **Clear story.** "An AI labels a post as accurate or misleading, and sometimes it's wrong" needs no tutorial. Everyone has seen platform labels.
+2. **Fits XAI and HCI.** It's a human-AI decision task with explanations, trust, reliance and error detection, the core of the course and of `literature.txt`. Fairness (to the people who posted) comes back as a natural measure.
+3. **Reuses planned work.** The Wizard-of-Oz engine, allow-listed payloads, counterbalancing, logging, block surveys, the C factor rows and the D counterfactual all carry over from v2.1 with new content.
+4. **Enough parts for 6 people.** Four condition views, the post bank and fact sheets, the shared post and fact-sheet components, the survey layer, and the study infrastructure and analysis split cleanly across the team.
+
+## 2. Saturation: an honest assessment
+
+Misinformation and fact-check labels are a **crowded** area, and so is the effect of LLM explanations on reliance. A reviewer will know this work, and the paper must not claim that "explanations on AI labels" is new.
+
+- **Si et al., NAACL 2024, "Large Language Models Help Humans Verify Truthfulness – Except When They Are Convincingly Wrong."** Fluent LLM explanations led people to over-trust wrong answers in a claim-verification task. This is the nearest result to our B and D conditions on wrong labels.
+- **Kim et al., CHI 2025, "Fostering Appropriate Reliance on Large Language Models: The Role of Explanations, Sources, and Inconsistencies"** (DOI 10.1145/3706598.3714020). Explanations increased reliance on both correct and incorrect answers, while sources and visible inconsistencies reduced reliance on incorrect ones. This is the basis for condition C's "Claim vs record" row.
+- **Epstein et al., ICWSM**, on whether explanations make AI-generated fake-news warnings more effective. It shows that explained warning labels are already studied. **(partially verified: confirm the authors, year and title in the primary source.)**
+- **CISPA study of AI content labels, CHI 2026.** **(partially verified: the title, authors and findings have not been checked against the paper. Do not cite it until someone has read it.)**
+- Supporting work already in the archived reading list: **Steyvers et al., 2025, *Nature Machine Intelligence* 7:221–231** (longer explanations raise confidence without improving accuracy) and **Spatharioti et al., CHI 2025** (overreliance on LLM search when the model is wrong).
+
+**Where the novelty rests.** No single element of the design is new. The contribution is the **combination** Deepthi identified, tested in one within-subjects study:
+
+1. **False alarms vs misses compared directly.** A TRUE post labelled "Likely misleading" and a FALSE post labelled "Likely accurate" appear in every condition for every participant, so the two error types can be compared head to head rather than across studies.
+2. **Four explanation depths in one design**: none (A), static reason (B), interactive "Why?" breakdown (C) and counterfactual (D, after Wachter, Mittelstadt & Russell, 2017).
+3. **Affect alongside trust and accuracy.** Tension and the NASA-TLX frustration item (Hart & Staveland, 1988) are measured per block next to Jian et al. trust [15], agreement and detection.
+
+**The new question:** *Do explanations help people catch the AI's errors, or do they just make wrong labels feel more believable and less stressful?* That second outcome (B and D raise agreement with wrong labels and lower tension at the same time) would be a harmful kind of comfort, and existing work hasn't measured it.
+
+The gap is **provisional** until the literature search in section 10 is done.
+
+## 3. Research questions and hypotheses (v3)
+
+Agreement, trust, error detection and fairness from `proposal.txt` are kept. Tension and frustration are new.
+
+| ID | Research question | Hypothesis | Measures |
+|---|---|---|---|
+| RQ1 | Do explanations help people catch wrong labels, and does it differ for false alarms vs misses? | **H1:** detection of wrong labels differs by condition. | `detectedError` by condition |
+| | | **H1a (headline):** misses are caught less often than false alarms, because "Likely accurate" invites no scrutiny. | `detectedError` by `errorType` |
+| | | **H1b:** the gap between the two error types is smallest in C. | condition × `errorType` |
+| RQ2 | Which explanation type gives the best error detection? | **H2:** detection is highest in C (the checkable claim-vs-record row) and lowest in B (a persuasive static reason). D is exploratory and could go either way. | `detectedError` by condition |
+| RQ3 | Do wrong labels create tension, and does explanation type make it better or worse? | **H3:** tension and frustration rise with the number of wrong labels noticed in a block. | `tension`, `frustrationTlx`, `nWrongDetected` |
+| | | **H3a:** B and D lower tension even on wrong labels (the "less stressful but more believable" risk). | `tension` by condition |
+| | | **H3b (exploratory):** C raises tension when the ✗ row is visible. | `tension`, `factorsExpanded[]` |
+| — | Trust and agreement | **H4:** overall agreement and Jian trust are higher in B, C and D than in A, whether or not the label is correct. | `agreed`, Jian scale |
+| — | Fairness | **H5:** fairness is rated highest in C and D and lowest in A. | 2 fairness items |
+| — | Time and clicks | **H6:** decisions take longest in C and D, and opening the fact sheet or expanding rows predicts detection. | `decisionTimeMs`, `factSheetOpened`, `factorsExpanded[]` |
+
+H3a draws on Langer, Blank & Chanowitz's "placebic because" [18] and Eiband et al. [11]: a reason that sounds right can increase compliance whatever its content.
+
+## 4. Candidate contributions
+
+1. **C1.** A direct, within-subjects comparison of detection for false alarms and misses on AI content labels (H1a, H1b).
+2. **C2.** Four explanation depths (none, static, interactive, counterfactual) compared in one design, with wrong labels that participants can check against a fact sheet (H1, H2).
+3. **C3.** Evidence on whether explanations make wrong labels less stressful as well as more believable, from tension and frustration measured beside trust and detection (H3, H3a).
+4. **C4.** Behavioural evidence of verification (fact-sheet opens and C-row expansions) linked to detection, rather than self-report alone (H6).
+5. **C5.** Open materials: the 24-post bank with fact sheets, the explanation texts (`stimuli.md`) and the static React app, so others can replicate the study or run it online.
+
+## 5. What would make it stronger
+
+- **Treat C's "Claim vs record" row as a verification aid, and say so.** It shows the true comparison (✓/✗), so C tests whether people *look*, not whether they can work it out. Frame it as a design intervention (a cheap check built into the explanation), not as "the AI explaining itself honestly". The team still has to confirm this rule (`_shared-decisions.md`).
+- **Report fact-sheet use as behavioural verification.** Split detection by `factSheetOpened` and `factSheetOpenMs` per condition. If B and D lower fact-sheet use on wrong labels, that is direct evidence that explanations replace checking.
+- **Report everything by `errorType`.** Every detection, agreement and time result should be shown separately for false alarms and misses, not pooled.
+- **Difficulty is balanced across error types (resolved).** An earlier bank had 3 of the 4 false alarms `clear` and 3 of the 4 misses `subtle`, so H1a couldn't tell "misses are harder to catch" from "the misses are subtler". The S3 difficulty swap (p15 now `subtle`, p16 now `clear`) fully crosses error type and difficulty: false alarms p03, p21 `clear` and p09, p15 `subtle`; misses p10, p16 `clear` and p04, p22 `subtle`. H1a is no longer confounded with difficulty. `difficulty` stays in the model as a covariate, and the 2 × 2 crossing must be kept if pilot edits change any item.
+- **Pre-register** the hypotheses, the mixed-effects models and the exclusion rules before the main study.
+
+## 6. Threats to validity
+
+- **The fact sheet makes detection too easy or too hard.** If the key fact jumps out, detection hits ceiling in every condition and the explanation effects disappear. If it's buried, detection hits floor. The pilot (section 7) must check that detection on wrong labels is roughly between 30% and 80% in A.
+- **Made-up posts.** Fictional Riverton posts carry no prior beliefs or partisan identity, which helps internal validity but means real-world misinformation (which is emotional, political and repeated) is likely to be harder to catch. Detection rates are a best case.
+- **Students as participants.** Students are heavy social media users but aren't representative of all platform users, and recruiting from the course may add demand effects (for example, guessing that some labels are wrong).
+- **30–35 minute session.** Twenty-four posts plus four block surveys may cause fatigue in later blocks. Counterbalancing spreads this across conditions, but block position should be tested as a covariate. A single session also measures first impressions, not long-term trust.
+- **Cue confounds.** Wrong labels might be told apart by something other than the fact sheet: the author's verified badge, sensational wording, engagement counts, topic, or explanation length. The C rows also expose Source and Wording, which partly reveal the answer. Keep source, wording and engagement balanced across correct and wrong labels within each set, keep B and D text lengths in their fixed ranges, and keep the error type × difficulty crossing from section 5.
+- **Within-subjects carry-over.** Seeing an AI error lowers trust for the rest of the session [10], and seeing C may teach people to check in later blocks. The Williams design balances first-order carry-over, but order effects should still be tested.
 
 ## 7. Study plan
 
-**Study 1 (course study).** A moderated lab session with university students. N = 18 at minimum, which is one full counterbalancing cycle (6 condition orders × 3 set rotations). The design is 3 blocks × 5 trials, with a block survey after each block. Analysis is done in R or Python outside the app.
+- **Pilot.** 3–5 people outside the team run the full session. Check the session length, that the fact sheet and its key fact are understood, the A-condition detection range (section 6), the timing logs and the CSV export. Fix the materials before the main study and don't include pilot data.
+- **Main study.** A moderated lab session, 4 conditions × 6 posts = 24 trials plus 1 practice post. Condition order uses the 4×4 Williams design, and set rotation completes a balanced cycle every 16 participants.
+  - **Target N = 32** (2 full cycles).
+  - **Minimum N = 16** (1 cycle). Deepthi's "20 or more" rounds up to 32, because 20 doesn't complete a cycle.
+- **Analysis** in R or Python. Trial-level outcomes (`agreed`, `detectedError`) use mixed-effects logistic models with condition, `errorType` and their interaction as fixed effects, and random intercepts for participant and post. Block-level ratings (trust, fairness, tension, frustration) use linear mixed models with a random intercept for participant.
+- **Power caveat.** Each participant sees only 2 wrong labels per condition (1 of each type), so N = 32 gives 32 trials per condition × error-type cell. The interaction (H1b) is underpowered. Report the course study as a pilot, with effect sizes and confidence intervals, and use the estimates to plan a larger online replication.
 
-**Study 2 (paper extension).** This adds a between-subjects style factor: a **fluent** arm (the Study 1 first-person voice) and a **terse** arm (template text such as "ALLOW: cost ok, recipient trusted."). Content and factors are identical in both arms. The arm is assigned by pid parity, which needs N = 36 or more (two full cycles), and more if possible. Because the app is static, the same build can run online through Prolific, with attention checks and a timing-based exclusion rule set in advance. Study 2 separates the persuasive effect of *fluency* from that of *content* (Si et al.; Langer).
+## 8. Target venues
 
-**Power caveat.** With N = 18 and only 2 wrong cases per condition per participant, the error-detection hypotheses (H3a–H3c) are badly underpowered. Study 1 should be reported as a pilot, with effect sizes and confidence intervals. Its estimates should drive a power analysis for Study 2, and Study 2's hypotheses and analysis plan should be pre-registered. Mixed-effects logistic models (random intercepts for participant and case) are the planned analysis for the trial-level outcomes.
+- **Near term (the course study as a pilot):** CHI Late-Breaking Work, IUI posters or short papers, CSCW posters.
+- **Content-label angle:** ICWSM.
+- **Later (with a larger replication):** a CHI or IUI full paper.
 
-## 8. Target venues and timeline
+Check the current calls for papers for each venue before planning around a deadline, because dates and formats change every year. Work backwards from the chosen deadline, and allow time for instructor approval, ethics review, the pilot, data collection, analysis and internal review.
 
-- **Near term (Study 1 as a pilot):** CHI Late-Breaking Work, IUI posters/short papers, or CSCW posters.
-- **Later (Study 1 + Study 2):** a CHI full paper, or IUI.
-- **If the security and prompt-injection angle leads:** SOUPS.
+## 9. Ethics
 
-Deadlines change every year, so check the current call for papers for each venue before planning around it. Work backwards from the chosen deadline: allow time for instructor sign-off, ethics review, data collection, analysis, and a full internal review of the draft.
+- **Deception.** Participants aren't told in advance that some labels are deliberately wrong. The debrief has to reveal this and show the facts for every wrong label.
+- **Stress.** The tension and frustration items ask about emotional state, and wrong labels may be mildly upsetting. The consent form must name these measures, participants can skip any item, and the debrief should address any stress.
+- **Content.** All people, accounts, places and agencies are fictional. There are no health-risk claims that would be harmful if believed, and no real brands.
+- **Ask Prof. Hamam** whether the course study needs IRB review or an exemption, and whether publishing (and any later online recruiting or payment) needs full review.
 
-## 9. Threats to validity
+## 10. Before claiming the gap: must-do list
 
-- **Wizard-of-Oz clarity of errors.** Each planted error breaks one rule that can be checked on screen. Real agent errors are messier, so detection rates are a best case (literature §8).
-- **Students as a proxy.** Students are realistic users of personal assistants, but they aren't representative of all agent users, and course-adjacent recruiting may add demand effects. Study 2 on Prolific broadens the sample.
-- **Single session.** Trust in agents develops over repeated use. A single 15-trial session measures first impressions, not long-term calibration.
-- **Novelty of prompt injection.** Many participants won't know what prompt injection is. The instructions explain the "requested by you" rule, but low H3c detection may reflect unfamiliarity as well as explanation effects. Report participants' self-reported familiarity, and consider a comprehension check.
-- **Within-subjects carry-over.** Seeing one condition can change how people judge the others [2], and an observed error lowers trust for the rest of the session [10]. Counterbalancing helps, but carry-over should be tested as an order effect.
-
-## 10. What the team must do before switching
-
-1. **Instructor approval.** The domain change and the swap of H4 from fairness to perceived control depart from the approved `proposal.txt`. Get written sign-off from Prof. Hamam before building.
-2. **Update the literature review.** Reframe sections 1, 7 and 9 around agent oversight. Add He et al. (IUI 2025), He et al. (CHI 2025) and the section 4 papers. Confirm every item marked partially verified, and drop any that can't be confirmed.
-3. **IRB and ethics check.** Ask whether the course study needs IRB review or an exemption, and whether Study 2 (publication, online recruiting, payment) needs full review. Keep all people and domains fictional, and keep the debrief that reveals the planted errors.
+1. **Topic-change approval.** The domain change, the fourth condition and the tension and frustration measures depart from the approved `proposal.txt`. Get written sign-off from Prof. Hamam before building.
+2. **Ethics approval** for the deception and the stress measures (section 9).
+3. **Literature search.** Search Google Scholar and the ACM Digital Library with at least these queries, and record what was found (query, date, relevant hits):
+   - "false positive vs false negative AI labels explanation" (Deepthi's term, for C1 and H1a)
+   - "emotional response to incorrect AI labels" (Deepthi's term, for C3 and H3)
+   - "counterfactual explanation misinformation label" (for condition D)
+   - "explanation depth content moderation overreliance" (for C2 and H2)
+4. **Verify the partially verified items.** Confirm Epstein et al. (ICWSM) and the CISPA CHI 2026 study in the primary sources, and drop either one if it can't be confirmed. If either already compares false alarms with misses, or measures affect, revise the claimed combination in section 2.
+5. **Update the literature review** for content labels, adding only papers that someone has read in the primary source. Until then, the only new references beyond those above are Wachter, Mittelstadt & Russell (2017, *Harvard Journal of Law & Technology*) and Hart & Staveland (1988).
+6. **Keep difficulty crossed with error type** (section 5, now resolved): re-check the 2 clear / 2 subtle split per error type after any pilot wording change.
 
 ## Related docs
 
@@ -115,3 +135,7 @@ Deadlines change every year, so check the current call for papers for each venue
 - [sequence-diagrams.md](sequence-diagrams.md)
 - [data-model.md](data-model.md)
 - [ai-design.md](ai-design.md)
+- [implementation-plan.md](implementation-plan.md)
+- [study-protocol.md](study-protocol.md)
+- [stimuli.md](stimuli.md)
+- [wireframes.md](wireframes.md)

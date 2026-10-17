@@ -1,274 +1,276 @@
-# AI Design: The Wizard-of-Oz Agent (TaskPilot)
+# AI Design: The Wizard-of-Oz Labeller
 
-This doc (v2) covers the "AI" in the study app: where TaskPilot's calls come from, how they're turned into the three explanation conditions, how the wrong calls are planted, and how the illusion stays consistent across conditions. In the v2 domain the participant has a personal AI assistant agent, **TaskPilot**, that carries out tasks on their behalf. Before each action it checks its own proposed action against the participant's **delegation policy** and gives a call: **ALLOW** ("Ready to go: this fits your rules.") or **BLOCK** ("I paused this: it breaks your rules."). The participant clicks **Agree** or **Override**. **There is no language model and no machine-learning model.** No LLM is called at runtime. Every call and every explanation is written by hand in the case bank (`src/data/cases.json`). The engine (`src/engine/decisionEngine.ts`) looks up the scripted call and presents it as if the agent had produced it. The delegation policy is evaluated in code only to compute and check the ground truth. It never decides what TaskPilot says. This doc is the reference for case authors (who write calls and explanations), the condition owners (A, B, C views), and whoever writes the debrief. `_shared-decisions.md` is binding where this doc and it differ.
+This doc (v3) covers the "AI" in the study app: where the accuracy labels come from, how each label is turned into the four explanation conditions (A, B, C, D), how the wrong labels are planted, and how the illusion stays the same across conditions. Participants read made-up social media posts from the fictional town of Riverton. Each post carries an AI label, **"Likely accurate"** (✓) or **"Likely misleading"** (⚠), and the participant clicks **Agree with label** or **Disagree with label**. **There is no language model and no machine-learning model.** Every label and every explanation is written by hand in the post bank (`src/data/posts.json`). The labeller (`src/engine/labelEngine.ts`) looks up the scripted label and presents it as if an AI had produced it. Code compares the post's claim with the fact sheet's key fact only to check the ground truth. That comparison never decides what the AI says. This doc is for post authors (who write labels and explanations), the condition owners (A, B, C and D views), and whoever writes the debrief. `_shared-decisions.md` is binding where this doc and it differ, and `stimuli.md` holds all the final participant-facing strings.
+
+The previous design (v2.1, approving an AI agent's actions) is archived at [archive/v2.1-agent-permission/ai-design.md](archive/v2.1-agent-permission/ai-design.md).
 
 ---
 
 ## 1. Why Wizard-of-Oz
 
-The study asks whether explanation depth helps people catch agent mistakes or just makes them agree more (H3a/H3b/H3c). To answer that, the team has to control exactly **which** calls are wrong, **how** they're wrong, and **how** they're justified. A real LLM agent can't give that control: its errors, wording and self-checks vary from run to run.
+The study asks whether explanations help people catch wrong labels, whether that differs for false alarms and misses, and how the labels make people feel (H1–H6). To answer that, the team has to control exactly **which** labels are wrong, **how** they're wrong, and **how** they're justified. A real classifier or LLM can't give that control: its errors, wording and confidence change from run to run.
 
-- **Control over errors.** With scripted calls, every wrong case contradicts the action card's own on-screen values (cost, recipient, "Triggered by"), so it can be checked against the delegation policy and the trusted-contacts list. That's what makes "agreed with a wrong call" a clean commission error in the sense of Skitka et al. [26]. Bussone et al. [4] used the same approach: a Wizard-of-Oz clinical decision support prototype with planted errors. They found that fuller explanations raised trust and also raised agreement with incorrect diagnoses.
-- **Matched stimuli.** The same case can be shown in A, B, or C with an identical action card and an identical call. Only the explanation layer changes, which is what the within-subjects comparison needs (literature §8).
-- **Matched explanation text.** A live LLM would write a different rationale for every participant, with different length and confidence. Scripted text lets the team match length and tone across right and wrong calls (§4.1), which H3a depends on.
+- **Control over errors.** With scripted labels, every wrong label contradicts the post's own fact sheet, so the participant can check it. That is what makes "agreed with a wrong label" a clean commission error in the sense of Skitka et al. [26]. Bussone et al. [4] used the same approach: a Wizard-of-Oz clinical decision support prototype with planted errors. They found that fuller explanations raised trust and also raised agreement with wrong diagnoses.
+- **Matched stimuli.** The same post can be shown in A, B, C or D with an identical post card, label and fact sheet. Only the explanation layer changes, which is what the within-subjects comparison needs (literature §8).
+- **Matched explanation text.** A live LLM would write a different rationale for each participant, with different length and confidence. Scripted text lets the team match length and tone across right and wrong labels (§4), which H2 and H3a depend on.
 - **Implementation effort.** The proposal puts the effort into interface polish and study infrastructure, not model building. The app stays a static site with no API keys.
 
-**Trade-off: ecological validity.** Real agent errors are rarely this clear-cut. A real agent's overreach may hinge on context the user can't see, a policy that is ambiguous, or a chain of steps rather than one action. Our errors are single, visible rule violations on a single proposed action, so the results should be read as a **best case for error detection** (literature §8). If people miss these errors, they'll very likely miss subtler ones too. Section 8 lists other limits.
+**Trade-off: ecological validity.** Real labelling errors are rarely this checkable. A real post's accuracy may hinge on context nobody has, or on a record that doesn't exist. Here every post has one fact sheet with one key fact, so the results should be read as a **best case for error detection** (literature §8). If people miss these errors with the facts one click away, they will very likely miss harder ones. Section 9 lists other limits.
 
 ---
 
 ## 2. "AI" pipeline
 
-The engine has three internal steps: a **call lookup** (the scripted `aiDecision`), a **policy evaluator** (computes `groundTruth` for validation only), and an **explanation builder** (assembles the payload for each condition). Correctness metadata (`groundTruth`, `isAiCorrect`, `errorType`, `difficulty`) never reaches the view. It's stripped when the payload is built. Analysis gets correctness by joining trial records to the case bank on `caseId` at export time (see `data-model.md`).
+The labeller has three internal steps: a **label lookup** (the scripted `aiLabel`), a **validator** (`validatePost`, which checks `groundTruth` against the fact sheet's key fact at load time), and a **payload builder** (`buildPresentation(post, condition)`, which builds an allow-listed payload for each condition). Correctness fields (`groundTruth`, `isAiCorrect`, `errorType`, `difficulty`) never reach the view; they're stripped when the payload is built. Only `logger` calls `getTruth(postId)`, so trial records can carry correctness without the view ever seeing it (see `data-model.md`).
 
 ```mermaid
 flowchart LR
-    CB["cases.json (15 scripted cases + policy + trustedContacts)"] --> LOOK
-    subgraph ENGINE["decisionEngine.ts"]
-        LOOK["Lookup scripted aiDecision (ALLOW / BLOCK)"]
-        RULES["evaluatePolicy(request, policy, trustedContacts)"]
-        VAL{"groundTruth matches stored? isAiCorrect, errorType, factor passes consistent?"}
-        BUILD["buildPresentation(case, condition)"]
+    PJ["posts.json: 24 posts, labels, fact sheets"] --> LOOK
+    subgraph ENGINE["labelEngine.ts"]
+        VAL{"validatePost: groundTruth matches key fact? isAiCorrect, errorType, factors consistent?"}
+        LOOK["Look up scripted aiLabel"]
+        BUILD["buildPresentation(post, condition)"]
         STRIP["Strip groundTruth, isAiCorrect, errorType, difficulty"]
-        LOOK --> BUILD
-        LOOK --> RULES --> VAL
-        VAL -- "mismatch" --> ERR["Fail fast: case bank invalid"]
+        TRUTH["getTruth(postId)"]
+        LOOK --> VAL
+        VAL -- "mismatch" --> ERR["Fail fast: post bank invalid"]
         VAL -- "ok" --> BUILD
         BUILD --> STRIP
     end
-    STRIP --> PA["A payload: call only"]
-    STRIP --> PB["B payload: call + staticExplanation"]
-    STRIP --> PC["C payload: call + 3 factor rows"]
-    PA --> VA["BlackBoxView"]
+    STRIP --> PA["A payload: label only"]
+    STRIP --> PB["B payload: label + staticExplanation"]
+    STRIP --> PC["C payload: label + 3 factor rows"]
+    STRIP --> PD["D payload: label + counterfactualExplanation"]
+    PA --> VA["NoExplanationView"]
     PB --> VB["StaticExplanationView"]
     PC --> VC["InteractiveExplanationView"]
+    PD --> VD["CounterfactualView"]
+    VA --> VIEW["TrialScreen: PostCard, LabelPanel, FactSheetPanel"]
+    VB --> VIEW
+    VC --> VIEW
+    VD --> VIEW
+    TRUTH -.-> LOG["logger.ts"]
+    VIEW -. "agreed, timings, clicks" .-> LOG
 ```
 
 Notes:
-- The policy evaluator runs at case-bank load time (and in a unit test). It is **not** part of producing the call. If it disagrees with a stored `groundTruth`, or a stored `isAiCorrect` doesn't equal `aiDecision === groundTruth`, the app refuses to start. That protects the study from a typo turning a "correct" case into a wrong one.
-- All three payloads carry the same `request` object (shown on `<ActionCard/>`) and the same call. Only the explanation fields differ. `<PolicyPanel/>` shows the same policy and trusted-contacts list in every condition.
-- The C payload's factor rows are taken from the case bank's `factors[]`, and their `passes` values are checked against the policy evaluator (see §4.3).
+- `validatePost` runs once when the post bank loads (and in a Vitest unit test). It is **not** part of producing a label. If any check fails, the app refuses to start, so a typo can't turn a correct label into a wrong one.
+- Every payload carries the same post fields (author, text, `postedAgo`, likes, reposts) and the same label. Only the explanation fields differ. `FactSheetPanel` shows the same fact sheet in every condition, opened from "Fact sheet ▸", and never mentions the label.
+- **Fixed latency.** After the post appears, `LabelPanel` shows **"AI is checking…" for a fixed ~800 ms** in every condition and on every post, then the label. `decisionTimeMs` starts when the label appears.
+- **No confidence.** No AI confidence score, percentage or "high confidence" badge is ever shown (see §7).
 
 ---
 
-## 3. Policy evaluator
+## 3. Ground truth and validation
 
-The delegation policy is the "stated criteria" from `_shared-decisions.md`. It's open on the instructions screen and can be opened on every trial. An action should be ALLOWED only if all three rules hold.
+A post is TRUE when its key claim matches the fact sheet's key fact, and FALSE otherwise. Authors write `keyFact.recordValue` as the exact string `keyFact.claimValue` when the record supports the claim, and as the record's actual value when it doesn't. The label is then compared with the truth to classify it.
 
 ```mermaid
 flowchart TD
-    S["Proposed action (request)"] --> C1{"cost ≤ 50?"}
-    C1 -- "no" --> B["BLOCK"]
-    C1 -- "yes" --> C2{"recipient exactly in trustedContacts?"}
-    C2 -- "no (incl. lookalike)" --> B
-    C2 -- "yes" --> C3{"triggeredBy == 'you'?"}
-    C3 -- "no (text in email, web page, doc)" --> B
-    C3 -- "yes" --> A["ALLOW"]
+    P["Post"] --> K{"keyFact.claimValue equals keyFact.recordValue?"}
+    K -- "yes" --> T["groundTruth = TRUE"]
+    K -- "no" --> F["groundTruth = FALSE"]
+    T --> LT{"aiLabel?"}
+    F --> LF{"aiLabel?"}
+    LT -- "accurate" --> C1["correct: errorType null"]
+    LT -- "misleading" --> FA["wrong: false_alarm"]
+    LF -- "misleading" --> C2["correct: errorType null"]
+    LF -- "accurate" --> MS["wrong: miss"]
 ```
 
-### TypeScript sketch (`src/engine/decisionEngine.ts`)
+### TypeScript sketch (`src/engine/labelEngine.ts`)
 
-Field names follow `_shared-decisions.md`; `data-model.md` is authoritative on types and units. `cost` is a number in dollars (free actions are `0`). The recipient check is an **exact string match**, so a lookalike such as `r.patel@northwlnd.edu` fails. There's no trimming, case-folding or fuzzy matching. `_shared-decisions.md` lists the function as `evaluatePolicy(request)`; the sketch passes the policy and contacts explicitly so it can be unit-tested without the JSON file, and the module can wrap it with a one-argument version bound to `cases.json`.
+`data-model.md` is the authority on field names and types; this sketch follows it.
 
 ```ts
-export type Call = "ALLOW" | "BLOCK";
-export type Condition = "A" | "B" | "C";
-export type ErrorType = null | "false_allow" | "false_block";
-export type FactorKey = "cost" | "recipientTrusted" | "userRequested";
-export type Comparator = "lte" | "inList" | "equalsYou";
+export type Condition = "A" | "B" | "C" | "D";
+export type Truth = "TRUE" | "FALSE";
+export type AiLabel = "accurate" | "misleading";
+export type ErrorType = null | "false_alarm" | "miss";
+export type FactorKey = "source" | "claimVsRecord" | "wording";
 
-export interface ActionRequest {
-  task: string;
-  actionType: "purchase" | "payment" | "send_email" | "calendar" | "share";
-  actionSummary: string;
-  recipient: string;
-  cost: number;          // dollars, 0 for free actions
-  triggeredBy: string;   // "you" or a string naming the source
+export interface Factor {
+  key: FactorKey;
+  label: string;          // "Source" | "Claim vs record" | "Wording"
+  displayValue: string;   // TRUE value, e.g. "Post: record low · Record: lowest since 2019; record low was 2012"
+  passes: boolean;        // TRUE comparison, shown as ✓ / ✗
+  detail: string;         // one sentence, argues for the AI's label
 }
 
-export interface DelegationPolicy { maxCost: number }   // 50
-export const POLICY: DelegationPolicy = { maxCost: 50 };
-
-export interface PolicyResult {
-  call: Call;
-  checks: Record<FactorKey, boolean>;
+/** Ground truth only. Never used to choose the label. */
+export function truthFromKeyFact(p: Post): Truth {
+  return p.keyFact.claimValue === p.keyFact.recordValue ? "TRUE" : "FALSE";
 }
 
-/** Ground truth only. Never used to choose what TaskPilot says. */
-export function evaluatePolicy(
-  r: ActionRequest,
-  policy: DelegationPolicy,
-  trustedContacts: readonly string[],
-): PolicyResult {
-  const checks = {
-    cost: r.cost <= policy.maxCost,                    // lte
-    recipientTrusted: trustedContacts.includes(r.recipient), // inList, exact match
-    userRequested: r.triggeredBy === "you",            // equalsYou
-  };
-  const ok = checks.cost && checks.recipientTrusted && checks.userRequested;
-  return { call: ok ? "ALLOW" : "BLOCK", checks };
+/** Runs once at load. Throws so a broken post bank can't reach a participant. */
+export function validatePost(p: Post): void {
+  const truth = truthFromKeyFact(p);
+  if (truth !== p.groundTruth) throw new Error(`${p.id}: groundTruth mismatch`);
+  if (!p.factSheet.body.includes(p.keyFact.recordValue))
+    throw new Error(`${p.id}: key fact missing from fact sheet body`);
+  const correct = (p.aiLabel === "accurate") === (truth === "TRUE");
+  if (correct !== p.isAiCorrect) throw new Error(`${p.id}: isAiCorrect mismatch`);
+  const expectedErr: ErrorType = correct ? null
+    : p.aiLabel === "misleading" ? "false_alarm" : "miss";
+  if (p.errorType !== expectedErr) throw new Error(`${p.id}: errorType mismatch`);
+  if ((p.difficulty === null) !== correct) throw new Error(`${p.id}: difficulty must be set only on wrong labels`);
+  const keys = p.factors.map(f => f.key).join(",");
+  if (keys !== "source,claimVsRecord,wording") throw new Error(`${p.id}: expected 3 factors in fixed order`);
+  const cvr = p.factors[1];
+  if (cvr.passes !== (truth === "TRUE")) throw new Error(`${p.id}: Claim vs record row must show the true comparison`);
 }
 
-/** Same comparison, driven by a factor's comparator, for the per-row check. */
-function compare(f: Factor, r: ActionRequest, policy: DelegationPolicy, contacts: readonly string[]): boolean {
-  switch (f.comparator) {
-    case "lte":       return r.cost <= policy.maxCost;
-    case "inList":    return contacts.includes(r.recipient);
-    case "equalsYou": return r.triggeredBy === "you";
-  }
-}
-
-/** Runs once at load. Throws so a broken case bank can't reach a participant. */
-export function validateCase(c: Case, policy: DelegationPolicy, contacts: readonly string[]): void {
-  const truth = evaluatePolicy(c.request, policy, contacts);
-  if (truth.call !== c.groundTruth) throw new Error(`${c.id}: groundTruth mismatch`);
-  if ((c.aiDecision === c.groundTruth) !== c.isAiCorrect) throw new Error(`${c.id}: isAiCorrect mismatch`);
-  const expectedErr: ErrorType = c.isAiCorrect ? null
-    : c.aiDecision === "ALLOW" ? "false_allow" : "false_block";
-  if (c.errorType !== expectedErr) throw new Error(`${c.id}: errorType mismatch`);
-  if (c.factors.length !== 3) throw new Error(`${c.id}: expected 3 factors`);
-  for (const f of c.factors) {
-    if (f.passes !== truth.checks[f.key]) throw new Error(`${c.id}: factor ${f.key} passes ≠ true value`);
-    if (f.passes !== compare(f, c.request, policy, contacts)) throw new Error(`${c.id}: comparator ${f.comparator} disagrees`);
-  }
-  // A value exactly on the cost threshold may appear only in a correct case (case-09).
-  if (c.request.cost === policy.maxCost && !c.isAiCorrect) throw new Error(`${c.id}: exact threshold in a wrong case`);
-}
-
-export interface FactorRow {
-  key: FactorKey; label: string;      // "Cost" | "Recipient" | "Requested by"
-  displayValue: string;               // TRUE value, same as the action card
-  threshold: string;                  // "≤ $50.00" | "on trusted list" | "you"
-  passes: boolean; detail?: string;
-}
-
-/** What a view receives. No correctness fields. */
-export interface PresentationPayload {
-  caseId: string;
-  condition: Condition;
-  persona: "TaskPilot";
-  request: ActionRequest;
-  call: Call;
-  staticExplanation?: string;   // B only
-  factors?: FactorRow[];        // C only
-}
-
-export function buildPresentation(c: Case, condition: Condition): PresentationPayload {
+/** What a view receives. Built from an allow-list, no correctness fields. */
+export function buildPresentation(p: Post, condition: Condition): PresentationPayload {
   const base = {
-    caseId: c.id, condition, persona: "TaskPilot" as const,
-    request: c.request, call: c.aiDecision,
+    postId: p.id, condition,
+    author: p.author, text: p.text, postedAgo: p.postedAgo,
+    likes: p.likes, reposts: p.reposts,
+    factSheet: p.factSheet, aiLabel: p.aiLabel,
   };
   switch (condition) {
     case "A": return base;
-    case "B": return { ...base, staticExplanation: c.staticExplanation };
-    case "C": return { ...base, factors: c.factors.map(toFactorRow) };
+    case "B": return { ...base, staticExplanation: p.staticExplanation };
+    case "C": return { ...base, factors: p.factors.map(({ key, label, displayValue, passes, detail }) =>
+                         ({ key, label, displayValue, passes, detail })) };
+    case "D": return { ...base, counterfactualExplanation: p.counterfactualExplanation };
   }
 }
 
-function toFactorRow(f: Factor): FactorRow {
-  const { key, label, displayValue, threshold, passes, detail } = f;
-  return { key, label, displayValue: String(displayValue), threshold: String(threshold), passes, detail };
-}
+/** Called only by logger.ts. */
+export function getTruth(postId: string): Pick<Post, "groundTruth" | "isAiCorrect" | "errorType" | "difficulty">;
 ```
 
-`buildPresentation` builds the payload from an explicit list of fields. It never spreads the whole `Case` object, so new correctness fields can't leak into the view by accident.
+`buildPresentation` names every field it copies. It never spreads the whole `Post`, so a new correctness field can't leak into the view by accident.
 
 ---
 
 ## 4. Explanation design
 
-### 4.1 Static explanations (Condition B)
+### 4.1 Rules for every condition
 
-One `staticExplanation` string per case, written to these guidelines:
-
-| Guideline | Rule |
+| Rule | Specification |
 |---|---|
-| Voice | **First person, in TaskPilot's voice** ("I checked this…", "I paused this…"). An agent explaining its own action is how current assistants talk, and it is the cue H3a is about. |
-| Length | One sentence, **8–14 words**, matched across all 15 cases (every case within ±3 words of the median). |
-| Content | Opens with the call frame ("I checked this:" for ALLOW, "I paused this:" for BLOCK), then names 1–2 factors. |
-| Selectivity | Names factors but no thresholds or exact amounts, following Miller's "selective" property [22]. |
-| Tone | **Same confident register in correct and wrong cases.** No hedges ("may", "might", "probably") anywhere, so a hedge can't give away a wrong case. |
-| Vocabulary | Uses the policy's own words (budget/cost, trusted contact, you asked) so participants can map the text onto the action card and `<PolicyPanel/>`. |
+| Direction | B, C-detail and D text **always argue for the AI's label**, right or wrong. |
+| Tone | The **same confident register** on correct and wrong labels. No hedges ("may", "might", "probably") anywhere, so a hedge can't give a wrong label away. |
+| Wrong labels | B and D cite a **plausible but non-decisive factor** (the account type, the topic's reputation, a missing citation). They never mention the key fact that decides the post. |
+| Confidence | None shown, in any condition. |
+| Vocabulary | Plain words a participant can map onto the post card and fact sheet: account, verified, record, report, official page. |
+| Strings | **`stimuli.md` holds all final strings** and is the authority. This doc quotes it; if they ever differ, `stimuli.md` wins and this doc is corrected. |
 
-How wrong cases are written: a **false_allow** sentence names the factors that pass and **leaves out the broken rule**. A **false_block** sentence takes a factor that actually passes and **frames it as a risk**.
+### 4.2 Condition A: No explanation
 
-| Case | Truth / call | Type | B sentence | What it does |
-|---|---|---|---|---|
-| case-01 | ALLOW / ALLOW | correct | "I checked this: it's within budget and goes to your printing service." | Correct allow |
-| case-10 | BLOCK / BLOCK | correct | "I paused this: it's over budget and the airline isn't trusted." | Correct block |
-| case-02 | BLOCK / ALLOW | false_allow (cost) | "I checked this: the bookstore is a trusted contact and you asked." | Omits that $89.00 is over budget |
-| case-07 | BLOCK / ALLOW | false_allow (recipient) | "I checked this: it's free, and you asked me to send it." | Omits the recipient rule; `northwlnd.edu` is a lookalike |
-| case-12 | BLOCK / ALLOW | false_allow (requested) | "I checked this: it's free and goes to your trusted study group." | Omits that the request came from an email, not you |
-| case-03 | ALLOW / BLOCK | false_block | "I paused this: the cost is too close to your budget limit." | Frames a passing cost ($48.99) as a risk |
-| case-08 | ALLOW / BLOCK | false_block | "I paused this: giving edit access to this recipient looks risky." | Frames a trusted recipient as a risk |
-| case-13 | ALLOW / BLOCK | false_block | "I paused this: paying this vendor puts your account at risk." | Frames the trusted bookstore ($12.00) as a risk |
+The label only: ✓ "Likely accurate" or ⚠ "Likely misleading", in identical styling. It is the baseline for agreement, trust, tension and detection.
 
-`data-model.md` holds the final strings for all 15 cases. These are the reference pattern.
+### 4.3 Condition B: Static reason
 
-### 4.2 Factor breakdown (Condition C)
+One `staticExplanation` sentence under the label.
 
-The "Why?" button opens a panel with exactly three rows, in a fixed order:
+| Rule | Specification |
+|---|---|
+| Length | One sentence, **8–14 words**, every post within ±3 words of the median. |
+| Frame | Opens "Flagged:" for "Likely misleading" and "Checked:" for "Likely accurate". |
+| Selectivity | Names a reason, not the key value or the record, following Miller's "selective" property [22]. |
 
-| Row (label) | True value shown | Rule | Pass/fail | Example (case-07) |
-|---|---|---|---|---|
-| Cost | `request.cost`, formatted | ≤ $50.00 | ✓ or ✗ plus a text label | $0.00 · ≤ $50.00 · ✓ Passes |
-| Recipient | `request.recipient`, verbatim | exactly on trusted-contacts list | ✓ or ✗ plus a text label | r.patel@northwlnd.edu · on list · ✗ Fails |
-| Requested by | `request.triggeredBy` | "you" | ✓ or ✗ plus a text label | you · you · ✓ Passes |
+### 4.4 Condition C: Interactive "Why?"
 
-Each row expands on its own to show its `detail` sentence. Every expand and collapse is logged (`factorsExpanded[]`, `timeToFirstExpandMs` from the first "Why?" open). Like the B sentence, the `detail` text argues for TaskPilot's call ("I matched this to Dr. Patel's address."), but the value, rule and ✓/✗ in the row header always come from the true comparison. There's no weight bar: the rules are conjunctive, so weights would invent a model property that doesn't exist, and scripted weights would add a persuasion channel only C has.
+A "Why?" button opens exactly three rows in a fixed order. Each row has a ✓/✗ icon plus a text label (not colour alone) and expands on its own to one `detail` sentence. Every open, expand and collapse is logged (`explanationOpened`, `factorsExpanded[]`, `timeToFirstExpandMs` from the first "Why?" open).
 
-### 4.3 Design decision for the team to confirm: C shows true values
+| Row | Value shown | ✓ when | Decides the truth? |
+|---|---|---|---|
+| Source | the account and whether it has the verified badge | verified local source | No |
+| Claim vs record | the post's key value next to the fact-sheet value | the two match | **Yes** |
+| Wording | neutral or sensational | neutral | No |
 
-> **Decision:** In Condition C, do the ✓/✗ icons and values reflect the **true** action data, or TaskPilot's (wrong) call?
+Only "Claim vs record" decides the ground truth. Source and Wording are real, honestly reported cues that can point the wrong way, so a ✗ on Source doesn't by itself mean the post is false. That keeps C from being a give-away: the participant still has to know which row matters. Like B, every `detail` sentence argues for the AI's label, but the row header's values and ✓/✗ always come from the true comparison.
+
+### 4.5 Condition D: Counterfactual
+
+One `counterfactualExplanation` sentence: "This would be labeled accurate if …" under a "Likely misleading" label, and "This would be labeled misleading if …" under a "Likely accurate" label.
+
+| Rule | Specification |
+|---|---|
+| Length | **10–16 words**, every post within ±3 words of the D median. |
+| Content | Points at the same factor as the post's B sentence, so B vs D differs in form (reason vs counterfactual), not content. |
+| Correct labels | Names the change that would actually flip the truth (the decisive record). |
+| Wrong labels | Names a change to a non-decisive factor, so the sentence sounds like a precise statement about the decision boundary while pointing at the wrong boundary. |
+
+### 4.6 Canonical examples
+
+The B, D and C `displayValue` strings for these three posts are quoted exactly from `stimuli.md`. The other 21 posts follow the same pattern and live there.
+
+| Post | Truth / label | Type | B (static) | D (counterfactual) | C "Claim vs record" row | Why B and D mislead |
+|---|---|---|---|---|---|---|
+| p03 | TRUE / misleading | false_alarm, clear | "Flagged: event dates shared by personal accounts are often outdated." | "This would be labeled accurate if an official events page had posted it." | "Post: June 6–8, Mill Park · Record: June 6–8, Mill Park" · ✓ | Cites the account type; the dates match the record |
+| p04 | FALSE / accurate | miss, subtle | "Checked: water level reports from this account are usually reliable." | "This would be labeled misleading if the account weren't a verified local source." | "Post: record low · Record: lowest since 2019; record low was 2012" · ✗ | Cites the account's track record; the "record low" is not a record |
+| p15 | TRUE / misleading | false_alarm, subtle | "Flagged: claims about water safety are often exaggerated." | "This would be labeled accurate if it cited the March test report." | "Post: all 12 limits met in March · Record: all 12 tests within limits" · ✓ | Cites the topic's reputation and a missing citation; the record agrees |
+
+### 4.7 Design decision for the team to confirm: C shows true values
+
+> **Decision:** In Condition C, does the "Claim vs record" row show the **true** comparison, or one scripted to agree with a wrong label?
 >
 > **Recommendation: true values.** Reasons:
-> 1. H3b is about verification cost. Vasconcelos et al. [28] found that explanations reduce overreliance when they make checking the AI much cheaper than doing the task alone. A row that puts value next to rule next to ✓/✗ is about as cheap as verification gets. If the rows were scripted to agree with the wrong call, C would just be a longer, more convincing B [16][25], and H3b would be testing a different question.
-> 2. The action card already shows the true cost, recipient and "Triggered by" in every condition. A breakdown that contradicted the card would read as a bug, not as agent behaviour.
-> 3. `validateCase` (§3) enforces `factor.passes === evaluatePolicy(...)`, so this can't drift silently.
-> 4. Ecologically, attribution displays such as SHAP [21] report the system's actual inputs. They don't misstate them.
+> 1. H2 predicts the best detection in C *because* C offers a verifiable claim-vs-record row. Vasconcelos et al. [28] found that explanations reduce overreliance when they make checking the AI much cheaper than doing the task alone. A row that puts the claim next to the record next to ✓/✗ is about as cheap as verification gets. If the row agreed with the wrong label, C would just be a longer, more convincing B [16][25], and H2 would test a different question.
+> 2. The fact sheet already shows the true record in every condition. A row that contradicted it would read as a bug, not as AI behaviour.
+> 3. `validatePost` (§3) enforces that the row's `passes` equals the true comparison, so this can't drift silently.
+> 4. Attribution displays such as SHAP [21] report a system's actual inputs; they don't misstate them.
 >
-> The cost is that C may look "obviously" better at catching errors. That's a known best-case limitation (§1), not a flaw, and it should be stated in the report. A participant who never opens "Why?" gets no benefit, which is why `explanationOpened` is logged.
+> The cost is that C may look "obviously" best at catching errors. That's a known best-case limitation (§1), to be stated in the report. A participant who never opens "Why?" gets no benefit, which is why `explanationOpened` is logged and H6 tests whether opening predicts detection. The Source and Wording rows (§4.4) also keep C from being a pure answer key.
 
 ---
 
 ## 5. Explanation-depth model
 
-How each level of depth maps onto the competing predictions in the literature and onto the hypotheses:
+How each condition maps onto the competing predictions in the literature and onto the hypotheses:
 
 ```mermaid
 flowchart LR
-    A["A: Black Box (call only)"] --> B["B: Static (call + first-person sentence)"]
-    B --> C["C: Interactive (call + Why? breakdown)"]
+    A["A: No explanation, label only"]
+    B["B: Static reason, one sentence"]
+    C["C: Interactive Why?, 3 checkable rows"]
+    D["D: Counterfactual, would be ... if ..."]
 
-    P1["Persuasion and automation bias; placebic because [1][11][18]"]
-    P2["Information overload [25]; over-trust in interactive tools [16]"]
-    P3["Cognitive forcing; cheap verification [3][28]"]
+    P1["Placebic persuasion: a reason raises agreement whatever its content [1][11]"]
+    P2["Information overload, illusion of understanding [25]"]
+    P3["Cheap verification, cognitive forcing [3][28]"]
+    P4["Counterfactuals: contrastive and actionable (Wachter et al. 2017), may sound precise when wrong"]
 
-    P1 -. "raises agreement, incl. wrong calls" .-> B
-    P1 -. "may raise further" .-> C
+    P1 -. "raises agreement, incl. wrong labels" .-> B
+    P1 -. "raises agreement" .-> D
     P2 -. "predicts worse detection" .-> C
     P3 -. "predicts better detection" .-> C
+    P4 -. "could help or mislead" .-> D
 
-    B --> H1["H1: agreement A < B < C"]
+    A --> H1["H1: detection differs by condition"]
+    B --> H1
     C --> H1
-    B --> H2["H2: trust B, C > A"]
-    C --> H2
-    B --> H3a["H3a: wrong-call agreement B > A"]
-    C --> H3b["H3b (exploratory): wrong-call agreement C < B"]
-    A --> H3c["H3c (exploratory): prompt injection caught least, all conditions"]
-    B --> H3c
-    C --> H3c
-    C --> H4["H4: perceived control C highest, A lowest"]
-    C --> H5["H5: time longest in C; longer time, better detection"]
+    D --> H1
+    A --> H1a["H1a: misses caught less than false alarms"]
+    C --> H1b["H1b: miss vs false-alarm gap smallest in C"]
+    C --> H2["H2: detection highest in C, lowest in B, D exploratory"]
+    B --> H2
+    D --> H2
+    A --> H3["H3: tension and frustration rise with wrong labels noticed"]
+    B --> H3a["H3a: B and D lower tension even on wrong labels"]
+    D --> H3a
+    C --> H3b["H3b: C raises tension when a ✗ row is visible"]
+    B --> H4["H4: agreement and trust higher in B, C, D than A"]
+    C --> H4
+    D --> H4
+    C --> H5["H5: fairness highest in C and D, lowest in A"]
+    D --> H5
+    C --> H6["H6: longest decisions in C and D, clicks predict detection"]
+    D --> H6
 ```
 
-| Level | What changes | Main prediction | Hypotheses |
+| Condition | What changes | Main prediction | Hypotheses |
 |---|---|---|---|
-| A | Baseline, no justification | Lowest agreement and trust. Wrong calls can be caught only by checking the action card against the policy unaided. | H1, H2, H3a (baseline), H3c, H4 (lowest) |
-| B | Adds a selective, confident first-person reason | Persuasive cue: more agreement whether TaskPilot is right or wrong [1][11][18] | H1, H2, H3a, H3c |
-| C | On-demand breakdown, true value vs. rule | Two competing outcomes: cheaper verification and mild forcing [3][28] lower wrong-call agreement, or overload and an illusion of understanding [16][25] raise it. Seeing each rule checked should raise perceived control. | H1, H2, H3b, H3c, H4, H5 |
+| A | Baseline, no justification | Lowest agreement and trust. Wrong labels are caught only by opening the fact sheet unaided. Fairness lowest. | H1, H1a, H3, H4 (lowest), H5 (lowest) |
+| B | A selective, confident reason | A placebic "because" [1][11]: more agreement whether the label is right or wrong, the lowest detection, and less tension even on wrong labels. | H1, H2 (lowest), H3a, H4 |
+| C | On-demand rows with the true claim vs record | Two competing outcomes: cheap verification and mild forcing [3][28] raise detection, or overload [25] lowers it. A visible ✗ may raise tension. Seeing each check should raise fairness. | H1, H1b, H2 (highest), H3b, H4, H5, H6 |
+| D | A "would be … if …" sentence | Exploratory. Counterfactuals are contrastive and seem actionable (Wachter et al. 2017; Miller [22]), which could prompt a check, or lend more authority to a wrong label because they sound like a precise boundary. | H1, H2 (exploratory), H3a, H4, H5, H6 |
 
-**LLM-era framing.** Langer's placebic "because" [18] and Eiband et al.'s placebic explanations [11] predate language models, but agents make the effect sharper: an LLM agent produces a fluent, first-person rationale for every action at no cost, whether or not the action is sound. Recent work shows the risk directly. Kim et al., CHI 2025, found that how an LLM phrases its answers shifts how much people rely on it. Si et al., NAACL 2024, found that LLM explanations help people verify claims when the model is right but lead them to accept convincingly wrong answers. He et al., IUI 2025, found that a conversational LLM explainer made overreliance worse in a decision task. Condition B is a controlled stand-in for this fluent self-justification, and H3a tests whether it works as a placebic "because" when the agent is wrong. (These three citations are new and not yet in `literature.txt`; add them to the reference list before the report.)
+**LLM-era framing.** Langer's placebic "because" [18] and Eiband et al.'s placebic explanations [11] predate language models, but generative AI makes the effect sharper: an LLM writes a fluent rationale for every label at no cost, whether or not the label is sound. Si et al., NAACL 2024, found that LLM explanations help people verify claims when the model is right but lead them to accept convincingly wrong answers. Kim et al., CHI 2025, found that how an LLM phrases its answers (for example, expressing uncertainty) shifts how much people rely on it. Conditions B and D are controlled stand-ins for this fluent self-justification. (Si et al. 2024, Kim et al. 2025, Wachter et al. 2017 and Hart and Staveland 1988 are not yet in `literature.txt`; add them to the report's reference list.)
 
 ---
 
@@ -276,85 +278,101 @@ flowchart LR
 
 ### 6.1 Allocation
 
-- **6 wrong of 15** (40%). That's high enough to give each condition enough wrong-call trials, and low enough that TaskPilot still looks mostly reliable (9/15 correct).
-- **Per set (S1, S2, S3):** 5 cases = 2 correct ALLOWs (1 clear, 1 near-threshold) + 1 correct BLOCK + **1 `false_allow` + 1 `false_block`**, so each set (and so each condition, through the Latin square) gets one of each type.
-- **Overall:** 3 false allows + 3 false blocks. Tallies: 9 AI ALLOW / 6 AI BLOCK, and 9 true ALLOW / 6 true BLOCK, so the call base rate gives nothing away.
-- **The rule a false allow breaks rotates by set:** S1 breaks cost (case-02, $89.00), S2 breaks trusted recipient with a lookalike domain (case-07, `northwlnd.edu`), S3 breaks "requested by you" with a prompt injection (case-12). Across the counterbalancing cycle, each broken rule pairs with each condition, which is what H3c needs.
-- **Correct BLOCKs also fail rules** (case-05, case-10, case-15). That way a failed rule doesn't, on its own, mean "TaskPilot is wrong", and participants have to compare the call with the action card.
-- Where the wrong cases fall within a block is handled by `counterbalance.ts` (the 2 wrong cases are never both in the first two positions). See `system-design.md`.
+- **8 wrong of 24** (33%). That gives each condition two wrong-label trials, while the AI still looks mostly reliable (16/24 correct).
+- **Per set (S1–S4):** 6 posts = 2 correct "accurate" + 2 correct "misleading" + **1 false alarm + 1 miss**. Through the set rotation, each condition gets one of each error type, which is what H1a and H1b need.
+- **Clear vs subtle:** each set has one `clear` and one `subtle` wrong label, and each error type has 2 of each (fully crossed, §6.2). `difficulty` is stored per post as a covariate.
+- **Base rates give nothing away:** 12 "accurate" and 12 "misleading" labels, 12 TRUE and 12 FALSE posts.
+- **Correct "misleading" labels also exist** (2 per set), so a "Likely misleading" label doesn't by itself suggest the AI is wrong.
+- Where the wrong labels fall within a block is handled by `counterbalance.ts`: the 2 wrong labels are never both in positions 1–2 (see `system-design.md`).
 
-### 6.2 Choosing the violation
+### 6.2 Error taxonomy
 
-| Approach | Description | Use |
-|---|---|---|
-| **Clear** | A false allow breaks exactly **one** rule, plainly (case-02: $89.00 against a $50.00 limit). A false block passes all three rules comfortably (case-08, case-13). | One wrong case per set (3 of 6) |
-| **Near-threshold** | The deciding value is close to the line but not on it: case-03 ($48.99, just under the limit, blocked), case-07 (`northwlnd` vs `northwind`, a one-letter lookalike), case-12 (injected instruction from a *trusted* sender, so only the "Triggered by" field gives it away). | One wrong case per set (3 of 6), plus near-threshold correct cases (case-04 $49.50, case-09 $50.00, case-14 $47.80), so "close to the line" doesn't signal "wrong". `difficulty` is stored per case and used as a covariate. |
-| **Exactly at threshold** | Value equals the threshold. | **Correct cases only: case-09** ($50.00, correct ALLOW, since the rule is "at most $50.00"). Never in a wrong case, so no wrong call hinges on reading a boundary. `validateCase` enforces this. |
+The two error types are the signal-detection pair:
 
-### 6.3 Why prompt injection is the novel error type (H3c)
-
-The cost and recipient errors are classic: a number over a limit, a name that doesn't match. Prompt injection is specific to agents. The agent reads untrusted content (an email, a web page, a document) while doing a task, and that content contains an instruction the agent then treats as if it came from the user. The participant asked for "Summarize my inbox"; TaskPilot proposes forwarding the class schedule. Nothing about the action itself looks wrong: it's free and goes to a trusted contact. The only evidence is the "Triggered by" field.
-
-case-12 is built to be the hardest version: the injected email comes **from `studygroup@northwind.edu`, a trusted sender**, so a participant who checks only "is the recipient trusted?" will pass it. The correct BLOCKs case-05 and case-15 also involve injected requests, but they also fail the recipient rule, so they can be caught without understanding injection. H3c predicts that case-12-type overreach is caught least often in every condition, because people check what an action does and who it goes to before they check why the agent is doing it. If C's "Requested by" row (✗) closes that gap, that's evidence that making provenance a visible, checkable factor matters for agent oversight.
-
-### 6.4 Error taxonomy
+- **`false_alarm`**: a TRUE post labelled "Likely misleading". If the participant agrees, accurate information is discredited.
+- **`miss`**: a FALSE post labelled "Likely accurate". If the participant agrees, misinformation gets an endorsement.
 
 ```mermaid
 flowchart TD
-    ALL["15 cases"] --> COR["Correct (9)"]
-    ALL --> WR["Wrong (6)"]
-    COR --> CA["Correct ALLOW (6): 3 clear, 3 near-threshold incl. case-09 at $50.00"]
-    COR --> CB["Correct BLOCK (3): fails 1+ rules"]
-    WR --> FA["false_allow (3): agent overreach, breaks one rule"]
-    WR --> FB["false_block (3): agent over-caution, all rules pass"]
-    FA --> FA1["S1 case-02: over budget ($89.00), clear"]
-    FA --> FA2["S2 case-07: lookalike recipient (northwlnd), near"]
-    FA --> FA3["S3 case-12: prompt injection from trusted sender, near (H3c)"]
-    FB --> FB1["S1 case-03: $48.99, near"]
-    FB --> FB2["S2 case-08: share with study group, clear"]
-    FB --> FB3["S3 case-13: $12.00 lab coat, clear"]
-    FA1 --> FAB["B text omits the broken rule; C shows it with ✗"]
-    FA2 --> FAB
-    FA3 --> FAB
-    FB1 --> FBB["B text frames a passing factor as a risk; C shows all ✓"]
-    FB2 --> FBB
-    FB3 --> FBB
+    ALL["24 posts"] --> COR["Correct labels (16)"]
+    ALL --> WR["Wrong labels (8)"]
+    COR --> CA["Correct accurate (8)"]
+    COR --> CM["Correct misleading (8)"]
+    WR --> FA["false_alarm (4): TRUE post labeled Likely misleading"]
+    WR --> MS["miss (4): FALSE post labeled Likely accurate"]
+    FA --> FA1["S1 p03: fair dates, clear"]
+    FA --> FA2["S2 p09: farmers market, subtle"]
+    FA --> FA3["S3 p15: tap water tests, subtle"]
+    FA --> FA4["S4 p21: pool opening, clear"]
+    MS --> MS1["S1 p04: lake record low, subtle"]
+    MS --> MS2["S2 p10: parking rate, clear"]
+    MS --> MS3["S3 p16: concert date, clear"]
+    MS --> MS4["S4 p22: leaf blower ban, subtle"]
+    FA1 --> FAX["B and D cite a non-decisive doubt, C claim vs record shows ✓"]
+    FA2 --> FAX
+    FA3 --> FAX
+    FA4 --> FAX
+    MS1 --> MSX["B and D cite a non-decisive reassurance, C claim vs record shows ✗"]
+    MS2 --> MSX
+    MS3 --> MSX
+    MS4 --> MSX
+    FAX --> H1A["H1a: misses caught less often than false alarms"]
+    MSX --> H1A
 ```
+
+Each set pairs one clear and one subtle wrong label (S1: p03 clear, p04 subtle; S2: p10 clear, p09 subtle; S3: p16 clear, p15 subtle; S4: p21 clear, p22 subtle). Error type and difficulty are fully crossed: false alarms p03, p21 clear and p09, p15 subtle; misses p10, p16 clear and p04, p22 subtle. So H1a isn't confounded with difficulty, and `difficulty` stays in the model as a covariate. Every analysis of detection (H1, H2, H6) is reported **separately by `errorType`** as well as pooled, because pooling could hide opposite effects; for example, B might lower detection of misses while leaving false alarms unchanged.
+
+### 6.3 Why misses are expected to be caught less (H1a)
+
+The two labels create different amounts of friction.
+
+- **"Likely accurate" invites no scrutiny.** It confirms what the post already says, so the easy path is to click "Agree with label" and move on. Nothing prompts the participant to open the fact sheet. This is the classic commission error: people follow an automated cue that agrees with the surface of the information instead of checking it [26], and automation bias grows when checking takes effort [23][24].
+- **"Likely misleading" interrupts.** A warning on a post that reads as ordinary local news is a surprise, and a surprise invites a look at the fact sheet. On a false alarm, the participant finds the record agrees with the post.
+- **B and D widen the gap.** A reassuring reason ("Checked: water level reports from this account are usually reliable.") gives a second reason not to look, which is why H3a predicts lower tension in B and D even on wrong labels: less stressful, but more believable.
+- **C should narrow it (H1b).** The "Claim vs record" row puts the ✗ on screen for a miss without a separate trip to the fact sheet, so the participant's check costs one click.
 
 ---
 
 ## 7. Wizard consistency
 
-The illusion has to look the same in every condition, so that the only thing that varies is explanation depth.
+The illusion has to look the same in every condition, so the only thing that varies is the explanation.
 
 | Element | Specification | Reason |
 |---|---|---|
-| Persona | "TaskPilot", with the same name, neutral icon, and header in A, B and C | One agent across conditions. Participants compare explanation styles, not systems. |
-| AI confidence | **Not shown** in any condition (no percentage, no "high confidence" label) | Zhang et al. [29] found that confidence scores affect trust calibration, and Bansal et al. [1] found that explanations added little beyond confidence. Showing it would add a second cue that competes with explanation depth. |
-| Latency | A fixed **~800 ms "TaskPilot is checking…"** indicator before every call, in every condition and on every case | Stops C (or wrong cases) from seeming to "think harder". `decisionTimeMs` starts when the call appears, **after** the delay. |
-| Wording | The call is always exactly "ALLOW: Ready to go: this fits your rules." or "BLOCK: I paused this: it breaks your rules.", in the same styling | Avoids tone differences between correct and wrong calls |
-| Instructions | TaskPilot is introduced as "an AI assistant that acts for you and checks each action against your rules first". Participants are told it's usually but not always right, and that their delegation policy is the standard. | Gives participants a reason to verify without saying how often TaskPilot is wrong |
+| Labeller identity | "AI label", with the same icon, panel and styling in A, B, C and D | One AI across conditions. Participants compare explanations, not systems. |
+| AI confidence | **Not shown** in any condition | Zhang et al. [29] found confidence scores affect trust calibration, and Bansal et al. [1] found explanations added little beyond confidence. Showing it would add a cue that competes with the explanation. |
+| Latency | Fixed **~800 ms "AI is checking…"** before every label | Stops C or wrong labels from seeming to "think harder". `decisionTimeMs` starts when the label appears. |
+| Label wording | Always exactly ✓ "Likely accurate" or ⚠ "Likely misleading" | No tone differences between correct and wrong labels. |
+| Fact sheet | Identical across conditions, opened from "Fact sheet ▸", never mentions the label | The same evidence is equally available everywhere, so detection differences come from the explanation. |
+| Instructions | The AI is introduced as a tool that labels posts as likely accurate or misleading. Participants are told it is usually but not always right and that the fact sheet is the standard. | Gives a reason to verify without saying how often the AI is wrong. |
 
-Don't confuse the participant's own `confidence` rating (1–7, an optional per-trial measure) with AI confidence. The participant's rating is collected after their decision and isn't shown as an agent output.
-
-### 7.1 Study 2 style arm (planned extension, not part of the course build)
-
-Study 2 adds a between-subjects explanation-style factor to test whether the B effect comes from the first-person fluency itself rather than from the content:
-
-- **Fluent arm:** the first-person TaskPilot sentences from §4.1 (Study 1 as-is).
-- **Terse arm:** template text from the optional case field `staticExplanationTerse`.
-- **Content-matched:** each terse string names exactly the same factors as its fluent string, with the same omission or framing. For case-12, fluent "I checked this: it's free and goes to your trusted study group." becomes terse **"ALLOW: cost ok, recipient trusted."** Both leave out "requested by". Factor rows (C) are identical in both arms.
-- **Assignment:** by pid parity (session field `styleArm`, default `"fluent"`). This needs **N = 36**, two full 18-participant counterbalancing cycles, so each arm gets a full cycle.
+Don't confuse the participant's own `confidence` rating (1–7, asked after every post) with AI confidence. The rating is collected after the decision and is never shown as an AI output.
 
 ---
 
-## 8. Ethics and debrief
+## 8. Affect: why tension and frustration (H3)
 
-- **Deception is limited and disclosed.** The consent form says the study evaluates "an AI assistant interface". It doesn't say TaskPilot is scripted, because saying so would defeat the purpose.
-- **Nothing real is touched.** TaskPilot never sends an email, makes a payment, books anything or connects to any account. Every contact, address and vendor is fictional (`.example` domains or the fictional `northwind.edu`). No real personal, financial or account data is used or collected.
-- **Debrief (on `DebriefScreen` and verbally by the moderator):** participants are told that (1) there was no real AI agent and every call and explanation was pre-scripted by the research team, (2) 6 of the 15 calls were **deliberately wrong** to see whether people would notice, (3) one kind of wrong call was a **prompt injection**: text inside an email or web page that tries to give the agent instructions, which is a real and growing risk with AI agents, and the "Triggered by" field is the way to spot it, (4) agreeing with a wrong call is common and well documented [24][26], and doesn't reflect on them, and (5) all people, contacts and vendors were fictional.
+v3 adds two per-block affect measures because a wrong label is not only a reliability event; it's an unpleasant one. Noticing that the AI contradicts the record forces the participant to overrule it and to doubt the labels they already agreed with.
+
+- **`tension` (1–7):** "How tense did you feel while judging the posts in this part?" A single item, cheap enough to ask every block.
+- **`frustrationTlx` (0–100, steps of 5):** the frustration subscale of the NASA Task Load Index (Hart and Staveland 1988, "Development of NASA-TLX: Results of empirical and theoretical research", Advances in Psychology 52). The slider starts at 50 and must be moved (`frustrationTlxTouched`), so an untouched default isn't read as a rating.
+
+Predictions:
+- **H3:** both rise with `nWrongDetected` in the block. A label error that goes unnoticed causes no tension, which is why the count of *noticed* errors is the predictor.
+- **H3a:** B and D lower tension even on wrong labels. A confident reason settles doubt whether or not the doubt was justified. That is the risk for real platforms: an explanation that makes labelling feel less stressful can also make wrong labels more believable.
+- **H3b (exploratory):** C raises tension when a ✗ row is visible, because the participant sees the AI's own breakdown contradict its label.
+
+An optional anxiety scale and a consequence banner ("Posts you agree are accurate stay visible to other users") are listed in `_shared-decisions.md` as off by default.
+
+---
+
+## 9. Ethics and debrief
+
+- **Fictional misinformation only.** Every person, account, place, agency and record is fictional (Riverton, Alder County). No real brands. The false posts are deliberately mundane (event dates, fees, closures, rankings), and **no post makes a health-risk claim** that could be harmful if believed. No post touches health care. The water-safety post (p15) is TRUE and reassuring, and the one fee post that is a miss (p10) is about downtown parking rates.
+- **Deception is limited and disclosed.** The consent form says the study evaluates "an AI labelling interface". It doesn't say the labels are scripted, because that would defeat the purpose. Ethics approval is needed for the deception and the stress measures (`_shared-decisions.md`).
+- **Debrief (on `DebriefScreen` and verbally by the moderator):** participants are told that (1) there was no real AI and every label and explanation was written by the research team, (2) 8 of the 24 labels were **deliberately wrong**, (3) **for every wrong label they saw, the screen shows the post, the wrong label and the real fact** from the fact sheet, so no false belief leaves the session, (4) agreeing with a wrong AI label is common and well documented [24][26] and doesn't reflect on them, and (5) all posts, people and places were made up.
 - Participants may withdraw their data after the debrief. The moderator can delete the session from `/admin` (see `system-design.md`).
-- Limitation to report: the planted errors are clear-cut single-rule violations on single actions, so the detection rates are a best case (§1, literature §8).
+- **Limitation to report:** every error is checkable against one fact sheet, so the detection rates are a best case (§1, literature §8).
 
 ---
 
@@ -366,3 +384,7 @@ Study 2 adds a between-subjects explanation-style factor to test whether the B e
 - [data-model.md](data-model.md)
 - [ai-design.md](ai-design.md)
 - [research-positioning.md](research-positioning.md)
+- [implementation-plan.md](implementation-plan.md)
+- [study-protocol.md](study-protocol.md)
+- [stimuli.md](stimuli.md)
+- [wireframes.md](wireframes.md)
