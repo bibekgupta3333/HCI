@@ -1,6 +1,10 @@
 # Do People Trust AI More When It Explains Itself? A Comparative Study of Explanation
 
-Methods and limitations for protocol `calibrated-full-v1`. This is a prospective study description, not a report of collected findings. The title is retained exactly; the primary behavioral objective is appropriate reliance rather than maximizing trust. The companion [pilot and analysis plan](pilot-and-analysis-plan.md) defines readiness criteria and analysis decisions.
+**Current decision — images rejected (2026-10-19):** `CURRENT_PROTOCOL` returns to `calibrated-full-v1`: new sessions are text-only and display each post’s original likes/reposts. Keep eight posts and `full-v1` (16 ratings per part, 64 total). `calibrated-media-full-v1` remains supported only for historical saved sessions, with their saved media/count profile and questionnaire; do not migrate or relabel them. Remove image captions from the UI, including historical media sessions; retain descriptive alt text for historical images. Do not generate new images or use generic topic photographs by default. Default practice is text-only with original counts; `GET /api/practice?contextMedia=1` is historical compatibility only. Schema 5 and historical assets/prompts remain preserved. Dashboard/KPI defaults return to the text-only full cohort; keep presentation cohorts separate.
+
+**Verification boundary:** this documentation update adds no browser captures, visual testing, code-test or build results. Earlier media evidence below is historical and does not verify the current text-only/caption-free UI.
+
+Methods and limitations for current text-only protocol `calibrated-full-v1`; the media revision of app `0.4.0` is retained as historical context. This is a prospective study description, not a report of collected findings. The title is retained exactly; the primary behavioral objective is appropriate reliance rather than maximizing trust. The companion [pilot and analysis plan](pilot-and-analysis-plan.md) defines readiness criteria and analysis decisions.
 
 ## Aim and framing
 
@@ -35,6 +39,16 @@ Williams orders `ABDC`, `BCAD`, `CDBA`, `DACB` distribute interface position and
 
 The target of 32 completed non-pilot new-protocol sessions is a feasible exploratory and assignment-balancing target, not an a priori power result. Resource constraints and statistical power are distinct sample-size justifications ([Lakens, 2022](https://doi.org/10.1525/collabra.33267)). Neither this target nor the six-to-eight-person pilot establishes sensitivity to a specified effect size, a novel contribution or a publishable result.
 
+## Current image rejection decision
+
+New sessions use text-only posts and original per-post likes/reposts. The user rejected generic generated topic photos: the claims require schedules, prices, policy text or numerical/historical records, rather than illustrative scenes. Even apparently visual claims (a lake level, trees or installed signals) are not established by a generic photo. The [24-post suitability audit](media-and-engagement-design.md#per-post-image-suitability-audit) records the content rationale. This is a design judgment, not a participant-tested realism finding. No new images are generated.
+
+## Historical media limitations (saved sessions only)
+
+Saved `calibrated-media-full-v1` sessions retain their three shared topic images and fixed set counts: S1 128 likes/16 reposts, S2 172/24, S3 96/12, S4 148/20. Visible image captions are removed across the UI, including these historical sessions; descriptive alt text remains. Retain assets, prompts, manifest and earlier screenshots as provenance. Record the caption removal as a UI deviation for historical media sessions, since protocol identity alone does not distinguish before/after caption exposure.
+
+For historical media data, images are tied to topic, repeat across posts and can imply credibility or fit some claims better than others. Set counts can imply popularity; planned rotation does not guarantee equal realized exposure. Media and counts changed together, so cross-protocol differences cannot isolate their effects. Neither the historical imagery nor its rejection establishes improved realism, naturalistic behavior or better decisions. C’s extra factual comparison remains a package confound in both presentations. This documentation update provides no new rendering or performance evidence.
+
 ## Measures and version boundaries
 
 | Measure | New protocol | Interpretation |
@@ -48,11 +62,11 @@ The target of 32 completed non-pilot new-protocol sessions is a feasible explora
 | Process measures | Adjusted timing, visibility/resume flags, fact-sheet use/time; Why/row use in C | Descriptive behavior; voluntary opening is not randomized |
 | Exit responses | Demographics, exposure, preference and optional comment | Context and stated preference, not proof of efficacy |
 
-`calibrated-full-v1` uses the original `full-v1` questionnaire after each part: 12 Jian-based trust items, two fairness items, tension and frustration, for **64 ratings** across four parts. This is separate from eight required confidence ratings. Preserve the original wording in `surveyItems.json`. Reverse-score trust items 1–5 as `8 - raw`, retain items 6–12, and average the 12 scored items on the server. Average the two fairness items separately. Never combine trust, fairness, tension and frustration into one composite. The frustration slider starts at 50 and must be touched.
+Current `calibrated-full-v1` and saved `calibrated-media-full-v1` use the original `full-v1` questionnaire after each part: 12 Jian-based trust items, two fairness items, tension and frustration, for **64 ratings** across four parts. This is separate from eight required confidence ratings. Preserve the original wording in `surveyItems.json`. Reverse-score trust items 1–5 as `8 - raw`, retain items 6–12, and average the 12 scored items on the server. Average the two fairness items separately. Never combine trust, fairness, tension and frustration into one composite. The frustration slider starts at 50 and must be touched.
 
 The twelve-item questionnaire is based on Jian; adapting its wording to AI labels does not itself establish psychometric validity in this context. Report the adaptation and assess reliability if sample size permits. A condition-specific full questionnaire supports comparisons across explanation packages; administering it only once at the end would instead measure overall trust.
 
-Previously started `calibrated-brief-v1` sessions retain the three-item `brief-v1` questionnaire on resume. Their custom trust item is unvalidated and not interchangeable with the full scale; trust arrays remain empty and full-scale/fairness scores NULL. `legacy-full-v1` sessions retain their original full questionnaires and saved eight/24-post plans. Missing historical protocol metadata defaults to legacy. Migration must preserve scores, identity, assignment and cursor; never upgrade a participant mid-study. Identify protocol, questionnaire and planned-trial count in analysis, and keep cohorts separate. New dashboard/KPI summaries default to `calibrated-full-v1`.
+Previously started `calibrated-brief-v1` sessions retain the three-item `brief-v1` questionnaire on resume. Their custom trust item is unvalidated and not interchangeable with the full scale; trust arrays remain empty and full-scale/fairness scores NULL. `legacy-full-v1` sessions retain their original full questionnaires and saved eight/24-post plans. Missing historical protocol metadata defaults to legacy. Migration must preserve scores, identity, assignment and cursor; never upgrade a participant mid-study. Identify protocol, questionnaire and planned-trial count in analysis, and keep cohorts separate. Previously started `calibrated-full-v1` sessions keep the original text/count presentation and full questionnaire. Dashboard/KPI summaries default to current text-only `calibrated-full-v1`; analyse media/full and text-only/full cohorts separately despite identical questionnaire scales.
 
 ## Persistence and participant control
 

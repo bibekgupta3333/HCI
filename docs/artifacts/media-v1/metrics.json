@@ -1,0 +1,217 @@
+{
+  "results": [
+    {
+      "condition": "A",
+      "state": "collapsed",
+      "width": 1280,
+      "pageOverflow": false,
+      "areaHeight": 264,
+      "areaScroll": false,
+      "decisionY": 655,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    },
+    {
+      "condition": "A",
+      "state": "collapsed",
+      "width": 1024,
+      "pageOverflow": false,
+      "areaHeight": 264,
+      "areaScroll": false,
+      "decisionY": 1042.375,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    },
+    {
+      "condition": "A",
+      "state": "collapsed",
+      "width": 768,
+      "pageOverflow": false,
+      "areaHeight": 264,
+      "areaScroll": false,
+      "decisionY": 1042.375,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    },
+    {
+      "condition": "A",
+      "state": "collapsed",
+      "width": 360,
+      "pageOverflow": false,
+      "areaHeight": 336,
+      "areaScroll": false,
+      "decisionY": 1236.5625,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    },
+    {
+      "condition": "B",
+      "state": "collapsed",
+      "width": 1280,
+      "pageOverflow": false,
+      "areaHeight": 264,
+      "areaScroll": false,
+      "decisionY": 655,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    },
+    {
+      "condition": "B",
+      "state": "collapsed",
+      "width": 1024,
+      "pageOverflow": false,
+      "areaHeight": 264,
+      "areaScroll": false,
+      "decisionY": 1042.375,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    },
+    {
+      "condition": "B",
+      "state": "collapsed",
+      "width": 768,
+      "pageOverflow": false,
+      "areaHeight": 264,
+      "areaScroll": false,
+      "decisionY": 1042.375,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    },
+    {
+      "condition": "B",
+      "state": "collapsed",
+      "width": 360,
+      "pageOverflow": false,
+      "areaHeight": 336,
+      "areaScroll": false,
+      "decisionY": 1210.46875,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    },
+    {
+      "condition": "C",
+      "state": "collapsed",
+      "width": 1280,
+      "pageOverflow": false,
+      "areaHeight": 264,
+      "areaScroll": false,
+      "decisionY": 655,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    },
+    {
+      "condition": "C",
+      "state": "expanded",
+      "width": 1280,
+      "pageOverflow": false,
+      "areaHeight": 264,
+      "areaScroll": true,
+      "detailCount": 3
+    },
+    {
+      "condition": "C",
+      "state": "collapsed",
+      "width": 1024,
+      "pageOverflow": false,
+      "areaHeight": 264,
+      "areaScroll": false,
+      "decisionY": 1063.375,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    },
+    {
+      "condition": "C",
+      "state": "expanded",
+      "width": 1024,
+      "pageOverflow": false,
+      "areaHeight": 264,
+      "areaScroll": true,
+      "detailCount": 3
+    },
+    {
+      "condition": "C",
+      "state": "collapsed",
+      "width": 768,
+      "pageOverflow": false,
+      "areaHeight": 264,
+      "areaScroll": false,
+      "decisionY": 691.375,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    },
+    {
+      "condition": "C",
+      "state": "expanded",
+      "width": 768,
+      "pageOverflow": false,
+      "areaHeight": 264,
+      "areaScroll": true,
+      "detailCount": 3
+    },
+    {
+      "condition": "C",
+      "state": "collapsed",
+      "width": 360,
+      "pageOverflow": false,
+      "areaHeight": 336,
+      "areaScroll": false,
+      "decisionY": 885.5625,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    },
+    {
+      "condition": "C",
+      "state": "expanded",
+      "width": 360,
+      "pageOverflow": false,
+      "areaHeight": 336,
+      "areaScroll": true,
+      "detailCount": 3
+    },
+    {
+      "condition": "D",
+      "state": "collapsed",
+      "width": 1280,
+      "pageOverflow": false,
+      "areaHeight": 264,
+      "areaScroll": false,
+      "decisionY": 655,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    },
+    {
+      "condition": "D",
+      "state": "collapsed",
+      "width": 1024,
+      "pageOverflow": false,
+      "areaHeight": 264,
+      "areaScroll": false,
+      "decisionY": 1042.375,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    },
+    {
+      "condition": "D",
+      "state": "collapsed",
+      "width": 768,
+      "pageOverflow": false,
+      "areaHeight": 264,
+      "areaScroll": false,
+      "decisionY": 1042.375,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    },
+    {
+      "condition": "D",
+      "state": "collapsed",
+      "width": 360,
+      "pageOverflow": false,
+      "areaHeight": 336,
+      "areaScroll": false,
+      "decisionY": 1210.46875,
+      "imageWidth": 1536,
+      "imageFrameHeight": 160
+    }
+  ],
+  "errors": []
+}

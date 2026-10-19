@@ -1,6 +1,10 @@
 # Stimuli: Participant-Facing Text (v3)
 
-This document holds the final wording of everything a participant reads during the trials of the v3 study (AI accuracy labels on made-up social media posts): the authoring rules, the instructions screen, the practice post, and, for each of the 24 posts, the post itself, its fact sheet, the condition B sentence, the condition C rows, the condition D sentence and the debrief fact. `src/data/posts.json` is filled from it. `_shared-decisions.md` is binding on the post bank table and the condition rules, and `data-model.md` is the authority on field names. This file is the authority on wording: if another doc quotes a string differently, this file wins. The v2.1 version (agent permission prompts) is archived at `archive/v2.1-agent-permission/stimuli.md`.
+**Current decision — images rejected (2026-10-19):** `CURRENT_PROTOCOL` returns to `calibrated-full-v1`: new sessions are text-only and display each post’s original likes/reposts. Keep eight posts and `full-v1` (16 ratings per part, 64 total). `calibrated-media-full-v1` remains supported only for historical saved sessions, with their saved media/count profile and questionnaire; do not migrate or relabel them. Remove image captions from the UI, including historical media sessions; retain descriptive alt text for historical images. Do not generate new images or use generic topic photographs by default. Default practice is text-only with original counts; `GET /api/practice?contextMedia=1` is historical compatibility only. Schema 5 and historical assets/prompts remain preserved. Dashboard/KPI defaults return to the text-only full cohort; keep presentation cohorts separate.
+
+**Verification boundary:** this documentation update adds no browser captures, visual testing, code-test or build results. Earlier media evidence below is historical and does not verify the current text-only/caption-free UI.
+
+This document holds the final wording of everything a participant reads during the trials of the v3 study (AI accuracy labels on made-up social media posts): the authoring rules, the instructions screen, the practice post, and, for each of the 24 posts, the post itself, its fact sheet, the condition B sentence, the condition C rows, the condition D sentence and the debrief fact. `app/shared/data/posts.json` is filled from it. `_shared-decisions.md` is binding on the post bank table and the condition rules, and `data-model.md` is the authority on field names. This file is the authority on wording: if another doc quotes a string differently, this file wins. The v2.1 version (agent permission prompts) is archived at `archive/v2.1-agent-permission/stimuli.md`.
 
 ## 1. Authoring rules
 
@@ -30,7 +34,28 @@ The verified badge and sensational wording are deliberately **not** reliable cue
 
 Sensational posts are true more often than not (6 of 10), so "sounds sensational" does not predict "false". Among wrong labels, the misses are mostly verified and all neutral (p04, p10, p16 verified; p22 not), and the false alarms mix both cues (p03 not verified/neutral, p09 not verified/sensational, p15 verified/neutral, p21 verified/sensational).
 
+### 1.1 Current original counts
+
+New `calibrated-full-v1` sessions display the original per-post counts in §4, without images.
+
+### Historical media context (saved sessions only)
+
+For historical saved `calibrated-media-full-v1` sessions (media revision of app `0.4.0`, questionnaire `full-v1`), all 24 bank posts have one neutral generated illustration, drawn from three shared topic assets: `env` → `/post-images/environment.png`, `svc` → `/post-images/public-services.png`, `evt` → `/post-images/local-events.png`. The earlier design used the caption “Illustrative scene”; visible captions are now removed, including for historical sessions. Retain neutral descriptive alt text; the same post’s image is identical across A–D. The images do not establish claim truth or replace fact sheets/C’s true comparison. Final metadata and asset hashes are recorded in [media and engagement design](media-and-engagement-design.md); all three PNGs have confirmed 1536 × 1024 dimensions and manifest-matched SHA-256 hashes; these metadata checks do not verify rendering.
+
+**All per-post likes/reposts listed in §4 are the original counts**, retained unchanged in the bank and displayed by current text-only `calibrated-full-v1` and other text-only protocols. Only historical saved media sessions display the separate `context` count profile below, identical for every one of the six posts within each set, regardless of truth, AI label, error type or condition:
+
+| Set | Posts | Context likes | Context reposts |
+|---|---|---:|---:|
+| S1 | p01–p06 | 128 | 16 |
+| S2 | p07–p12 | 172 | 24 |
+| S3 | p13–p18 | 96 | 12 |
+| S4 | p19–p24 | 148 | 20 |
+
+These are fixed scripted context counts, not measured engagement. No comments, social endorsements or real posting controls are added. Practice keeps its original 74 likes/9 reposts and receives no context image. Saved `calibrated-full-v1`, `calibrated-brief-v1` and `legacy-full-v1` sessions retain original text/count presentations and their questionnaires. Eight analysed posts and the full 16-rating-per-part/64-rating questionnaire remain unchanged for new text-only sessions. Historical media practice can still be requested explicitly for compatibility; it is not the default. See the [per-post image suitability audit](media-and-engagement-design.md#per-post-image-suitability-audit): no bank post requires a photograph. Claims, truth, canonical explanations, scales and scoring are unchanged; media presence is constant, but image/topic and set-count effects remain limitations rather than demonstrated realism benefits.
+
 ## 2. Instructions screen
+
+The quoted 24-post/six-per-part instructions below are historical legacy copy. Current eight-post protocols describe eight posts in four parts of two, plus practice; preserve the task/label definitions without revealing planted errors. Media context follows §1.1 and does not change post, fact-sheet or explanation wording.
 
 **Heading:** How this study works
 
@@ -525,7 +550,7 @@ The post card and the fact sheet are shown in every condition (A, B, C, D). A sh
 B: 8–13 words; D: 12–15 words; longest post text 122 characters. Every B sentence is 8–14 words and every D sentence 10–16 words. Claim vs record is ✓ on exactly the 12 TRUE posts and ✗ on the 12 FALSE posts, and this holds on the 8 wrong labels too (✓ on the 4 false alarms, ✗ on the 4 misses). Totals: 12 "accurate" and 12 "misleading" labels; 12 TRUE and 12 FALSE; false alarms p03, p09, p15, p21 and misses p04, p10, p16, p22, each set with one `clear` and one `subtle` wrong label. Every wrong label has a debrief fact. The practice post's B (9 words) and D (14 words) are also in range.
 
 Points for the team:
-- The C-shows-true-values principle (Claim vs record shows the true comparison, even on wrong labels) still needs team confirmation, as `_shared-decisions.md` notes.
+- The C-shows-true-values principle is deliberate: preserve the true comparison, including contradictions on wrong-label posts.
 - p10 was changed from a flu-shot fee to a parking fee, so that no post could discourage someone from health care.
 
 ## Related docs

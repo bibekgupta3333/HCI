@@ -2,7 +2,7 @@
 // The SessionStoreRoot type is legacy (v3 docs used localStorage); the app now persists to SQLite on the server.
 
 // ---------- shared enums ----------
-export type StudyProtocol = "legacy-full-v1" | "calibrated-brief-v1" | "calibrated-full-v1";
+export type StudyProtocol = "legacy-full-v1" | "calibrated-brief-v1" | "calibrated-full-v1" | "calibrated-media-full-v1";
 export type QuestionnaireVersion = "full-v1" | "brief-v1";
 export const CURRENT_PROTOCOL: StudyProtocol = "calibrated-full-v1";
 
@@ -43,6 +43,19 @@ export interface Factor {
   detail: string;             // argues for the AI label (stimuli.md)
 }
 
+export interface PostImage {
+  src: string;                // same-origin, immutable /post-images/ asset
+  alt: string;                // neutral scene description; no claim verification
+  width: number;
+  height: number;
+}
+
+export interface PostContext {
+  image: PostImage;
+  likes: number;
+  reposts: number;
+}
+
 export interface Post {
   id: string;                 // "p01".."p24"
   set: SetId;
@@ -52,6 +65,7 @@ export interface Post {
   postedAgo: string;
   likes: number;
   reposts: number;
+  context?: PostContext;       // versioned realism profile; historical presentation stays unchanged
   keyFact: KeyFact;
   factSheet: FactSheet;
   groundTruth: Truth;
@@ -85,6 +99,7 @@ export interface Presentation {
   postedAgo: string;
   likes: number;
   reposts: number;
+  image?: PostImage;
   factSheet: FactSheet;
   aiLabel: Label;
   staticExplanation?: string;          // B only

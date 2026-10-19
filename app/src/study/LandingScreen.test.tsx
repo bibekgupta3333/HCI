@@ -94,6 +94,8 @@ describe("LandingScreen", () => {
     expect(screen.getByText(/You will see each style once, in an assigned order/)).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "What are AI labels?" })).toHaveTextContent("Likely accurate");
     expect(screen.getByRole("region", { name: "What are AI labels?" })).toHaveTextContent("Likely misleading");
+    expect(screen.getByRole("region", { name: "What are AI labels?" })).toHaveTextContent("posts are text-based");
+    expect(container.textContent).not.toContain("illustrative pictures");
     expect(screen.getByText(/18 or over who reads English/)).toBeInTheDocument();
     expect(screen.getByText(/scrambled version of your code/)).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/PLACEHOLDER|\bIRB\b|professor|supervisor|contact|anonymous/i);

@@ -15,6 +15,12 @@ import { conditionRegistry } from "../conditions/conditionRegistry";
 import type { PracticePresentation } from "../../shared/api";
 import type { Condition, EventType, Presentation } from "../../shared/types";
 
+const CONTEXT_IMAGE_SOURCES = [
+  "/post-images/environment.png",
+  "/post-images/public-services.png",
+  "/post-images/local-events.png",
+];
+
 function practiceAsPresentation(p: PracticePresentation, condition: Condition): Presentation {
   return {
     postId: p.id,
@@ -24,6 +30,7 @@ function practiceAsPresentation(p: PracticePresentation, condition: Condition): 
     postedAgo: p.postedAgo,
     likes: p.likes,
     reposts: p.reposts,
+    ...(p.image ? { image: p.image } : {}),
     factSheet: p.factSheet,
     aiLabel: p.aiLabel,
     ...(condition === "B" ? { staticExplanation: p.staticExplanation } : {}),
@@ -71,9 +78,24 @@ export default function InstructionsScreen() {
     if (started.current) return; // StrictMode double effect: load + log once
     started.current = true;
     log("practice_start");
-    api.getPractice().then(setPractice, () => setLoadError(true));
+    api.getPractice(session?.protocolVersion === "calibrated-media-full-v1").then(setPractice, () => setLoadError(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (session?.protocolVersion !== "calibrated-media-full-v1") return;
+    // Warm the three shared assets without waiting for load/decode or gating participation.
+    const hints = CONTEXT_IMAGE_SOURCES.map((src) => {
+      const hint = document.createElement("link");
+      hint.rel = "preload";
+      hint.setAttribute("as", "image");
+      hint.href = src;
+      hint.setAttribute("fetchpriority", "low");
+      document.head.appendChild(hint);
+      return hint;
+    });
+    return () => hints.forEach((hint) => hint.remove());
+  }, [session?.protocolVersion]);
 
   useEffect(() => {
     if (!practice) return;
@@ -151,6 +173,7 @@ export default function InstructionsScreen() {
               postedAgo={practice.postedAgo}
               likes={practice.likes}
               reposts={practice.reposts}
+              image={practice.image}
             />
             <LabelPanel label={practice.aiLabel} checking={false} />
             <Explanation presentation={practiceAsPresentation(practice, part1Condition)} />

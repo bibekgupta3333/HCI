@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCHEMA_PATH = join(dirname(fileURLToPath(import.meta.url)), "schema.sql");
-export const SCHEMA_VERSION = "4";
+export const SCHEMA_VERSION = "5";
 
 /** Opens (or creates) the study database, applies schema.sql idempotently and migrates older DBs. ':memory:' allowed. */
 export function openDb(path: string): Database.Database {
@@ -41,14 +41,14 @@ function migrate(db: Database.Database): void {
       db.exec("ALTER TABLE sessions ADD COLUMN protocol_version TEXT NOT NULL DEFAULT 'legacy-full-v1' CHECK (protocol_version IN ('legacy-full-v1','calibrated-brief-v1'))");
 
     const sessionSql = (db.prepare("SELECT sql FROM sqlite_master WHERE name = 'sessions'").get() as { sql: string }).sql;
-    if (!sessionSql.includes("'calibrated-full-v1'")) {
+    if (!sessionSql.includes("'calibrated-media-full-v1'")) {
       const schema = readFileSync(SCHEMA_PATH, "utf8");
       const definition = schema.match(/CREATE TABLE IF NOT EXISTS sessions \([\s\S]*?\n\);/)![0];
-      db.exec(definition.replace("IF NOT EXISTS sessions", "sessions_v4"));
+      db.exec(definition.replace("IF NOT EXISTS sessions", "sessions_v5"));
       const names = (db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[]).map((c) => c.name).join(", ");
-      db.exec(`INSERT INTO sessions_v4 (${names}) SELECT ${names} FROM sessions`);
+      db.exec(`INSERT INTO sessions_v5 (${names}) SELECT ${names} FROM sessions`);
       db.exec("DROP TABLE sessions");
-      db.exec("ALTER TABLE sessions_v4 RENAME TO sessions");
+      db.exec("ALTER TABLE sessions_v5 RENAME TO sessions");
       db.exec("CREATE INDEX idx_sessions_pid ON sessions(pid)");
       db.exec("CREATE UNIQUE INDEX idx_sessions_participant_hash ON sessions(participant_hash) WHERE participant_hash IS NOT NULL");
     }

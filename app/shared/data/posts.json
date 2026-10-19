@@ -13,6 +13,16 @@
     "postedAgo": "2h",
     "likes": 74,
     "reposts": 9,
+    "context": {
+      "image": {
+        "src": "/post-images/environment.png",
+        "alt": "Trees beside a quiet town park path",
+        "width": 1536,
+        "height": 1024
+      },
+      "likes": 74,
+      "reposts": 9
+    },
     "keyFact": {
       "claimValue": "reopens April 4",
       "recordValue": "reopens April 4"
@@ -67,6 +77,16 @@
       "postedAgo": "3h",
       "likes": 212,
       "reposts": 38,
+      "context": {
+        "image": {
+          "src": "/post-images/environment.png",
+          "alt": "Trees beside a quiet town park path",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 128,
+        "reposts": 16
+      },
       "keyFact": {
         "claimValue": "41% in 2025",
         "recordValue": "41% in 2025"
@@ -120,6 +140,16 @@
       "postedAgo": "5h",
       "likes": 87,
       "reposts": 41,
+      "context": {
+        "image": {
+          "src": "/post-images/public-services.png",
+          "alt": "Exterior of a town public-services building",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 128,
+        "reposts": 16
+      },
       "keyFact": {
         "claimValue": "closed every Monday",
         "recordValue": "closed Sundays only; open Mondays"
@@ -173,6 +203,16 @@
       "postedAgo": "1d",
       "likes": 143,
       "reposts": 29,
+      "context": {
+        "image": {
+          "src": "/post-images/local-events.png",
+          "alt": "An empty community square with benches",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 128,
+        "reposts": 16
+      },
       "keyFact": {
         "claimValue": "June 6–8, Mill Park",
         "recordValue": "June 6–8, Mill Park"
@@ -226,6 +266,16 @@
       "postedAgo": "6h",
       "likes": 356,
       "reposts": 120,
+      "context": {
+        "image": {
+          "src": "/post-images/environment.png",
+          "alt": "Trees beside a quiet town park path",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 128,
+        "reposts": 16
+      },
       "keyFact": {
         "claimValue": "record low",
         "recordValue": "lowest since 2019; record low was 2012"
@@ -279,6 +329,16 @@
       "postedAgo": "2h",
       "likes": 64,
       "reposts": 22,
+      "context": {
+        "image": {
+          "src": "/post-images/public-services.png",
+          "alt": "Exterior of a town public-services building",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 128,
+        "reposts": 16
+      },
       "keyFact": {
         "claimValue": "Saturday service from March 1",
         "recordValue": "Saturday service from March 1"
@@ -332,6 +392,16 @@
       "postedAgo": "8h",
       "likes": 198,
       "reposts": 87,
+      "context": {
+        "image": {
+          "src": "/post-images/local-events.png",
+          "alt": "An empty community square with benches",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 128,
+        "reposts": 16
+      },
       "keyFact": {
         "claimValue": "canceled this year",
         "recordValue": "scheduled for October 12"
@@ -385,6 +455,16 @@
       "postedAgo": "4h",
       "likes": 402,
       "reposts": 96,
+      "context": {
+        "image": {
+          "src": "/post-images/environment.png",
+          "alt": "Trees beside a quiet town park path",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 172,
+        "reposts": 24
+      },
       "keyFact": {
         "claimValue": "1,200 trees in 2025",
         "recordValue": "1,200 trees in 2025"
@@ -438,6 +518,16 @@
       "postedAgo": "3h",
       "likes": 271,
       "reposts": 153,
+      "context": {
+        "image": {
+          "src": "/post-images/public-services.png",
+          "alt": "Exterior of a town public-services building",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 172,
+        "reposts": 24
+      },
       "keyFact": {
         "claimValue": "every other week from April",
         "recordValue": "stays weekly"
@@ -491,6 +581,16 @@
       "postedAgo": "1d",
       "likes": 176,
       "reposts": 44,
+      "context": {
+        "image": {
+          "src": "/post-images/local-events.png",
+          "alt": "An empty community square with benches",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 172,
+        "reposts": 24
+      },
       "keyFact": {
         "claimValue": "opens May 3, Depot Square",
         "recordValue": "opens May 3, Depot Square"
@@ -544,6 +644,16 @@
       "postedAgo": "7h",
       "likes": 233,
       "reposts": 140,
+      "context": {
+        "image": {
+          "src": "/post-images/public-services.png",
+          "alt": "Exterior of a town public-services building",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 172,
+        "reposts": 24
+      },
       "keyFact": {
         "claimValue": "$4 per hour",
         "recordValue": "$2 per hour"
@@ -597,6 +707,16 @@
       "postedAgo": "5h",
       "likes": 95,
       "reposts": 31,
+      "context": {
+        "image": {
+          "src": "/post-images/local-events.png",
+          "alt": "An empty community square with benches",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 172,
+        "reposts": 24
+      },
       "keyFact": {
         "claimValue": "9:30 pm July 4, riverfront",
         "recordValue": "9:30 pm July 4, riverfront"
@@ -650,6 +770,16 @@
       "postedAgo": "9h",
       "likes": 318,
       "reposts": 177,
+      "context": {
+        "image": {
+          "src": "/post-images/environment.png",
+          "alt": "Trees beside a quiet town park path",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 172,
+        "reposts": 24
+      },
       "keyFact": {
         "claimValue": "30 alert days",
         "recordValue": "4 alert days"
@@ -703,6 +833,16 @@
       "postedAgo": "2d",
       "likes": 151,
       "reposts": 27,
+      "context": {
+        "image": {
+          "src": "/post-images/public-services.png",
+          "alt": "Exterior of a town public-services building",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 96,
+        "reposts": 12
+      },
       "keyFact": {
         "claimValue": "online renewal free",
         "recordValue": "online renewal free"
@@ -756,6 +896,16 @@
       "postedAgo": "4h",
       "likes": 129,
       "reposts": 73,
+      "context": {
+        "image": {
+          "src": "/post-images/environment.png",
+          "alt": "Trees beside a quiet town park path",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 96,
+        "reposts": 12
+      },
       "keyFact": {
         "claimValue": "closed all summer",
         "recordValue": "open; 2 advisory days"
@@ -809,6 +959,16 @@
       "postedAgo": "6h",
       "likes": 187,
       "reposts": 52,
+      "context": {
+        "image": {
+          "src": "/post-images/environment.png",
+          "alt": "Trees beside a quiet town park path",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 96,
+        "reposts": 12
+      },
       "keyFact": {
         "claimValue": "all 12 within safety limits, March",
         "recordValue": "all 12 within safety limits, March"
@@ -862,6 +1022,16 @@
       "postedAgo": "3h",
       "likes": 164,
       "reposts": 61,
+      "context": {
+        "image": {
+          "src": "/post-images/local-events.png",
+          "alt": "An empty community square with benches",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 96,
+        "reposts": 12
+      },
       "keyFact": {
         "claimValue": "August 20",
         "recordValue": "August 13"
@@ -915,6 +1085,16 @@
       "postedAgo": "1d",
       "likes": 88,
       "reposts": 15,
+      "context": {
+        "image": {
+          "src": "/post-images/public-services.png",
+          "alt": "Exterior of a town public-services building",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 96,
+        "reposts": 12
+      },
       "keyFact": {
         "claimValue": "signals installed on Elm St",
         "recordValue": "signals installed on Elm St"
@@ -968,6 +1148,16 @@
       "postedAgo": "10h",
       "likes": 142,
       "reposts": 58,
+      "context": {
+        "image": {
+          "src": "/post-images/local-events.png",
+          "alt": "An empty community square with benches",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 96,
+        "reposts": 12
+      },
       "keyFact": {
         "claimValue": "Main St closed 3 days",
         "recordValue": "Main St closed 1 day"
@@ -1021,6 +1211,16 @@
       "postedAgo": "5h",
       "likes": 512,
       "reposts": 134,
+      "context": {
+        "image": {
+          "src": "/post-images/local-events.png",
+          "alt": "An empty community square with benches",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 148,
+        "reposts": 20
+      },
       "keyFact": {
         "claimValue": "$18,000 raised",
         "recordValue": "$18,000 raised"
@@ -1074,6 +1274,16 @@
       "postedAgo": "2h",
       "likes": 203,
       "reposts": 119,
+      "context": {
+        "image": {
+          "src": "/post-images/public-services.png",
+          "alt": "Exterior of a town public-services building",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 148,
+        "reposts": 20
+      },
       "keyFact": {
         "claimValue": "due May 1",
         "recordValue": "due May 15 (unchanged)"
@@ -1127,6 +1337,16 @@
       "postedAgo": "7h",
       "likes": 97,
       "reposts": 33,
+      "context": {
+        "image": {
+          "src": "/post-images/public-services.png",
+          "alt": "Exterior of a town public-services building",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 148,
+        "reposts": 20
+      },
       "keyFact": {
         "claimValue": "opens June 14 after repairs",
         "recordValue": "opens June 14 after repairs"
@@ -1180,6 +1400,16 @@
       "postedAgo": "9h",
       "likes": 146,
       "reposts": 90,
+      "context": {
+        "image": {
+          "src": "/post-images/environment.png",
+          "alt": "Trees beside a quiet town park path",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 148,
+        "reposts": 20
+      },
       "keyFact": {
         "claimValue": "banned from this fall",
         "recordValue": "proposed; vote in November"
@@ -1233,6 +1463,16 @@
       "postedAgo": "1d",
       "likes": 58,
       "reposts": 12,
+      "context": {
+        "image": {
+          "src": "/post-images/environment.png",
+          "alt": "Trees beside a quiet town park path",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 148,
+        "reposts": 20
+      },
       "keyFact": {
         "claimValue": "Saturdays 8 am–12 pm",
         "recordValue": "Saturdays 8 am–12 pm"
@@ -1286,6 +1526,16 @@
       "postedAgo": "4h",
       "likes": 289,
       "reposts": 164,
+      "context": {
+        "image": {
+          "src": "/post-images/local-events.png",
+          "alt": "An empty community square with benches",
+          "width": 1536,
+          "height": 1024
+        },
+        "likes": 148,
+        "reposts": 20
+      },
       "keyFact": {
         "claimValue": "$25 tickets",
         "recordValue": "free entry; no tickets"

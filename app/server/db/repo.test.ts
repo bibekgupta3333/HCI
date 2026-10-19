@@ -316,7 +316,7 @@ describe("migration from the v1 schema", () => {
       expect(cols).toEqual(expect.arrayContaining(["participant_hash", "last_activity_at"]));
       const idx = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'idx_sessions_participant_hash'").get() as { sql: string };
       expect(idx.sql).toMatch(/UNIQUE[\s\S]*WHERE participant_hash IS NOT NULL/);
-      expect((db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as { value: string }).value).toBe("4");
+      expect((db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as { value: string }).value).toBe("5");
       const row = db.prepare("SELECT participant_hash, last_activity_at FROM sessions WHERE session_id = 'old-1'").get();
       expect(row).toEqual({ participant_hash: null, last_activity_at: "2026-01-01T00:00:00.000Z" });
       expect(listSessions(db)[0]).toMatchObject({ sessionId: "old-1", lastActivityAt: "2026-01-01T00:00:00.000Z" });
@@ -341,14 +341,14 @@ describe("migration from the v1 schema", () => {
 });
 
 
-describe("schema 4 migration retention", () => {
-  it.each([2, 3])("preserves schema %i full/brief scores, plans, responses and identities across migration and reopen", (version) => {
+describe("schema 5 migration retention", () => {
+  it.each([2, 3, 4])("preserves schema %i full/brief scores, plans, responses and identities across migration and reopen", (version) => {
     const dir = mkdtempSync(join(tmpdir(), "xai-v3-retention-"));
     const path = join(dir, "old-v2.db");
     try {
       // Construct an actual schema-2 file, rather than using openDb before the migration.
       const currentSchema = readFileSync(fileURLToPath(new URL("./schema.sql", import.meta.url)), "utf8");
-      const schema = version === 3 ? currentSchema.replace(",'calibrated-full-v1'", "") : currentSchema
+      const schema = version >= 3 ? currentSchema.replace(",'calibrated-media-full-v1'", "").replace(version === 3 ? ",'calibrated-full-v1'" : "__absent__", "") : currentSchema
         .replace(/^  protocol_version.*\n/m, "")
         .replace(/^  questionnaire_version.*\n/m, "")
         .replace(/^  brief_trust.*\n/m, "")
@@ -375,10 +375,14 @@ describe("schema 4 migration retention", () => {
         trust_mean, fairness1, fairness2, fairness_mean, tension, frustration_tlx, frustration_tlx_touched,
         n_wrong_detected, anxiety, submitted_at) VALUES ('saved', 1, 'C', ?, ?, ?, 4, 5, 4.5, 3, 35, 1, 1, NULL, ?)`)
         .run(raw, scored, survey.trustMean, survey.submittedAt);
-      if (version === 3) {
+      if (version >= 3) {
         const briefSession = createSession(old, { ...assignment, pid: 8 }, { ...opts, protocolVersion: "calibrated-brief-v1" });
         insertBlockSurvey(old, briefSession.sessionId, { ...survey, questionnaireVersion: "brief-v1", briefTrust: 6,
           trustResponses: [], trustMean: null, fairness1: null, fairness2: null, fairnessMean: null });
+      }
+      if (version === 4) {
+        const fullSession = createSession(old, { ...assignment, pid: 11 }, { ...opts, protocolVersion: "calibrated-full-v1" });
+        insertBlockSurvey(old, fullSession.sessionId, survey);
       }
       const saved = Object.fromEntries(["sessions", "blocks", "trials", "events", "block_surveys"].map((table) =>
         [table, old.prepare(`SELECT * FROM ${table}`).all()]));
@@ -398,13 +402,13 @@ describe("schema 4 migration retention", () => {
         const full = (allSessionsFull(migrated) as any[]).find((s) => s.sessionId === "saved");
         expect(full.blocks[0].survey).toEqual({ ...survey, questionnaireVersion: "full-v1", briefTrust: null });
         expect(migrated.prepare("SELECT value FROM meta WHERE key='participant_salt'").get()).toEqual({ value: "keep-salt" });
-        expect(migrated.prepare("SELECT value FROM meta WHERE key='schema_version'").get()).toEqual({ value: "4" });
+        expect(migrated.prepare("SELECT value FROM meta WHERE key='schema_version'").get()).toEqual({ value: "5" });
         expect(migrated.pragma("foreign_key_check")).toEqual([]);
         if (pass === 1) {
           expect(migrated.pragma("foreign_keys", { simple: true })).toBe(1);
-          const restored = createSession(migrated, { ...assignment, pid: 9 }, { ...opts, protocolVersion: "calibrated-full-v1" });
+          const restored = createSession(migrated, { ...assignment, pid: 9 }, { ...opts, protocolVersion: "calibrated-media-full-v1" });
           insertBlockSurvey(migrated, restored.sessionId, survey);
-          expect(getSession(migrated, restored.sessionId)?.protocolVersion).toBe("calibrated-full-v1");
+          expect(getSession(migrated, restored.sessionId)?.protocolVersion).toBe("calibrated-media-full-v1");
           const current = createSession(migrated, { ...assignment, pid: 10 }, { ...opts, protocolVersion: "calibrated-brief-v1" });
           const brief: BlockSurvey = { ...survey, questionnaireVersion: "brief-v1", briefTrust: 7,
             trustResponses: [], trustMean: null, fairness1: null, fairness2: null, fairnessMean: null };

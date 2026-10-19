@@ -1,5 +1,9 @@
 # Study Protocol: Riverton Post-Label Study (v3.1, self-guided, open participation)
 
+**Current decision — images rejected (2026-10-19):** `CURRENT_PROTOCOL` returns to `calibrated-full-v1`: new sessions are text-only and display each post’s original likes/reposts. Keep eight posts and `full-v1` (16 ratings per part, 64 total). `calibrated-media-full-v1` remains supported only for historical saved sessions, with their saved media/count profile and questionnaire; do not migrate or relabel them. Remove image captions from the UI, including historical media sessions; retain descriptive alt text for historical images. Do not generate new images or use generic topic photographs by default. Default practice is text-only with original counts; `GET /api/practice?contextMedia=1` is historical compatibility only. Schema 5 and historical assets/prompts remain preserved. Dashboard/KPI defaults return to the text-only full cohort; keep presentation cohorts separate.
+
+**Verification boundary:** this documentation update adds no browser captures, visual testing, code-test or build results. Earlier media evidence below is historical and does not verify the current text-only/caption-free UI.
+
 This document is the protocol for the CEN5728 Group 4 study on AI accuracy labels for social media posts: "Do People Trust AI More When It Explains Itself? A Comparative Study of Explanation". The study is **self-guided**. Anyone opens the study link and starts on their own, in a desktop or laptop browser; responsive phone/tablet support remains available. No researcher is needed to start or run a session. Participation is requested once per person; the server blocks reuse of a hashed participation code, which is not verified identity. The research team only deploys the app, watches the admin dashboard (data and KPIs), records reported issues and exports the data.
 
 The document has two readers:
@@ -48,7 +52,7 @@ There's no moderator to keep sessions consistent, so the app does that job. With
 
 ### Protocol, questionnaire and outcome versions
 
-New sessions use `protocolVersion=calibrated-full-v1` and `questionnaireVersion=full-v1`. Previously started brief sessions retain `calibrated-brief-v1` and `brief-v1`. Older full-questionnaire eight-post and 24-post sessions retain their full questionnaire and saved assignment under `legacy-full-v1`; migration/default handling treats absent protocol metadata as legacy. **Do not infer protocol from trial count or upgrade on resume.** Formal new-protocol collection uses a separate database from earlier cohorts and the pilot.
+New sessions use `protocolVersion=calibrated-full-v1` and `questionnaireVersion=full-v1`, with original counts and no images. Saved `calibrated-media-full-v1` sessions retain their media/count profile and full questionnaire; captions are removed from their UI too. Schema 5 preserves earlier session versions and responses without adding an admin participation gate or mixing presentations within a session. Previously started `calibrated-full-v1` sessions retain their original text/count presentation and full questionnaire. Previously started brief sessions retain `calibrated-brief-v1` and `brief-v1`. Older full-questionnaire eight-post and 24-post sessions retain their full questionnaire and saved assignment under `legacy-full-v1`; migration/default handling treats absent protocol metadata as legacy. **Do not infer protocol from trial count or upgrade on resume.** Formal new-protocol collection uses a separate database from earlier cohorts and the pilot.
 
 Appropriate reliance is `(correct-label acceptances + wrong-label rejections) / all trials`. Report correct acceptance / correct trials, wrong rejection / wrong trials, overreliance (wrong acceptance / wrong trials), and underreliance (correct rejection / correct trials). Zero denominators produce null. Agreement/disagreement measures behavior, not proof of comprehension. Full Jian-based subjective trust is secondary and measured after each condition; report the AI-label wording adaptation. Custom trust applies only to historical brief sessions.
 
@@ -56,11 +60,21 @@ Brief records store `trustResponses=[]`; `trustMean`, `fairness1`, `fairness2` a
 
 C includes extra factual comparison through Claim vs record. Its Why? controls and evidence remain unchanged. Compare categorical interface packages; do not attribute a C difference solely to interactivity or order A–D by depth. A static equal-content control is a proposed follow-up only. Detailed methods and limitations are in [methods and limitations](methods-and-limitations.md); pilot and analysis procedures are in [pilot and analysis plan](pilot-and-analysis-plan.md).
 
+### Current text-only presentation
+
+The user rejected the generic photographs: all 24 claims concern schedules, prices, policies, measurements or records that do not require photos. New sessions and default practice use text and original likes/reposts. The optional fact sheet and C’s unchanged true comparison remain the factual aids. Do not generate replacement images, add generic photos or change canonical post/explanation wording.
+
+### Historical media support (saved sessions only)
+
+Saved `calibrated-media-full-v1` sessions retain their three topic images and set-matched context counts (S1 128/16, S2 172/24, S3 96/12, S4 148/20 likes/reposts). Remove visible captions for these sessions as well; preserve descriptive alt text. Record this UI deviation when reporting historical media data, since captions were present in earlier captures. No comments or interactive social actions are added.
+
+Keep saved assignments, questionnaire versions and responses intact; never infer presentation from plan length or pool media and text-only observations. Use a separate pilot database and preserve earlier collection files. The [media design and per-post suitability audit](media-and-engagement-design.md) retains historical asset provenance; the [visual review](visual-quality-review.md) describes historical evidence only. The reversal and caption removal have not been visually verified by this documentation update.
+
 ### Block-survey guidance and presentation
 
 After each part, show the neutral instruction: **“Rate the AI labeling system in this part, not the post authors or the website design. There are no right or wrong answers.”** This instruction applies to the questionnaire ratings, not to the preceding post decisions. It does not announce whether labels are correct or encourage agreement, distrust or verification.
 
-Use the h1 “Part {b} of 4: Your ratings”. For `calibrated-full-v1` and legacy full questionnaires, group the unchanged items under h2 headings “Trust” (12 items), “Fairness” (2), and “How you felt” (tension and frustration). Keep each scale's own anchors visible: trust 1 “Not at all” to 7 “Extremely”; fairness 1 “Strongly disagree” to 7 “Strongly agree”; tension 1 “Not at all tense” to 7 “Extremely tense”; frustration 0 “Very low” to 100 “Very high”. Keep “x of 16 answered” and the accessible Continue control in a fixed footer. The desktop survey is scoped to a maximum width of 1000 px, with seven 44 px rating chips per row; scroll margins keep focused questions clear of the footer. Do not replace trust anchors with agreement anchors. Saved brief sessions retain their three questions, their original anchors and “x of 3 answered”.
+Use the h1 “Part {b} of 4: Your ratings”. For current `calibrated-full-v1`, saved media/full and legacy full questionnaires, group the unchanged items under h2 headings “Trust” (12 items), “Fairness” (2), and “How you felt” (tension and frustration). Keep each scale's own anchors visible: trust 1 “Not at all” to 7 “Extremely”; fairness 1 “Strongly disagree” to 7 “Strongly agree”; tension 1 “Not at all tense” to 7 “Extremely tense”; frustration 0 “Very low” to 100 “Very high”. Keep “x of 16 answered” and the accessible Continue control in a fixed footer. The desktop survey is scoped to a maximum width of 1000 px, with seven 44 px rating chips per row; scroll margins keep focused questions clear of the footer. Do not replace trust anchors with agreement anchors. Saved brief sessions retain their three questions, their original anchors and “x of 3 answered”.
 
 Until the frustration slider is touched, show **“Move the slider to select your answer”**. Its unanswered accessible value text is “Unanswered. Move the slider to select your answer”. The underlying start remains 50; it is not a completed answer. Require `frustrationTlxTouched=true` and an integer from 0–100 divisible by 5. Intentional selection of 50 counts without moving away first: Enter or Space on the focused slider, pointer-up selection, or a value change marks it answered. Moving away from and back to 50 also counts. After interaction, show the selected numeric value; answer counts and Continue eligibility follow the same validation as before. Failed saves remain retryable.
 
@@ -259,7 +273,7 @@ The following compact guidance is a design specification to verify against the a
 
 All conditions keep the same Agree/Disagree → confidence 1–7 sequence, optional fact sheet, checking delay and Undo behavior. Do not add required tasks merely to make parts feel different. New wording must not reveal errors, imply a reason is truthful or force verification. Differences in onboarding text can influence behavior and should be recorded as a limitation.
 
-New `calibrated-full-v1` sessions require **16 ratings × 4 parts = 64 block ratings**, plus eight decisions, eight confidence ratings, practice and exit questions. Previously started `calibrated-brief-v1` sessions retain three ratings per part (12 total). Saved `legacy-full-v1` sessions retain **16 × 4 = 64 block ratings**, even if their plan has eight posts. Pilot burden, comprehension, guidance and accidental submissions before estimating duration.
+New `calibrated-media-full-v1` sessions require **16 ratings × 4 parts = 64 block ratings**, plus eight decisions, eight confidence ratings, practice and exit questions. Previously started `calibrated-brief-v1` sessions retain three ratings per part (12 total). Saved `legacy-full-v1` sessions retain **16 × 4 = 64 block ratings**, even if their plan has eight posts. Pilot burden, comprehension, guidance and accidental submissions before estimating duration.
 
 ## 8. Assignment sheet (pid → condition order and sets)
 
@@ -485,7 +499,7 @@ No calendar retention period or designated deletion owner has been established f
 
 ### 15.1 Who and how
 
-Plan a **6–8-person pilot in a separate SQLite database**, using the restored eight-post/full protocol. Include at least two phone and two desktop/laptop sessions and cover all four Williams orders. Prefer people without prior stimulus knowledge for comprehension feedback. Team members may test technical behavior, but mark their prior knowledge and do not use their detection performance to establish difficulty. Self-start does not allocate pids 900+; a separate file keeps pilot pids out of the main cohort without requiring an unimplemented creation route.
+Plan a **6–8-person pilot in a separate SQLite database**, using the eight-post/media-full protocol. Include at least two phone and two desktop/laptop sessions and cover all four Williams orders. Prefer people without prior stimulus knowledge for comprehension feedback. Team members may test technical behavior, but mark their prior knowledge and do not use their detection performance to establish difficulty. Self-start does not allocate pids 900+; a separate file keeps pilot pids out of the main cohort without requiring an unimplemented creation route.
 
 ### 15.2 What to check
 
@@ -495,7 +509,7 @@ This pilot evaluates **burden, comprehension and technical feasibility, not stat
 
 ### 15.3 After the pilot
 
-Record changes and the tested build identifier in the deviations log. Retain the isolated pilot database securely under the eventual retention policy; start formal collection with a different, verified empty database and preserve earlier study files unchanged. Do not clear or relabel existing eight-post or 24-post responses. The main study uses a fixed build and versioned protocol; any later deviation is documented.
+Record changes and the tested build identifier in the deviations log. Retain the isolated pilot database securely under the eventual retention policy; start formal collection with a different, verified empty database and preserve earlier study files unchanged. Do not clear or relabel existing eight-post or 24-post responses. For the media cohort, record final asset hashes/dimensions, alt text, caption, mappings and fixed counts in the [asset manifest](media-and-engagement-design.md) and freeze them with the app/bank versions before formal collection. The main study uses a fixed build and versioned protocol; any later deviation is documented.
 
 ## 16. Deviations log template
 
@@ -523,8 +537,8 @@ Example entries:
 - The Exit study button provides a remote early-stop debrief. Closing the tab instead can still bypass it; a verified post-participation deletion-request route remains unresolved. Stopping remains voluntary; it does not erase saved data.
 - Retention periods, deletion ownership, deployment logging, compensation terms and actual storage permissions require documented decisions.
 - Prior-knowledge collection is proposed and needs implementation verification.
-- New-session selection, per-condition error-type balance across 32 completers and legacy resume preservation require implementation and export verification. Keep restored eight/full, historical eight/brief, old eight/full and old 24/full cohorts separate.
-- New `calibrated-full-v1` sessions and saved legacy full sessions require 64 block ratings; saved brief sessions retain 12. Duration, comprehension and usability need pilot evidence. The target sample and counterbalancing are not a power analysis or evidence of novel findings.
+- New-session selection, per-condition error-type balance across 32 completers and legacy resume preservation require implementation and export verification. Keep media eight/full, prior text-only eight/full, historical eight/brief and legacy eight/24-full cohorts separate.
+- New text-only/full sessions and saved media/full or legacy full sessions require 64 block ratings; saved brief sessions retain 12. Duration, comprehension and usability need pilot evidence. The target sample and counterbalancing are not a power analysis or evidence of novel findings.
 
 ---
 

@@ -259,7 +259,7 @@ export default function AdminScreen() {
       </section>
 
       <section className="admin__section" aria-labelledby="admin-kpi-title">
-        <p className="admin__notice">KPI cohort: {kpis?.cohort ?? CURRENT_PROTOCOL}. Exploratory interface package comparisons; recruitment targets are not a power guarantee. Session management and raw exports include all protocols.</p>
+        <p className="admin__notice">KPI cohort: {kpis?.cohort ?? CURRENT_PROTOCOL}. New sessions use text-only posts with original engagement counts and the full questionnaire. Exploratory interface package comparisons; recruitment targets are not a power guarantee. Session management and raw exports include all protocols.</p>
         <h2 id="admin-kpi-title" className="admin__section-title">Progress</h2>
         <div className="admin__cards">
           <div className="admin__card" data-testid="kpi-appropriate-reliance">
@@ -319,7 +319,7 @@ export default function AdminScreen() {
 
       <section className="admin__section" aria-labelledby="admin-cond-title">
         <h2 id="admin-cond-title" className="admin__section-title">By condition (completed sessions)</h2>
-        <p className="admin__notice">New sessions use 8 posts and the original full questionnaire after each part: 12 Jian-based trust items, 2 fairness items, tension and frustration (64 block ratings total). Existing sessions retain their saved protocol. Analyse protocolVersion and studyVariant separately. Historical brief trust is a custom, unvalidated 1–7 item and is separate from the full trust score.</p>
+        <p className="admin__notice">New sessions use 8 posts with illustrative context images and matched engagement counts, and the original full questionnaire after each part: 12 Jian-based trust items, 2 fairness items, tension and frustration (64 block ratings total). Existing sessions retain their saved protocol. Analyse protocolVersion and studyVariant separately. Historical brief trust is a custom, unvalidated 1–7 item and is separate from the full trust score.</p>
         <div className="admin__table-wrap">
           <table className="admin__table" aria-labelledby="admin-cond-title">
             <thead>

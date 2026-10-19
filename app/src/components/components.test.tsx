@@ -9,7 +9,7 @@ import LikertScale from "./LikertScale";
 import SliderScale from "./SliderScale";
 import PostRatingStrip, { type PostRatingStripHandle } from "./PostRatingStrip";
 import ProgressBar from "./ProgressBar";
-import type { FactSheet, ScaleItem } from "../../shared/types";
+import type { FactSheet, PostImage, ScaleItem } from "../../shared/types";
 
 const factSheet: FactSheet = {
   title: "March Water Quality Report",
@@ -30,6 +30,13 @@ const confidenceItem: ScaleItem = {
 
 describe("PostCard", () => {
   const base = { text: "Good news: Riverton tap water met all 12 safety limits in March.", postedAgo: "6h", likes: 187, reposts: 52 };
+  const author = { displayName: "Riverton Neighbors", handle: "@RivertonNeighbors", verified: false };
+  const image: PostImage = {
+    src: "/post-images/environment.png",
+    alt: "Trees beside a small-town lake",
+    width: 1536,
+    height: 1024,
+  };
 
   it("renders author, handle, time, text and stats", () => {
     render(<PostCard {...base} author={{ displayName: "Riverton Neighbors", handle: "@RivertonNeighbors", verified: true }} />);
@@ -46,6 +53,49 @@ describe("PostCard", () => {
     render(<PostCard {...base} author={{ displayName: "Dana", handle: "@dana_reads", verified: false }} />);
     expect(screen.queryByLabelText("verified account")).toBeNull();
     expect(screen.queryByText("✔")).toBeNull();
+  });
+
+  it("keeps legacy cards free of media and preserves their original counts", () => {
+    render(<PostCard {...base} author={author} />);
+    expect(screen.queryByRole("figure")).not.toBeInTheDocument();
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(screen.queryByText("Illustrative scene")).not.toBeInTheDocument();
+    expect(screen.getByText(base.text)).toBeInTheDocument();
+    expect(screen.getByLabelText("187 likes")).toBeInTheDocument();
+    expect(screen.getByLabelText("52 reposts")).toBeInTheDocument();
+  });
+
+  it("renders historical media with its accessible description and dimensions but no caption", () => {
+    const { container } = render(<PostCard {...base} author={author} image={image} />);
+    const photo = screen.getByRole("img", { name: image.alt });
+    expect(photo).toHaveAttribute("src", image.src);
+    expect(photo).toHaveAttribute("width", "1536");
+    expect(photo).toHaveAttribute("height", "1024");
+    expect(container.querySelector("figcaption")).toBeNull();
+    expect(screen.getByText(base.text)).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("hides a failed picture while retaining its frame, text and counts", () => {
+    const { container } = render(<PostCard {...base} author={author} image={image} />);
+    const frame = container.querySelector(".post-card__image-frame");
+    fireEvent.error(screen.getByRole("img", { name: image.alt }));
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(container.querySelector(".post-card__image-frame")).toBe(frame);
+    expect(frame).toHaveTextContent("Image unavailable");
+    expect(container.querySelector("figcaption")).toBeNull();
+    expect(screen.getByText(base.text)).toBeInTheDocument();
+    expect(screen.getByLabelText("187 likes")).toBeInTheDocument();
+    expect(screen.getByLabelText("52 reposts")).toBeInTheDocument();
+  });
+
+  it("tries a different image after an earlier image fails", () => {
+    const { rerender } = render(<PostCard {...base} author={author} image={image} />);
+    fireEvent.error(screen.getByRole("img", { name: image.alt }));
+    const nextImage = { ...image, src: "/post-images/public-services.png", alt: "A quiet town street" };
+    rerender(<PostCard {...base} author={author} image={nextImage} />);
+    expect(screen.getByRole("img", { name: nextImage.alt })).toHaveAttribute("src", nextImage.src);
+    expect(screen.queryByText("Image unavailable")).not.toBeInTheDocument();
   });
 });
 

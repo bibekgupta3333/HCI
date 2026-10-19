@@ -342,8 +342,8 @@ export function participantRouter(deps: {
 
   // GET /assignments/:pid moved to the admin router (/api/admin/assignments/:pid) — see assignmentPreview().
 
-  router.get("/practice", (_req, res) => {
-    res.json(buildPracticePresentation(bank.practice));
+  router.get("/practice", (req, res) => {
+    res.json(buildPracticePresentation(bank.practice, { contextMedia: req.query.contextMedia === "1" }));
   });
 
   return router;

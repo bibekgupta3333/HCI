@@ -93,7 +93,7 @@ export const api = {
   resumeSession: (id: string) => request<SessionView>("POST", `/sessions/${enc(id)}/resume`),
   cancelSession: (id: string) => request<SessionView>("POST", `/sessions/${enc(id)}/cancel`),
   consent: (id: string) => request<SessionView>("POST", `/sessions/${enc(id)}/consent`),
-  getPractice: () => request<PracticePresentation>("GET", "/practice"),
+  getPractice: (contextMedia = false) => request<PracticePresentation>("GET", `/practice${contextMedia ? "?contextMedia=1" : ""}`),
   getPresentation: (id: string, blockIndex: number, position: number) =>
     request<Presentation>("GET", `/sessions/${enc(id)}/presentation/${blockIndex}/${position}`),
   submitTrial: (id: string, t: TrialSubmission) => request<TrialSaved>("POST", `/sessions/${enc(id)}/trials`, t),

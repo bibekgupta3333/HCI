@@ -178,6 +178,21 @@ describe("ConsentScreen", () => {
 });
 
 describe("InstructionsScreen", () => {
+  it.each([
+    { protocol: "calibrated-media-full-v1", media: true },
+    { protocol: "calibrated-full-v1", media: false },
+  ])("loads practice and preloads images only for the media protocol: $protocol", async ({ protocol, media }) => {
+    mocks.session = { ...session, protocolVersion: protocol };
+    const { unmount } = wrap(<InstructionsScreen />);
+    await screen.findByTestId("post-card");
+    expect(mocks.api.getPractice).toHaveBeenCalledWith(media);
+    const hints = document.head.querySelectorAll('link[rel="preload"][as="image"]');
+    expect(hints).toHaveLength(media ? 3 : 0);
+    for (const hint of hints) expect(hint.getAttribute("href")).toMatch(/^\/post-images\//);
+    unmount();
+    expect(document.head.querySelectorAll('link[rel="preload"][as="image"]')).toHaveLength(0);
+  });
+
   it.each([2, 6])("uses the saved assignment for %i posts per part", async (size) => {
     if (size === 2) useShortSession();
     const { container } = wrap(<InstructionsScreen />);

@@ -115,7 +115,7 @@ export function sessionsRouter(deps: SessionsDeps): express.Router {
     if (pos > plan.postOrder.length) throw notFound("position out of range for block plan");
     const post = postsById.get(plan.postOrder[pos - 1]);
     if (!post) throw notFound("post not found in bank");
-    res.json(buildPresentation(post, plan.condition));
+    res.json(buildPresentation(post, plan.condition, { contextMedia: s.protocolVersion === "calibrated-media-full-v1" }));
   });
 
   router.post("/:id/trials", (req, res) => {

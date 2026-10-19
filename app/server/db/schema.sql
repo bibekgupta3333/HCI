@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS meta (
 
 CREATE TABLE IF NOT EXISTS sessions (
   session_id         TEXT PRIMARY KEY,           -- uuid v4
-  protocol_version   TEXT NOT NULL DEFAULT 'legacy-full-v1' CHECK (protocol_version IN ('legacy-full-v1','calibrated-brief-v1','calibrated-full-v1')),
+  protocol_version   TEXT NOT NULL DEFAULT 'legacy-full-v1' CHECK (protocol_version IN ('legacy-full-v1','calibrated-brief-v1','calibrated-full-v1','calibrated-media-full-v1')),
   pid                INTEGER NOT NULL CHECK (pid >= 1),
   condition_order    TEXT NOT NULL,              -- e.g. "CDBA"
   set_rotation       INTEGER NOT NULL CHECK (set_rotation BETWEEN 0 AND 3),

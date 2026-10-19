@@ -109,13 +109,17 @@ describe("GET /kpis", () => {
   it("defaults to the current cohort and validates explicit cohort queries", async () => {
     const legacy = createSession(db, assignment(1), OPTS);
     const current = createSession(db, assignment(2), { ...OPTS, protocolVersion: "calibrated-full-v1" });
-    for (const s of [legacy, current]) setStatus(db, s.sessionId, "completed", new Date().toISOString());
+    const media = createSession(db, assignment(3), { ...OPTS, protocolVersion: "calibrated-media-full-v1" });
+    for (const s of [legacy, current, media]) setStatus(db, s.sessionId, "completed", new Date().toISOString());
     const app = makeApp(db);
     const res = await request(app).get("/api/admin/kpis").expect(200);
     expect(res.body.cohort).toBe("calibrated-full-v1");
     expect(res.body.sessions.completed).toBe(1);
-    expect((await request(app).get("/api/admin/kpis?protocolVersion=all").expect(200)).body.sessions.completed).toBe(2);
+    expect((await request(app).get("/api/admin/kpis?protocolVersion=all").expect(200)).body.sessions.completed).toBe(3);
     expect((await request(app).get("/api/admin/kpis?protocolVersion=legacy-full-v1").expect(200)).body.sessions.completed).toBe(1);
+    const mediaRes = await request(app).get("/api/admin/kpis?protocolVersion=calibrated-media-full-v1").expect(200);
+    expect(mediaRes.body.cohort).toBe("calibrated-media-full-v1");
+    expect(mediaRes.body.sessions.completed).toBe(1);
     for (const query of ["invalid", "all&protocolVersion=legacy-full-v1", "", "all%27"]) {
       await request(app).get(`/api/admin/kpis?protocolVersion=${query}`).expect(400);
     }

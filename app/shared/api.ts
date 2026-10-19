@@ -1,7 +1,7 @@
 // API contract between the React client and the Express + SQLite server.
 // Every agent builds against these types. Do not change a shape without updating API.md.
 import type {
-  Condition, SetId, Presentation, FactorKey, Likert7, ExitSurvey, EventType, Phase, PracticePost, StudyProtocol,
+  Condition, SetId, Presentation, FactorKey, Likert7, ExitSurvey, EventType, Phase, PracticePost, StudyProtocol, PostImage,
 } from "./types";
 
 // ---------- assignment ----------
@@ -163,6 +163,6 @@ export interface Kpis {
   dailyCompleted: Array<{ date: string; n: number }>;
 }
 
-export type PracticePresentation = Omit<PracticePost, "groundTruth" | "isAiCorrect" | "errorType" | "difficulty" | "keyFact">;
+export type PracticePresentation = Omit<PracticePost, "groundTruth" | "isAiCorrect" | "errorType" | "difficulty" | "keyFact" | "context"> & { image?: PostImage };
 
 export type { Presentation };

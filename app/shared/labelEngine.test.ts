@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPracticePresentation, buildPresentation, getTruth, loadPostBank, postBankHash, validatePost, wordCount,
 } from "./labelEngine";
-import type { Condition, Label, Post, PostBank, PracticePost, SetId, Truth } from "./types";
+import type { Condition, Label, Post, PostBank, PostContext, PracticePost, SetId, Truth } from "./types";
 
 const FORBIDDEN = ["groundTruth", "isAiCorrect", "errorType", "difficulty", "keyFact", "claimValue", "recordValue"];
 
@@ -56,6 +56,14 @@ function makeBank(): PostBank {
 }
 
 const clone = <T>(x: T): T => JSON.parse(JSON.stringify(x)) as T;
+
+function mediaContext(): PostContext {
+  return {
+    image: { src: "/post-images/environment.png", alt: "Trees along a river in a fictional town.", width: 1536, height: 1024 },
+    likes: 128,
+    reposts: 16,
+  };
+}
 
 describe("wordCount", () => {
   it("counts whitespace-separated words", () => {
@@ -209,6 +217,128 @@ describe("buildPracticePresentation", () => {
     expect(out.factors).toEqual(pr.factors);
     expect(out.factors[0]).not.toBe(pr.factors[0]);
     expect(out.id).toBe("practice-01");
+  });
+});
+
+describe("optional context media", () => {
+  it("validates all allowed scene paths and accepts historical banks without context", () => {
+    expect(() => loadPostBank(makeBank())).not.toThrow();
+    for (const filename of ["environment", "public-services", "local-events"]) {
+      const bank = makeBank();
+      bank.posts[0].context = mediaContext();
+      bank.posts[0].context.image.src = `/post-images/${filename}.png`;
+      bank.practice.context = mediaContext();
+      bank.practice.context.likes = 0;
+      bank.practice.context.reposts = 0;
+      expect(() => loadPostBank(bank)).not.toThrow();
+    }
+  });
+
+  it.each([
+    "https://example.com/post-images/environment.png", "//example.com/post-images/environment.png",
+    "data:image/png;base64,x", "javascript:alert(1)", "/post-images/../environment.png",
+    "/post-images/%2e%2e/environment.png", "/post-images/environment.png?truth=TRUE",
+    "/post-images/environment.png#truth", "/post-images/other.png", "post-images/environment.png",
+    "/post-images/environment.png\n",
+  ])("rejects non-allow-listed path %s", (src) => {
+    const bank = makeBank();
+    bank.posts[0].context = mediaContext();
+    bank.posts[0].context.image.src = src;
+    expect(() => loadPostBank(bank)).toThrow(/context.image.src/);
+  });
+
+  it.each([
+    [null, /context must be an object/],
+    [[], /context must be an object/],
+    [{ ...mediaContext(), image: null }, /context.image must be an object/],
+    [{ ...mediaContext(), image: { ...mediaContext().image, alt: "  " } }, /context.image.alt/],
+    [{ ...mediaContext(), image: { ...mediaContext().image, alt: false } }, /context.image.alt/],
+    [{ ...mediaContext(), image: { ...mediaContext().image, width: 0 } }, /context.image.width/],
+    [{ ...mediaContext(), image: { ...mediaContext().image, height: -1 } }, /context.image.height/],
+    [{ ...mediaContext(), image: { ...mediaContext().image, width: 1.5 } }, /context.image.width/],
+    [{ ...mediaContext(), image: { ...mediaContext().image, height: "1024" } }, /context.image.height/],
+    [{ ...mediaContext(), likes: -1 }, /context.likes/],
+    [{ ...mediaContext(), reposts: 1.2 }, /context.reposts/],
+    [{ ...mediaContext(), likes: "128" }, /context.likes/],
+  ])("rejects malformed context %#", (context, problem) => {
+    const bank = makeBank();
+    (bank.posts[0] as unknown as Record<string, unknown>).context = context;
+    expect(() => loadPostBank(bank)).toThrow(problem as RegExp);
+    const practiceBank = makeBank();
+    (practiceBank.practice as unknown as Record<string, unknown>).context = context;
+    expect(() => loadPostBank(practiceBank)).toThrow(problem as RegExp);
+  });
+
+  it("defaults to original counts and no image, including practice and missing-context fixtures", () => {
+    const post = makeBank().posts[0];
+    const original = buildPresentation(post, "C");
+    post.context = mediaContext();
+    expect(buildPresentation(post, "C")).toEqual(original);
+    expect(buildPresentation(post, "C", { contextMedia: false })).toEqual(original);
+    const practice = makePractice();
+    const originalPractice = buildPracticePresentation(practice);
+    practice.context = mediaContext();
+    expect(buildPracticePresentation(practice)).toEqual(originalPractice);
+    expect(buildPracticePresentation(practice, { contextMedia: false })).toEqual(originalPractice);
+    delete post.context;
+    delete practice.context;
+    expect(buildPresentation(post, "C", { contextMedia: true })).toEqual(original);
+    expect(buildPracticePresentation(practice, { contextMedia: true })).toEqual(originalPractice);
+  });
+
+  it("copies only allowed media fields without altering explanations, truth or the source object", () => {
+    const post = makeBank().posts[0];
+    post.context = mediaContext();
+    Object.assign(post.context, { groundTruth: "context-secret", internalNote: "context-secret" });
+    Object.assign(post.context.image, { keyFact: "image-secret", onerror: "image-secret" });
+    const snapshot = clone(post);
+    for (const condition of ["A", "B", "C", "D"] as const) {
+      const legacy = buildPresentation(post, condition);
+      const output = buildPresentation(post, condition, { contextMedia: true });
+      const { image, likes, reposts, ...withoutMedia } = output;
+      const { likes: _oldLikes, reposts: _oldReposts, ...legacyWithoutCounts } = legacy;
+      expect(withoutMedia).toEqual(legacyWithoutCounts);
+      expect(likes).toBe(128);
+      expect(reposts).toBe(16);
+      expect(image).toEqual(mediaContext().image);
+      expect(image).not.toBe(post.context.image);
+      expect(Object.keys(image!).sort()).toEqual(["alt", "height", "src", "width"]);
+      const json = JSON.stringify(output);
+      expect(json).not.toContain("secret");
+      expect(json).not.toContain('"context"');
+      for (const forbidden of FORBIDDEN) expect(json).not.toContain(`"${forbidden}"`);
+    }
+    expect(post).toEqual(snapshot);
+
+    const practice = { ...makePractice(), context: post.context };
+    const result = buildPracticePresentation(practice, { contextMedia: true });
+    expect(result).toMatchObject({ image: mediaContext().image, likes: 128, reposts: 16 });
+    expect(result.image).not.toBe(practice.context.image);
+    expect(result.factors).toEqual(practice.factors);
+    expect(result.staticExplanation).toBe(practice.staticExplanation);
+    expect(result.counterfactualExplanation).toBe(practice.counterfactualExplanation);
+    expect(JSON.stringify(result)).not.toContain("secret");
+    expect(JSON.stringify(result)).not.toContain('"context"');
+    for (const forbidden of FORBIDDEN) expect(JSON.stringify(result)).not.toContain(`"${forbidden}"`);
+  });
+
+  it("keeps the same image and set count profile across A–D for all posts", () => {
+    const profiles = { S1: [128, 16], S2: [172, 24], S3: [96, 12], S4: [148, 20] };
+    const bank = loadPostBank(JSON.parse(readFileSync(postsPath, "utf8")));
+    const images = { env: "environment", svc: "public-services", evt: "local-events" };
+    for (const post of bank.posts) {
+      // Use real context when populated; this fallback also exercises older bank fixtures.
+      post.context ??= { ...mediaContext(), likes: profiles[post.set][0], reposts: profiles[post.set][1],
+        image: { ...mediaContext().image, src: `/post-images/${images[post.topic]}.png` } };
+      for (const condition of ["A", "B", "C", "D"] as const) {
+        const output = buildPresentation(post, condition, { contextMedia: true });
+        expect(output.image).toEqual(post.context.image);
+        expect(output.image?.src).toBe(`/post-images/${images[post.topic]}.png`);
+        expect([output.likes, output.reposts]).toEqual(profiles[post.set]);
+        expect(buildPresentation(post, condition)).toMatchObject({ likes: post.likes, reposts: post.reposts });
+        expect(buildPresentation(post, condition)).not.toHaveProperty("image");
+      }
+    }
   });
 });
 

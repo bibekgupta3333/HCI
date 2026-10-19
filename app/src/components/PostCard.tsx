@@ -10,10 +10,14 @@
  *   .post-card__handle    @handle
  *   .post-card__time      posted-ago
  *   .post-card__text      post body
+ *   .post-card__media     optional historical media, without a caption
+ *   .post-card__image-frame reserved image area, including failed loads
+ *   .post-card__image     contextual scene (not evidence for the claim)
  *   .post-card__stats     likes / reposts row
  *   .post-card__stat      one stat (also .post-card__stat--likes / --reposts)
  */
-import type { Author } from "../../shared/types";
+import { useState } from "react";
+import type { Author, PostImage } from "../../shared/types";
 
 export interface PostCardProps {
   author: Author;
@@ -21,9 +25,30 @@ export interface PostCardProps {
   postedAgo: string;
   likes: number;
   reposts: number;
+  image?: PostImage;
 }
 
-export default function PostCard({ author, text, postedAgo, likes, reposts }: PostCardProps) {
+function PostMedia({ image }: { image: PostImage }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <figure className="post-card__media">
+      <div className="post-card__image-frame">
+        {failed ? <span className="post-card__image-unavailable">Image unavailable</span> : (
+          <img
+            className="post-card__image"
+            src={image.src}
+            alt={image.alt}
+            width={image.width}
+            height={image.height}
+            onError={() => setFailed(true)}
+          />
+        )}
+      </div>
+    </figure>
+  );
+}
+
+export default function PostCard({ author, text, postedAgo, likes, reposts, image }: PostCardProps) {
   return (
     <article className="post-card" aria-label={`Post by ${author.displayName}`}>
       <header className="post-card__header">
@@ -40,6 +65,7 @@ export default function PostCard({ author, text, postedAgo, likes, reposts }: Po
         </div>
       </header>
       <p className="post-card__text">{text}</p>
+      {image && <PostMedia key={image.src} image={image} />}
       <footer className="post-card__stats">
         <span className="post-card__stat post-card__stat--likes" aria-label={`${likes} likes`}>
           <span aria-hidden="true">♡ {likes}</span>

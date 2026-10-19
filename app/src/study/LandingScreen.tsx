@@ -113,7 +113,7 @@ export default function LandingScreen(): JSX.Element {
         <section className="landing__section" aria-labelledby="labels-title">
           <h2 id="labels-title" className="landing__section-title">What are AI labels?</h2>
           <p>These are badges beneath each post: <strong>Likely accurate</strong> suggests the claim is true; <strong>Likely misleading</strong> suggests the claim may be false or misleading. You decide whether you agree with the label.</p>
-          <p className="landing__note">An optional Fact sheet is available for every post if you want to check the supporting record.</p>
+          <p className="landing__note">The made-up posts are text-based, with like/repost counts. An optional Fact sheet is available for every post if you want to check the supporting record.</p>
         </section>
 
         <section className="landing__section" aria-labelledby="parts-title">

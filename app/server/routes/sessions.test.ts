@@ -35,6 +35,7 @@ function makePost(n: number): Post {
     postedAgo: "2h",
     likes: n * 10,
     reposts: n,
+    context: { image: { src: "/post-images/environment.png", alt: "Trees beside a park path", width: 1536, height: 1024 }, likes: 128, reposts: 16 },
     keyFact: { claimValue: "12", recordValue: groundTruth === "TRUE" ? "12" : "21" },
     factSheet: { title: `Fact ${n}`, body: "Body.", source: "Town records (fictional)" },
     groundTruth,
@@ -446,7 +447,36 @@ describe("events", () => {
 });
 
 describe("block surveys and exit", () => {
+  it("defaults to text-only original counts and preserves saved media presentations on resume", async () => {
+    const current = await newSession("text-presentation");
+    expect(current.protocolVersion).toBe("calibrated-full-v1");
+    const media = createSession(db, assignShortFromBank(77, bank), {
+      consequenceBanner: false, anxiety: false, postBankHash: "media-hash", appVersion: "0.4.0", protocolVersion: "calibrated-media-full-v1",
+      participantHash: hashParticipantCode("test-salt", "saved-media"),
+    });
+    const resumed = await start("saved-media").expect(200);
+    expect(resumed.body.protocolVersion).toBe("calibrated-media-full-v1");
+    expect(resumed.body.blocks).toEqual(media.blocks);
+    for (const s of [current, media]) {
+      const p = byId.get(s.blocks[0].postOrder[0])!;
+      const r = await request(app).get(`/api/sessions/${s.sessionId}/presentation/1/1`).expect(200);
+      expect(r.body).not.toHaveProperty("context");
+      expect(r.body).not.toHaveProperty("groundTruth");
+      if (s === media) expect(r.body).toMatchObject({ image: p.context!.image, likes: 128, reposts: 16 });
+      else {
+        expect(r.body).not.toHaveProperty("image");
+        expect(r.body).toMatchObject({ likes: p.likes, reposts: p.reposts });
+      }
+    }
+    const practice = await request(app).get("/api/practice?contextMedia=1").expect(200);
+    expect(practice.body.image).toEqual(bank.practice.context!.image);
+    expect(practice.body).not.toHaveProperty("context");
+    expect((await request(app).get("/api/practice")).body).not.toHaveProperty("image");
+  });
+
+
   it.each([
+    { postsPerBlock: 2, protocol: "calibrated-media-full-v1" },
     { postsPerBlock: 2, protocol: "calibrated-full-v1" },
     { postsPerBlock: 2, protocol: "calibrated-brief-v1" },
     { postsPerBlock: 2, protocol: "legacy-full-v1" },
@@ -457,6 +487,9 @@ describe("block surveys and exit", () => {
       : protocol === "calibrated-brief-v1" ? createSession(db, assignShortFromBank(77, bank), {
         consequenceBanner: false, anxiety: false, postBankHash: "brief-bank", appVersion: "brief",
         protocolVersion: "calibrated-brief-v1", participantHash: hashParticipantCode("test-salt", code),
+      }) : protocol === "calibrated-media-full-v1" ? createSession(db, assignShortFromBank(77, bank), {
+        consequenceBanner: false, anxiety: false, postBankHash: "media-bank", appVersion: "0.4.0",
+        protocolVersion: "calibrated-media-full-v1", participantHash: hashParticipantCode("test-salt", code),
       }) : await newSession(code);
     const body = protocol === "calibrated-brief-v1" ? briefSurveyBody : surveyBody;
     expect(s.protocolVersion).toBe(protocol);

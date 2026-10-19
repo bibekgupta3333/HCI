@@ -40,6 +40,56 @@ describe("posts.json", () => {
     }
   });
 
+  it("gives every analysed post the same media presence with neutral topic-specific scenes", () => {
+    const scenes = {
+      env: { src: "/post-images/environment.png", alt: "Trees beside a quiet town park path" },
+      svc: { src: "/post-images/public-services.png", alt: "Exterior of a town public-services building" },
+      evt: { src: "/post-images/local-events.png", alt: "An empty community square with benches" },
+    };
+    expect(posts.filter((p) => p.context?.image)).toHaveLength(24);
+    for (const p of posts) {
+      expect(p.context?.image, p.id).toMatchObject(scenes[p.topic]);
+      const image = p.context!.image;
+      expect(Number.isInteger(image.width), p.id).toBe(true);
+      expect(Number.isInteger(image.height), p.id).toBe(true);
+      expect(image.width, p.id).toBeGreaterThan(0);
+      expect(image.height, p.id).toBeGreaterThan(0);
+    }
+    // Each topic reuses a single complete image descriptor across correct and wrong labels.
+    for (const topic of ["env", "svc", "evt"] as const) {
+      const topicPosts = posts.filter((p) => p.topic === topic);
+      expect(new Set(topicPosts.map((p) => JSON.stringify(p.context!.image))).size).toBe(1);
+      expect(topicPosts.some((p) => p.isAiCorrect)).toBe(true);
+      expect(topicPosts.some((p) => !p.isAiCorrect)).toBe(true);
+    }
+  });
+
+  it.each([
+    ["S1", 128, 16], ["S2", 172, 24], ["S3", 96, 12], ["S4", 148, 20],
+  ] as const)("matches %s context counts across four correct and two wrong labels", (set, likes, reposts) => {
+    const setPosts = posts.filter((p) => p.set === set);
+    const correct = setPosts.filter((p) => p.isAiCorrect);
+    const wrong = setPosts.filter((p) => !p.isAiCorrect);
+    expect(correct).toHaveLength(4);
+    expect(wrong).toHaveLength(2);
+    for (const p of [...correct, ...wrong]) {
+      expect(p.context, p.id).toMatchObject({ likes, reposts });
+    }
+    expect(wrong.map((p) => p.errorType).sort()).toEqual(["false_alarm", "miss"]);
+  });
+
+  it("uses the park scene for practice without changing its original counts", () => {
+    expect(bank.practice.context).toEqual({
+      image: {
+        src: "/post-images/environment.png", alt: "Trees beside a quiet town park path",
+        width: posts.find((p) => p.topic === "env")!.context!.image.width,
+        height: posts.find((p) => p.topic === "env")!.context!.image.height,
+      },
+      likes: bank.practice.likes,
+      reposts: bank.practice.reposts,
+    });
+  });
+
   it("has 12/12 label and truth tallies", () => {
     expect(posts.filter((p) => p.aiLabel === "accurate")).toHaveLength(12);
     expect(posts.filter((p) => p.aiLabel === "misleading")).toHaveLength(12);

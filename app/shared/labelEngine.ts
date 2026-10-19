@@ -19,6 +19,9 @@ const FACTOR_LABELS: Record<FactorKey, Factor["label"]> = {
 const CONDITIONS: readonly Condition[] = ["A", "B", "C", "D"];
 const POSTS_PER_BANK = 24;
 const POSTS_PER_SET = 6;
+const POST_IMAGE_PATHS = [
+  "/post-images/environment.png", "/post-images/public-services.png", "/post-images/local-events.png",
+];
 
 export function wordCount(s: string): number {
   return s.trim().split(/\s+/).filter((w) => w.length > 0).length;
@@ -53,6 +56,27 @@ function shapeProblems(raw: unknown, where: string, practice: boolean): string[]
   if (!isStr(raw.postedAgo)) bad("postedAgo missing");
   if (!isCount(raw.likes)) bad("likes must be a non-negative integer");
   if (!isCount(raw.reposts)) bad("reposts must be a non-negative integer");
+
+  if (raw.context !== undefined) {
+    const context = raw.context;
+    if (!isObj(context)) {
+      bad("context must be an object");
+    } else {
+      if (!isCount(context.likes)) bad("context.likes must be a non-negative integer");
+      if (!isCount(context.reposts)) bad("context.reposts must be a non-negative integer");
+      const image = context.image;
+      if (!isObj(image)) {
+        bad("context.image must be an object");
+      } else {
+        if (typeof image.src !== "string" || !POST_IMAGE_PATHS.includes(image.src)) {
+          bad("context.image.src must be an allow-listed same-origin /post-images/ PNG path");
+        }
+        if (!isStr(image.alt)) bad("context.image.alt must be a non-empty neutral scene description");
+        if (!isCount(image.width) || image.width === 0) bad("context.image.width must be a positive integer");
+        if (!isCount(image.height) || image.height === 0) bad("context.image.height must be a positive integer");
+      }
+    }
+  }
 
   const k = raw.keyFact;
   if (!isObj(k) || typeof k.claimValue !== "string" || typeof k.recordValue !== "string") {
@@ -190,8 +214,23 @@ function copyFactors(fs: [Factor, Factor, Factor]): [Factor, Factor, Factor] {
   return [copyFactor(fs[0]), copyFactor(fs[1]), copyFactor(fs[2])];
 }
 
+export interface PresentationOptions {
+  contextMedia?: boolean;
+}
+
+/** Opt-in scene and count profile; explicitly copy image fields across the truth boundary. */
+function presentationContext(p: Post | PracticePost, options: PresentationOptions): Pick<Presentation, "likes" | "reposts" | "image"> {
+  if (!options.contextMedia || !p.context) return { likes: p.likes, reposts: p.reposts };
+  const { image } = p.context;
+  return {
+    likes: p.context.likes,
+    reposts: p.context.reposts,
+    image: { src: image.src, alt: image.alt, width: image.width, height: image.height },
+  };
+}
+
 /** Allow-listed view payload. Never spreads the post, so correctness fields cannot leak. */
-export function buildPresentation(p: Post, condition: Condition): Presentation {
+export function buildPresentation(p: Post, condition: Condition, options: PresentationOptions = {}): Presentation {
   if (!CONDITIONS.includes(condition)) throw new Error(`Unknown condition: ${String(condition)}`);
   const base: Presentation = {
     postId: p.id,
@@ -199,8 +238,7 @@ export function buildPresentation(p: Post, condition: Condition): Presentation {
     author: { handle: p.author.handle, displayName: p.author.displayName, verified: p.author.verified },
     text: p.text,
     postedAgo: p.postedAgo,
-    likes: p.likes,
-    reposts: p.reposts,
+    ...presentationContext(p, options),
     factSheet: { title: p.factSheet.title, body: p.factSheet.body, source: p.factSheet.source },
     aiLabel: p.aiLabel,
   };
@@ -213,7 +251,7 @@ export function buildPresentation(p: Post, condition: Condition): Presentation {
 }
 
 /** Practice payload: allow-listed, keeps all explanation fields (instructions demo every condition). */
-export function buildPracticePresentation(p: PracticePost): PracticePresentation {
+export function buildPracticePresentation(p: PracticePost, options: PresentationOptions = {}): PracticePresentation {
   return {
     id: p.id,
     set: null,
@@ -221,8 +259,7 @@ export function buildPracticePresentation(p: PracticePost): PracticePresentation
     author: { handle: p.author.handle, displayName: p.author.displayName, verified: p.author.verified },
     text: p.text,
     postedAgo: p.postedAgo,
-    likes: p.likes,
-    reposts: p.reposts,
+    ...presentationContext(p, options),
     factSheet: { title: p.factSheet.title, body: p.factSheet.body, source: p.factSheet.source },
     aiLabel: p.aiLabel,
     staticExplanation: p.staticExplanation,

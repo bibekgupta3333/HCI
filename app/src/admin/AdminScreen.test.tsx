@@ -139,7 +139,7 @@ describe("AdminScreen", () => {
     expect(within(screen.getByTestId("kpi-appropriate-reliance")).getByText("70%")).toBeInTheDocument();
     expect(within(screen.getByTestId("kpi-correct-acceptance")).getByText("80%")).toBeInTheDocument();
     expect(within(screen.getByTestId("kpi-wrong-rejection")).getByText("60%")).toBeInTheDocument();
-    expect(screen.getByText(/KPI cohort: calibrated-full-v1/)).toHaveTextContent(/Exploratory interface package/);
+    expect(screen.getByText(/KPI cohort: calibrated-full-v1/)).toHaveTextContent(/text-only posts with original engagement counts and the full questionnaire/);
     expect(within(completed).getByText("8 / 32")).toBeInTheDocument();
     expect(within(completed).getByRole("img", { name: "8 of 32 completed; joint balance requires 32 participants" })).toBeInTheDocument();
     expect(within(completed).getByText("Order/set cycles (16 each): 8/16 · 0/16 · joint balance: 32 participants")).toBeInTheDocument();

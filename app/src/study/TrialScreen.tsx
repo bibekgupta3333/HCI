@@ -498,6 +498,7 @@ export default function TrialScreen() {
               postedAgo={presentation.postedAgo}
               likes={presentation.likes}
               reposts={presentation.reposts}
+              image={presentation.image}
             />
             <LabelPanel label={presentation.aiLabel} checking={!labelVisible} />
             <div className="explanation-area">

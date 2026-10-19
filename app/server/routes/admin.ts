@@ -71,7 +71,7 @@ export function adminRouter(deps: { db: Database.Database; adminToken?: string; 
 
   router.get("/kpis", (req, res) => {
     const protocol = req.query.protocolVersion ?? CURRENT_PROTOCOL;
-    if (protocol !== "all" && protocol !== "legacy-full-v1" && protocol !== "calibrated-brief-v1" && protocol !== CURRENT_PROTOCOL) {
+    if (protocol !== "all" && protocol !== "legacy-full-v1" && protocol !== "calibrated-brief-v1" && protocol !== "calibrated-full-v1" && protocol !== "calibrated-media-full-v1") {
       return void res.status(400).json({ error: "validation", detail: "invalid protocolVersion" });
     }
     res.setHeader("Cache-Control", "no-store");
