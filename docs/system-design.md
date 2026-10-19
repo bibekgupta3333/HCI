@@ -1,5 +1,7 @@
 # System Design: Explanation Study App (v3: AI accuracy labels on social media posts)
 
+**Current short-study override (2026-10-18):** new sessions show 2 distinct posts per part, 8 total, with one correct and one wrong label per part. Each part has compact dismissible help explaining the current A–D controls. All questionnaire items remain. Stored legacy sessions retain six-post blocks; screens and server transitions follow saved lengths. Participant copy uses Florida Polytechnic University graduate HCI experiment attribution without unfinished contact/approval placeholders. See [study defense](parts-and-study-defense.md), [updated wireframes](wireframes.md) and [protocol](study-protocol.md); older full-length examples below are legacy specifications.
+
 This document turns the study design into a buildable specification for the app, using the v3 scenario. Participants read made-up social media posts from the fictional town of Riverton. Each post carries a scripted AI label, "Likely accurate" or "Likely misleading". The participant checks the label against an on-demand fact sheet and clicks **Agree with label** or **Disagree with label**. This doc covers:
 
 - the requirements, and how each traces to RQ1–RQ3 and H1–H6

@@ -26,7 +26,7 @@ import { api, EXPORT_NAMES, type ExportIndexEntry, type ExportName } from "../ap
 export const DOWNLOAD_GAP_MS = 300;
 
 const BADGES: Partial<Record<ExportName, string>> = {
-  "participants.csv": "Start here — one row per participant",
+  "participants.csv": "Start here — one row per session",
   "kpis.csv": "Dashboard numbers",
 };
 

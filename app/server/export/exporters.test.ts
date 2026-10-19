@@ -160,10 +160,10 @@ describe("exporters", () => {
   });
 
   it("column lists match CONTRACT.md exactly", () => {
-    expect(TRIAL_COLUMNS).toHaveLength(35);
+    expect(TRIAL_COLUMNS).toHaveLength(37);
     expect(TRIAL_COLUMNS.slice(0, 3)).toEqual(["pid", "sessionId", "trialId"]);
-    expect(TRIAL_COLUMNS.slice(-3)).toEqual(["conditionOrder", "setRotation", "status"]);
-    expect(SURVEY_COLUMNS).toHaveLength(4 + 24 + 9);
+    expect(TRIAL_COLUMNS.slice(-5)).toEqual(["conditionOrder", "setRotation", "status", "plannedTrials", "studyVariant"]);
+    expect(SURVEY_COLUMNS).toHaveLength(4 + 24 + 9 + 2);
     expect(SURVEY_COLUMNS[4]).toBe("trust_01");
     expect(SURVEY_COLUMNS[27]).toBe("trust_12_s");
     expect(EVENT_COLUMNS).toHaveLength(12);
@@ -291,10 +291,10 @@ describe("participants.csv", () => {
     ]);
     expect(PARTICIPANT_COLUMNS.slice(19, 25)).toEqual(["agreement_A", "detected_A", "trust_A", "fairness_A", "tension_A", "frustration_A"]);
     expect(PARTICIPANT_COLUMNS.slice(37, 43)).toEqual(["agreement_D", "detected_D", "trust_D", "fairness_D", "tension_D", "frustration_D"]);
-    expect(PARTICIPANT_COLUMNS.slice(-7)).toEqual([
-      "ageRange", "gender", "education", "socialMediaUse", "labelExposure", "preferredCondition", "comment",
+    expect(PARTICIPANT_COLUMNS.slice(-9)).toEqual([
+      "ageRange", "gender", "education", "socialMediaUse", "labelExposure", "preferredCondition", "comment", "plannedTrials", "studyVariant",
     ]);
-    expect(PARTICIPANT_COLUMNS).toHaveLength(19 + 24 + 7);
+    expect(PARTICIPANT_COLUMNS).toHaveLength(19 + 24 + 7 + 2);
   });
 
   it("computes totals, rates (3 dp), duration (1 dp) and per-condition fields", () => {
@@ -390,5 +390,20 @@ describe("exportIndex", () => {
     expect(rows).toMatchObject({ "participants.csv": 1, "trials.csv": 1, "surveys.csv": 0, "events.csv": 2, "exit.csv": 0, "sessions.json": 1 });
     expect(rows["kpis.csv"]).toBe(records(kpisCsv(db)).length);
     expect(rows["trials.csv"]).toBe(records(trialsCsv(db)).length);
+  });
+});
+
+
+describe("study-version metadata", () => {
+  const opts = { consequenceBanner: false, anxiety: false, postBankHash: "test", appVersion: "test" };
+  it("exports the planned length even for unfinished short and legacy sessions", () => {
+    const db = openDb(":memory:");
+    createSession(db, assignment, opts);
+    const short: Assignment = { ...assignment, pid: 8, blocks: assignment.blocks.map(b => ({ ...b, postOrder: b.postOrder.slice(0, 2) })) as Assignment["blocks"] };
+    createSession(db, short, opts);
+    const rows = records(participantsCsv(db));
+    expect(rows.find(r => r.pid === "7")).toMatchObject({ plannedTrials: "24", studyVariant: "legacy-24", trialsSaved: "0" });
+    expect(rows.find(r => r.pid === "8")).toMatchObject({ plannedTrials: "8", studyVariant: "short-8", trialsSaved: "0" });
+    db.close();
   });
 });

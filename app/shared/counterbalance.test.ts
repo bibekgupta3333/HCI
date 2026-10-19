@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { assign, assignFromBank, WILLIAMS } from "./counterbalance";
+import { assign, assignFromBank, assignShortFromBank, WILLIAMS } from "./counterbalance";
 import type { SetId, Condition } from "./types";
 
 const SETS: SetId[] = ["S1", "S2", "S3", "S4"];
@@ -12,6 +12,67 @@ const posts = Array.from({ length: 24 }, (_, i) => {
   const set = SETS[Math.floor(i / 6)];
   const isAiCorrect = !(i % 6 === 1 || i % 6 === 4);
   return { id, set, isAiCorrect };
+});
+
+describe("assignShortFromBank", () => {
+  const bank = { posts: posts.map((p, i) => ({ ...p,
+    errorType: p.isAiCorrect ? null : i % 6 === 1 ? "false_alarm" as const : "miss" as const,
+  })) };
+  const byId = new Map(bank.posts.map((p) => [p.id, p]));
+
+  it("preserves the Williams/set plan and assigns eight distinct posts with two errors of each type", () => {
+    for (let pid = 1; pid <= 64; pid++) {
+      const a = assignShortFromBank(pid, bank);
+      expect(a.blocks.map((b) => `${b.condition}/${b.set}`)).toEqual(TABLE[(pid - 1) % 16 + 1]);
+      const selected = a.blocks.flatMap((b) => b.postOrder);
+      expect(new Set(selected).size).toBe(8);
+      expect(selected.filter((id) => byId.get(id)!.errorType === "false_alarm")).toHaveLength(2);
+      expect(selected.filter((id) => byId.get(id)!.errorType === "miss")).toHaveLength(2);
+      for (const b of a.blocks) {
+        expect(b.postOrder).toHaveLength(2);
+        expect(b.postOrder.every((id) => byId.get(id)!.set === b.set)).toBe(true);
+        expect(b.postOrder.filter((id) => byId.get(id)!.isAiCorrect)).toHaveLength(1);
+        const expectedType = (CONDS.indexOf(b.condition) + Math.floor((pid - 1) / 16)) % 2 === 0 ? "false_alarm" : "miss";
+        expect(byId.get(b.postOrder.find((id) => !byId.get(id)!.isAiCorrect)!)!.errorType).toBe(expectedType);
+      }
+      expect(assignShortFromBank(pid, { posts: [...bank.posts].reverse() })).toEqual(a);
+    }
+  });
+
+  it("flips each condition's error type after 16 participants and rotates correct selections across cycles", () => {
+    for (let pid = 1; pid <= 16; pid++) {
+      const a = assignShortFromBank(pid, bank);
+      const next = assignShortFromBank(pid + 16, bank);
+      a.blocks.forEach((b, i) => {
+        const wrong = (ids: string[]) => byId.get(ids.find((id) => !byId.get(id)!.isAiCorrect)!)!.errorType;
+        expect(wrong(b.postOrder)).not.toBe(wrong(next.blocks[i].postOrder));
+        const correct = Array.from({ length: 4 }, (_, cycle) =>
+          assignShortFromBank(pid + 16 * cycle, bank).blocks[i].postOrder.find((id) => byId.get(id)!.isAiCorrect));
+        expect(new Set(correct).size).toBe(4);
+      });
+    }
+    // Every condition/set cell uses each of its four correct posts once within a cycle.
+    for (const condition of CONDS) for (const set of SETS) {
+      const correct = Array.from({ length: 16 }, (_, i) => assignShortFromBank(i + 1, bank))
+        .flatMap((a) => a.blocks.filter((b) => b.condition === condition && b.set === set))
+        .flatMap((b) => b.postOrder.filter((id) => byId.get(id)!.isAiCorrect));
+      expect(new Set(correct).size).toBe(4);
+    }
+  });
+
+  it("allows the wrong label in either position with a seeded unconstrained shuffle", () => {
+    const positions = Array.from({ length: 256 }, (_, i) => assignShortFromBank(i + 1, bank))
+      .flatMap((a) => a.blocks.map((b) => b.postOrder.findIndex((id) => !byId.get(id)!.isAiCorrect)));
+    const first = positions.filter((p) => p === 0).length;
+    expect(first).toBeGreaterThan(positions.length * 0.4);
+    expect(first).toBeLessThan(positions.length * 0.6);
+  });
+
+  it("rejects incomplete or malformed banks without changing the legacy bank requirement", () => {
+    expect(() => assignShortFromBank(1, { posts: bank.posts.slice(0, 8) })).toThrow();
+    expect(() => assignShortFromBank(1, { posts: bank.posts.map((p) => ({ ...p, errorType: null })) })).toThrow(/false alarm/);
+    expect(() => assignShortFromBank(0, bank)).toThrow(/pid/);
+  });
 });
 const setPosts = Object.fromEntries(SETS.map((s) => [s, posts.filter((p) => p.set === s).map((p) => p.id)])) as Record<SetId, string[]>;
 const wrongIds = new Set(posts.filter((p) => !p.isAiCorrect).map((p) => p.id));

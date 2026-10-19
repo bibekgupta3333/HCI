@@ -64,7 +64,12 @@ const session: SessionView = {
   status: "in_progress",
   conditionOrder: ["C", "D", "B", "A"],
   setRotation: 1,
-  blocks: [] as unknown as SessionView["blocks"],
+  blocks: [
+    { blockIndex: 1, condition: "C", set: "S1", postOrder: ["p01", "p02", "p03", "p04", "p05", "p06"] },
+    { blockIndex: 2, condition: "D", set: "S2", postOrder: ["p07", "p08", "p09", "p10", "p11", "p12"] },
+    { blockIndex: 3, condition: "B", set: "S3", postOrder: ["p13", "p14", "p15", "p16", "p17", "p18"] },
+    { blockIndex: 4, condition: "A", set: "S4", postOrder: ["p19", "p20", "p21", "p22", "p23", "p24"] },
+  ],
   cursor: { blockIndex: 1, positionInBlock: 1, phase: "consent" },
   consequenceBanner: false,
   anxiety: false,
@@ -74,6 +79,17 @@ const session: SessionView = {
   startedAt: "2026-10-17T00:00:00.000Z",
   completedAt: null,
 };
+
+
+function useShortSession() {
+  mocks.session = {
+    ...session,
+    blocks: session.blocks.map((block) => ({
+      ...block,
+      postOrder: [block.postOrder[0], block.postOrder[2]],
+    })),
+  };
+}
 
 const wrap = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
 const loggedTypes = () => mocks.log.mock.calls.map((c) => c[0].type);
@@ -98,23 +114,31 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-// Participant screens are self-guided: no "researcher" wording outside [PLACEHOLDER] markers.
+// Participant screens use complete self-guided copy without unsupported institutional claims.
 function expectNoResearcher(text: string) {
-  const stripped = text.replace(/\[PLACEHOLDER:[^\]]*\]/g, "");
-  expect(stripped).not.toMatch(/researcher/i);
+  expect(text).not.toMatch(/researcher|PLACEHOLDER|\bIRB\b|professor|supervisor|contact/i);
 }
 
 describe("ConsentScreen", () => {
+  it("describes eight posts for a new session without promising a measured duration", () => {
+    useShortSession();
+    const { container } = wrap(<ConsentScreen />);
+    expect(container.textContent).toContain("read 8 short posts");
+    expect(container.textContent).not.toMatch(/24|minutes|delete your answers|anonymous/i);
+    expectNoResearcher(container.textContent ?? "");
+  });
+
   it("shows the short summary, full details disclosure and 18+ checkbox; gates Continue", async () => {
     const user = userEvent.setup();
     const { container } = wrap(<ConsentScreen />);
     expect(container.querySelectorAll(".consent-summary > li")).toHaveLength(5);
-    expect(container.textContent).toMatch(/15–20 minutes/);
+    expect(container.textContent).toContain("read 24 short posts");
+    expect(container.textContent).toContain("Answers already saved remain on the study server if you stop.");
     expect(container.textContent).toMatch(/scrambled/);
     const details = container.querySelector("details.consent-details");
     expect(details).not.toBeNull();
     expect(within(details as HTMLElement).getByText("Read full consent details")).toBeInTheDocument();
-    expect(screen.getAllByText(/\[PLACEHOLDER: /).length).toBeGreaterThan(0);
+    expect(screen.getByText(/HCI experiment conducted as part of graduate study at Florida Polytechnic University/)).toBeInTheDocument();
     expectNoResearcher(container.textContent ?? "");
 
     const cont = screen.getByRole("button", { name: "Continue" });
@@ -154,6 +178,14 @@ describe("ConsentScreen", () => {
 });
 
 describe("InstructionsScreen", () => {
+  it.each([2, 6])("uses the saved assignment for %i posts per part", async (size) => {
+    if (size === 2) useShortSession();
+    const { container } = wrap(<InstructionsScreen />);
+    await screen.findByTestId("post-card");
+    expect(container.textContent).toContain(`You will read ${size * 4} short social media posts`);
+    expect(container.textContent).toContain(`4 parts of ${size} posts each`);
+  });
+
   it("is one short screen with 3 bullets, a keyboard hint, and never says labels may be wrong", async () => {
     const { container } = wrap(<InstructionsScreen />);
     expect(screen.getByRole("heading", { name: "How this study works" })).toBeInTheDocument();
@@ -303,6 +335,17 @@ describe("ExitSurveyScreen", () => {
 });
 
 describe("DebriefScreen", () => {
+  it("describes four wrong labels in eight posts and only shows assigned corrections", async () => {
+    useShortSession();
+    const { container } = wrap(<DebriefScreen />);
+    expect(screen.getByText("4 of the 8 labels were deliberately wrong.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Show the real facts/ }));
+    expect(container.querySelectorAll("#debrief-facts li")).toHaveLength(4);
+    expect(container.querySelector('[data-post-id="p04"]')).toBeNull();
+    expect(container.querySelector('[data-post-id="p03"]')).toBeInTheDocument();
+    expectNoResearcher(container.textContent ?? "");
+  });
+
   it("is self-guided: explains the scripted labels, quotes the pid from memory, and clears storage", () => {
     localStorage.setItem("xai-study:activeSessionId", "s-1");
     sessionStorage.setItem("xai-study:adminToken", "tok");
@@ -313,7 +356,8 @@ describe("DebriefScreen", () => {
     expect(text).toMatch(/false alarm/);
     expect(text).toMatch(/miss/);
     expect(text).toMatch(/don't tell anyone else/);
-    expect(text).toMatch(/email \[PLACEHOLDER: researcher contact email\]/);
+    expect(text).not.toMatch(/email|withdraw|deadline|many studies/i);
+    expect(text).toContain("Clearing browser storage does not delete your saved answers.");
     expect(screen.getByText("7")).toBeInTheDocument();
     expect(text).toMatch(/participant number: 7/);
     expect(screen.getByText("You can close this page now.")).toBeInTheDocument();

@@ -5,7 +5,7 @@ import {
   trialsCsv, surveysCsv, eventsCsv, exitCsv, sessionsJson, participantsCsv, kpisCsv, exportIndex,
 } from "../export/exporters";
 import type { PostBank } from "../../shared/types";
-import { assignFromBank } from "../../shared/counterbalance";
+import { assignShortFromBank } from "../../shared/counterbalance";
 import { computeKpis } from "../kpi";
 
 type Exporter = (db: Database.Database) => string;
@@ -80,7 +80,7 @@ export function adminRouter(deps: { db: Database.Database; adminToken?: string; 
     const pid = /^\d+$/.test(raw) ? Number(raw) : NaN;
     if (!Number.isSafeInteger(pid) || pid < 1)
       return void res.status(400).json({ error: "validation", detail: "pid must be a positive integer" });
-    res.json(assignFromBank(pid, bank));
+    res.json(assignShortFromBank(pid, bank));
   });
 
   router.get("/sessions", (_req, res) => {

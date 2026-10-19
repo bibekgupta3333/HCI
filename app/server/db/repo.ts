@@ -209,6 +209,7 @@ export function getSession(db: DB, sessionId: string): SessionView | null {
 export function listSessions(db: DB): AdminSessionRow[] {
   const rows = stmt(db, `SELECT s.*,
       (SELECT COUNT(*) FROM trials t WHERE t.session_id = s.session_id) AS trials_saved,
+      (SELECT COALESCE(SUM(json_array_length(b.post_order)), 0) FROM blocks b WHERE b.session_id = s.session_id) AS planned_trials,
       (SELECT COUNT(*) FROM block_surveys bs WHERE bs.session_id = s.session_id) AS surveys_saved
     FROM sessions s ORDER BY s.started_at DESC, s.pid DESC`).all() as Row[];
   return rows.map((r) => ({
@@ -218,6 +219,8 @@ export function listSessions(db: DB): AdminSessionRow[] {
     conditionOrder: r.condition_order,
     setRotation: r.set_rotation,
     trialsSaved: r.trials_saved,
+    plannedTrials: r.planned_trials,
+    studyVariant: r.planned_trials === 8 ? "short-8" : r.planned_trials === 24 ? "legacy-24" : `custom-${r.planned_trials}`,
     surveysSaved: r.surveys_saved,
     startedAt: r.started_at,
     completedAt: r.completed_at ?? null,

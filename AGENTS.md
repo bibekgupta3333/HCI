@@ -6,13 +6,13 @@ Guidance for every coding agent working in this repository. Read this before cha
 
 CEN5728 Advanced HCI, Group 4: **When the AI label is wrong, do explanations help people catch it, and how do they make people feel?**
 
-This is a working, self-guided research website. Participants judge 24 fictional social media posts with scripted AI accuracy labels and optional fact sheets. Some labels deliberately contradict the facts. The experiment compares four explanation interfaces, error detection, trust, fairness and affect. It uses **Wizard-of-Oz** decisions: no model, LLM, external fact-check service or live social-media feed runs.
+This is a working, self-guided research website. New participants judge 8 distinct fictional social media posts (two per part, sampled from the 24-post bank) with scripted AI accuracy labels and optional fact sheets. Some labels deliberately contradict the facts. The experiment compares four explanation interfaces, error detection, trust, fairness and affect. It uses **Wizard-of-Oz** decisions: no model, LLM, external fact-check service or live social-media feed runs.
 
 Current requirements:
 
 - Anyone eligible can start without a researcher or admin approval.
 - One submission per participation code; unfinished sessions can resume.
-- A fast, interactive flow on desktop and phone; estimated 15–20 minutes, subject to pilot confirmation.
+- A fast, interactive flow on desktop and phone; shortened to eight trials; duration remains an estimate pending pilot confirmation.
 - SQLite persists study responses on the server.
 - Admin is for monitoring, exports and session management, not starting participants.
 - After successful completion, remove participant browser storage so the next person on a shared device can start normally.
@@ -35,6 +35,7 @@ Current requirements:
 | `docs/data-model.md` | Field meanings and conceptual data model |
 | `docs/study-protocol.md` | Recruitment, eligibility, consent, debrief, pilot and data handling |
 | `docs/wireframes.md`, `system-design.md` | Screen intent and study-flow specifications |
+| `docs/parts-and-study-defense.md` | Current short-design rationale, each part’s role and defense questions |
 | `docs/research-positioning.md` | Proposed contribution and literature gaps requiring verification |
 | `docs/README.md` | Index to the remaining architecture, AI, sequence and implementation docs |
 
@@ -80,9 +81,21 @@ B, C's rationale text, and D may support a wrong AI label. Do not automatically 
 - Truth validation compares canonical `keyFact.claimValue` with `recordValue`; do not infer truth from verified badges, emotional wording or account names.
 - B text is 8–14 words; D text is 10–16 words. Changes must satisfy bank validation and stay synchronized with `stimuli.md`.
 
-### Counterbalancing
+### Active short-session design (2026-10-18)
 
-- Four blocks/parts, six trials each; one condition per block, with a survey after every block.
+The user explicitly shortened NEW sessions to two posts per part (8 total). The full 24-post bank remains canonical. Each part samples one correct and one wrong label from its assigned set; posts never repeat across parts. Each participant sees two false alarms and two misses overall. The wrong-label type is selected by condition index plus the 16-person-cycle parity, and flips in the next cycle; condition × error-type balance therefore needs 32 participants. Shuffle both positions; do not always put the wrong post second.
+
+This is a short exploratory study: one wrong trial per condition cannot estimate both error types within that condition for an individual. Keep the 12-item Jian scale per block; four surveys still mean 64 ratings and need pilot burden assessment. Do not promise a full-paper result or a validated time estimate.
+
+Existing sessions retain their persisted six-post block plans. All cursor transitions, progress, survey eligibility and debrief counts must use saved block lengths. Never shorten an existing session or delete responses. CSVs append `plannedTrials` and `studyVariant` (`short-8` / `legacy-24`); analyse these versions separately. For formal short-cohort collection, use a new `DB_PATH` and preserve the old file: legacy pids occupying slots can otherwise prevent 32 additional short participants from completing the intended 32-slot balance. Admin monitoring may show both, with an explicit warning.
+
+The first two posts in each part show compact, dismissible condition-specific interaction guidance. Guidance must not disclose correct answers, force fact-sheet checking or introduce a new information source in only one condition. A remains label-only, B static, C expandable Why, D counterfactual. See `docs/parts-and-study-defense.md`.
+
+Participant-facing attribution: **HCI experiment conducted as part of graduate study at Florida Polytechnic University.** Remove unfinished IRB/contact/professor placeholders from the app; do not replace them with invented contacts, approval numbers or claims of university endorsement. Keep voluntary consent, adult eligibility and factual data-handling explanations.
+
+### Counterbalancing (bank and legacy plan; short-session override above)
+
+- Four blocks/parts, two trials each for new sessions (six for saved legacy sessions); one condition per block, with a survey after every block.
 - Williams orders: `ABDC`, `BCAD`, `CDBA`, `DACB`.
 - `order = WILLIAMS[(pid - 1) % 4]`.
 - `rotation = floor((pid - 1) / 4) % 4`.
@@ -112,7 +125,7 @@ Use the current v3 hypotheses in `_shared-decisions.md`, not the original loan h
 | `/debrief` | Reveals scripted wrong labels and factual corrections; Next participant returns to `/` |
 | `/admin` | Data/KPIs, sessions, exports and management; no participant-start form |
 
-Landing/recruitment copy must not reveal planted errors before participation. Eligibility is adults 18+ able to read English; no social-media or AI expertise is required. Follow the protocol for pilot/team-member handling and prior-knowledge recording. Do not invent approval numbers or replace institution/contact placeholders with guesses.
+Landing/recruitment copy must not reveal planted errors before participation. Eligibility is adults 18+ able to read English; no social-media or AI expertise is required. Follow the protocol for pilot/team-member handling and prior-knowledge recording. Do not invent approval numbers or contacts; participant-facing placeholder text has been removed at the user’s request.
 
 Trial interaction: preload the next presentation; show the common 800 ms checking state; start timing after the label paints; Agree/Disagree, then confidence 1–7 on the same screen. A short 1-second Undo window allows correction before saving; there is no separate Next step per post. Keyboard: A agree, D disagree, 1–7 confidence, F fact sheet, W Why (C), Esc close panel. Shortcuts must not interfere with text inputs or dialogs. Progress shows both part/post-in-part and overall post count.
 
@@ -120,7 +133,7 @@ The fact sheet is an optional verification aid, a side panel on wide screens and
 
 ### Diagnosing “Why?” and empty space
 
-- **Part 1 is not necessarily condition A.** Check the stored `conditionOrder` and presentation `condition`. All six posts in that part should share it.
+- **Part 1 is not necessarily condition A.** Check the stored `conditionOrder` and presentation `condition`. All posts in that part should share it.
 - A visible Why button identifies C; it is not expected in A, B or D.
 - A fixed-height explanation area keeps decision controls comparable across conditions. Empty space can occur in A, when C is collapsed, or below short B/D content. Whitespace alone does not establish the condition or a load failure.
 - Inspect `TrialScreen`, the condition registry/view, and explanation-container CSS before changing spacing. Distinguish reserved space from duplicated wrappers, clipped rows or missing content.
@@ -137,7 +150,8 @@ The fact sheet is an optional verification aid, a side panel on wide screens and
 7. The server cursor is authoritative; update client state before navigating after a save. Resumed unfinished trials are flagged `resumed` and their timing restarts.
 8. After the exit survey saves successfully, flush final events and invoke `clearParticipantStorage`: remove all `xai-study:` keys in localStorage/sessionStorage except `xai-study:adminToken`. Do not use global `localStorage.clear()` or delete unrelated origin data.
 9. Preserve completed session/debrief state in memory. Next participant resets it and returns to the landing page; a refresh after completion also starts fresh. Never restore a browser-wide participated flag.
-10. Failed response saves must remain retryable; do not clear active-session storage prematurely or delete SQLite responses during browser cleanup.
+10. **Exit study** is available on every active participant screen. Confirming calls `POST /api/sessions/:id/cancel`, preserves saved rows, marks the session abandoned, clears participant storage after success, and shows an early-exit debrief. Keep participating/Escape dismisses confirmation. No admin permission is needed; cancellation does not submit unfinished survey answers. Already-abandoned requests are safe to retry, completed sessions cannot be cancelled.
+11. Failed response saves must remain retryable; do not clear active-session storage prematurely or delete SQLite responses during browser cleanup.
 
 Limitations: a different code bypasses the check; codes are not verified identity. Deleting a session also removes its stored duplicate-check record. Abandoned codes are blocked, including stale sessions; don't promise indefinite resume. Changing or losing the HMAC salt breaks recognition of earlier codes. Hash-based linkage is pseudonymous, not a guarantee of absolute anonymity.
 
@@ -207,7 +221,7 @@ SQLite file defaults to `app/data/study.db`. File databases use WAL and foreign 
 | `block_surveys` | One questionnaire per session/block |
 | `exit_surveys` | One exit survey per session |
 
-Statuses: `in_progress`, `completed`, `abandoned`. Cursor phases include consent, instructions, trial/post_rating, block_survey, exit_survey and done. A block survey requires six saved trials; completion requires four saved block surveys. Reject duplicate trial/survey writes and validate ranges and assigned post IDs. The server derives correctness and scores; never trust client-supplied truth.
+Statuses: `in_progress`, `completed`, `abandoned`. Cursor phases include consent, instructions, trial/post_rating, block_survey, exit_survey and done. A block survey requires all trials in that saved block plan (two new / six legacy); completion requires four saved block surveys. Reject duplicate trial/survey writes and validate ranges and assigned post IDs. The server derives correctness and scores; never trust client-supplied truth.
 
 Key API groups (exact payloads and columns: `CONTRACT.md` and `shared/api.ts`):
 
@@ -292,8 +306,8 @@ Use temporary participation codes and a separate test DB. Do not preserve brittl
 
 ## 13. Research, documentation and submission boundaries
 
-Professor Hamam's approval of the topic change and ethics approval for deception/affect measures remain protocol matters. Do not claim approvals exist because code runs. Keep institution, IRB and contact placeholders visible until actual details are supplied. The software remains self-start; do not add an admin gate as an improvised approval mechanism.
+The app is a graduate-study HCI experiment at Florida Polytechnic University. Removing unfinished approval/contact placeholders does not establish institutional approval. Do not fabricate approval or endorsement claims. Preserve voluntary participation and truthful data handling. The software remains self-start; do not add an admin gate.
 
-Do not silently reduce the 24 posts, remove measures, enable optional anxiety/consequence manipulations, change explanation conditions or alter counterbalancing to make the app faster. These are study changes. Preserve the common presentation and synchronize code, contract, stimuli/protocol and design docs for authorized changes.
+The user authorized the eight-trial design described above. Do not silently change that design again, remove measures, enable optional anxiety/consequence manipulations, change explanation conditions or alter counterbalancing to make the app faster. These are study changes. Preserve the common presentation and synchronize code, contract, stimuli/protocol and design docs for authorized changes.
 
 Submission (`implementation.txt`): source ZIP, demo video and report covering project summary, technologies, devices, reproducible setup/use, code screenshots with responsibilities, running-app screenshots and group-member interaction photos. Exclude real SQLite responses, secrets and node_modules from shared source artifacts. Keep runnable instructions reproducible from a clean checkout.

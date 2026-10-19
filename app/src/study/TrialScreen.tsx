@@ -47,6 +47,34 @@ const CONFIDENCE_PROMPT = "How sure are you?";
 const CONFIDENCE_MIN = "Not at all sure";
 const CONFIDENCE_MAX = "Completely sure";
 
+const PART_HELP = {
+  A: { label: "Label only", hint: "This part shows the AI label without an explanation beneath it." },
+  B: { label: "Fixed reason", hint: "This part shows a short, fixed reason beneath each AI label." },
+  C: { label: "Explore with Why?", hint: "This part has a Why? button. You can open it, then expand Source, Claim vs record or Wording independently." },
+  D: { label: "What-if explanation", hint: "This part shows a what-if sentence describing a change that would lead to a different label." },
+};
+
+/** Shared help mechanism; dismissal lasts for this part, without changing trial state. */
+function PartHelp({ condition, position }: { condition: Presentation["condition"]; position: number }) {
+  const [open, setOpen] = useState(true);
+  const help = PART_HELP[condition];
+  if (position > 2) return null;
+  return (
+    <aside className="trial-help" aria-label="Help for this part">
+      <div className="trial-help__header">
+        <span>This part: <strong>{help.label}</strong></span>
+        <button type="button" aria-expanded={open} aria-controls="trial-part-help" onClick={() => setOpen(!open)}>
+          {open ? "Hide help" : "Show help"}
+        </button>
+      </div>
+      <div id="trial-part-help" hidden={!open}>
+        <p>{help.hint}</p>
+        <p>Read at your own pace. The fact sheet is optional. Choose Agree or Disagree with the label, then how sure you are.</p>
+      </div>
+    </aside>
+  );
+}
+
 type Phase = "loading" | "checking" | "shown" | "rating" | "submitting" | "error";
 
 interface Decision {
@@ -134,7 +162,10 @@ export default function TrialScreen() {
   const session = study.session;
   const sessionId = session?.sessionId ?? null;
   const blockIndex = parseIndex(params.block, 4) as BlockIdx | null;
-  const position = parseIndex(params.pos, POSTS_PER_BLOCK) as PosIdx | null;
+  const blockPlan = session?.blocks.find((block) => block.blockIndex === blockIndex);
+  const postsInBlock = blockPlan?.postOrder.length ?? 0;
+  const totalPosts = session?.blocks.reduce((total, block) => total + block.postOrder.length, 0) ?? 0;
+  const position = parseIndex(params.pos, postsInBlock) as PosIdx | null;
   const resumed = Boolean(study.state.resumed);
 
   const [presentation, setPresentation] = useState<Presentation | null>(null);
@@ -258,7 +289,7 @@ export default function TrialScreen() {
       logEvent("trial_shown");
       setLabelReady(true);
       // Prefetch the next post in the same block (never across the block survey).
-      if (sessionId && blockIndex && position && position < POSTS_PER_BLOCK) {
+      if (sessionId && blockIndex && position && position < postsInBlock) {
         prefetchPresentation(sessionId, blockIndex, position + 1);
       }
     });
@@ -266,7 +297,7 @@ export default function TrialScreen() {
       done = true;
       cancelAnimationFrame(raf);
     };
-  }, [phase, labelReady, logEvent, sessionId, blockIndex, position]);
+  }, [phase, labelReady, logEvent, sessionId, blockIndex, position, postsInBlock]);
 
   const onFactSheetToggle = (open: boolean) => {
     if (!labelReady || decidedRef.current) return;
@@ -423,8 +454,9 @@ export default function TrialScreen() {
     return <main className="trial-screen"><p role="alert">This page does not exist.</p></main>;
   }
 
-  const header = `Part ${blockIndex} of 4 · Post ${position} of ${POSTS_PER_BLOCK}`;
-  const overall = (blockIndex - 1) * POSTS_PER_BLOCK + position;
+  const header = `Part ${blockIndex} of 4 · Post ${position} of ${postsInBlock}`;
+  const overall = (session?.blocks.reduce((total, block) =>
+    block.blockIndex < blockIndex ? total + block.postOrder.length : total, 0) ?? 0) + position;
   const View = presentation ? conditionRegistry[presentation.condition] : null;
   const labelVisible = phase !== "loading" && phase !== "checking" && !(phase === "error" && errorKind === "load");
   const isC = presentation?.condition === "C";
@@ -436,7 +468,7 @@ export default function TrialScreen() {
         <h1 className="trial-header" tabIndex={-1} ref={headingRef}>
           {header}
         </h1>
-        <ProgressBar current={overall} total={TOTAL_POSTS} label={`Post ${overall} of ${TOTAL_POSTS}`} />
+        <ProgressBar current={overall} total={totalPosts} label={`Post ${overall} of ${totalPosts}`} />
       </div>
 
       {phase === "loading" && <p className="trial-loading">Loading…</p>}
@@ -457,6 +489,7 @@ export default function TrialScreen() {
       {presentation && (
         <div className="trial-layout">
           <div className="trial-main">
+            <PartHelp key={`${sessionId}/${blockIndex}`} condition={presentation.condition} position={position} />
             <PostCard
               author={presentation.author}
               text={presentation.text}

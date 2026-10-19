@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+**Current implementation (2026-10-18):** follow [AGENTS.md](AGENTS.md). New sessions have two posts per part (8 total), sampled from the unchanged 24-post bank. Existing 24-post sessions retain saved assignments. The app now uses graduate HCI experiment attribution at Florida Polytechnic University and contains no unfinished approval/contact placeholders. Earlier count/copy descriptions below are legacy; the current contract, protocol and [study defense](docs/parts-and-study-defense.md) supersede them.
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Repository status

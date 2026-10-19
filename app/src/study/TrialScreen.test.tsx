@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Presentation, Condition } from "../../shared/types";
@@ -94,7 +95,12 @@ function session(over: Partial<SessionView> = {}): SessionView {
     status: "in_progress",
     conditionOrder: ["A", "B", "D", "C"],
     setRotation: 1,
-    blocks: [] as unknown as SessionView["blocks"],
+    blocks: ([1, 2, 3, 4] as const).map((blockIndex) => ({
+      blockIndex,
+      condition: (["A", "B", "D", "C"] as const)[blockIndex - 1],
+      set: "S1" as const,
+      postOrder: Array.from({ length: 6 }, (_, i) => `p${String(i + 1).padStart(2, "0")}`),
+    })) as SessionView["blocks"],
     cursor: { blockIndex: 2, positionInBlock: 3, phase: "trial" },
     consequenceBanner: false,
     anxiety: false,
@@ -171,6 +177,107 @@ afterEach(() => {
 });
 
 describe("TrialScreen", () => {
+  it.each([
+    ["A", "Label only", "without an explanation"],
+    ["B", "Fixed reason", "short, fixed reason"],
+    ["C", "Explore with Why?", "expand Source, Claim vs record or Wording independently"],
+    ["D", "What-if explanation", "change that would lead to a different label"],
+  ] as const)("offers neutral %s guidance on both opening posts of every part", async (condition, label, hint) => {
+    for (const block of [1, 2, 3, 4]) {
+      for (const pos of [1, 2]) {
+        await showLabel(condition, `/trial/${block}/${pos}`);
+        expect(screen.getByRole("complementary", { name: "Help for this part" })).toHaveTextContent(label);
+        expect(screen.getByText(hint, { exact: false })).toBeVisible();
+        expect(screen.getByText(/The fact sheet is optional/)).toBeVisible();
+        expect(screen.getByRole("button", { name: "Hide help" })).toHaveAttribute("aria-expanded", "true");
+        expect(screen.queryByRole("button", { name: "Why?" }) !== null).toBe(condition === "C");
+        expect(mocks.timer.onWhy).not.toHaveBeenCalled();
+        expect(mocks.timer.onFactSheet).not.toHaveBeenCalled();
+        cleanup();
+        clearPresentationCache();
+      }
+    }
+  });
+
+  it("lets keyboard users hide and reopen help without changing timing or responses", async () => {
+    await showLabel("C", "/trial/1/1");
+    vi.useRealTimers();
+    const user = userEvent.setup();
+    const resets = mocks.timer.reset.mock.calls.length;
+    const events = [...loggedTypes()];
+    screen.getByRole("button", { name: "Hide help" }).focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("button", { name: "Show help" })).toHaveFocus();
+    expect(screen.getByText(/The fact sheet is optional/)).not.toBeVisible();
+    await user.keyboard(" ");
+    expect(screen.getByRole("button", { name: "Hide help" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText(/The fact sheet is optional/)).toBeVisible();
+    expect(mocks.timer.reset).toHaveBeenCalledTimes(resets);
+    expect(mocks.timer.markShown).toHaveBeenCalledTimes(1);
+    expect(mocks.timer.snapshot).not.toHaveBeenCalled();
+    expect(mocks.api.submitTrial).not.toHaveBeenCalled();
+    expect(loggedTypes()).toEqual(events);
+  });
+
+  it("keeps help dismissed on the second post and offers it again in the next part", async () => {
+    mocks.api.submitTrial.mockResolvedValueOnce({ cursor: { blockIndex: 1, positionInBlock: 2, phase: "trial" } });
+    await showLabel("A", "/trial/1/1");
+    fireEvent.click(screen.getByRole("button", { name: "Hide help" }));
+    fireEvent.click(agreeBtn());
+    await rateAndSubmit();
+    expect(screen.getByRole("button", { name: "Show help" })).toHaveAttribute("aria-expanded", "false");
+    await advance(800);
+    await advance(20);
+    mocks.api.submitTrial.mockResolvedValueOnce({ cursor: { blockIndex: 2, positionInBlock: 1, phase: "trial" } });
+    fireEvent.click(agreeBtn());
+    await rateAndSubmit();
+    expect(screen.getByRole("button", { name: "Hide help" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("does not show opening guidance after the second post of a legacy part", async () => {
+    await showLabel("B");
+    expect(screen.queryByRole("complementary", { name: "Help for this part" })).not.toBeInTheDocument();
+  });
+
+  it("uses a two-post plan for progress, prefetching and the survey transition", async () => {
+    const shortSession = session();
+    shortSession.blocks.forEach((block) => { block.postOrder = block.postOrder.slice(0, 2); });
+    mocks.study.session = shortSession;
+    await showLabel("C", "/trial/3/1");
+    expect(screen.getByRole("heading", { name: "Part 3 of 4 · Post 1 of 2" })).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Post 5 of 8" })).toHaveAttribute("aria-valuemax", "8");
+    expect(mocks.api.getPresentation).toHaveBeenLastCalledWith("s-1", 3, 2);
+    mocks.api.submitTrial.mockResolvedValueOnce({ cursor: { blockIndex: 3, positionInBlock: 2, phase: "trial" } });
+    fireEvent.click(agreeBtn());
+    await rateAndSubmit();
+    await advance(800);
+    await advance(20);
+    expect(screen.getByRole("progressbar", { name: "Post 6 of 8" })).toHaveAttribute("aria-valuenow", "6");
+    expect(mocks.api.getPresentation).toHaveBeenCalledTimes(2);
+    mocks.api.submitTrial.mockResolvedValueOnce({ cursor: { blockIndex: 3, positionInBlock: 2, phase: "block_survey" } });
+    fireEvent.click(disagreeBtn());
+    await rateAndSubmit();
+    expect(screen.getByText("Survey page")).toBeInTheDocument();
+  });
+
+  it("rejects a position outside the stored plan before fetching", async () => {
+    const shortSession = session();
+    shortSession.blocks.forEach((block) => { block.postOrder = block.postOrder.slice(0, 2); });
+    mocks.study.session = shortSession;
+    renderAt("/trial/2/3");
+    await flush();
+    expect(screen.getByRole("alert")).toHaveTextContent("This page does not exist.");
+    expect(mocks.api.getPresentation).not.toHaveBeenCalled();
+  });
+
+  it("calculates overall progress by summing saved block lengths", async () => {
+    const mixedSession = session();
+    mixedSession.blocks[0].postOrder = mixedSession.blocks[0].postOrder.slice(0, 2);
+    mocks.study.session = mixedSession;
+    await showLabel("B");
+    expect(screen.getByRole("progressbar", { name: "Post 5 of 20" })).toHaveAttribute("aria-valuenow", "5");
+  });
+
   it("shows the header and an 800 ms checking state with disabled buttons", async () => {
     mocks.api.getPresentation.mockResolvedValue(presentation("A"));
     renderAt();

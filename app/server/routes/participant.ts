@@ -211,7 +211,7 @@ export function validateExitSurvey(raw: unknown): ExitSurveySubmission {
 
 // ---------- derivations ----------
 /** Builds the full Trial from the client submission, the stored block plan and the post's ground truth. */
-export function deriveTrial(pid: number, plan: BlockPlan, post: Post, s: TrialSubmission): Trial {
+export function deriveTrial(pid: number, plan: BlockPlan, post: Post, s: TrialSubmission, trialOffset = (s.blockIndex - 1) * 6): Trial {
   if (s.blockIndex !== plan.blockIndex) throw new ValidationError("blockIndex does not match the block plan");
   const planned = plan.postOrder[s.positionInBlock - 1];
   if (s.postId !== planned || post.id !== planned)
@@ -229,7 +229,7 @@ export function deriveTrial(pid: number, plan: BlockPlan, post: Post, s: TrialSu
     trialId: `${pid}-${s.blockIndex}-${s.positionInBlock}`,
     blockIndex: s.blockIndex,
     positionInBlock: s.positionInBlock,
-    trialIndex: (s.blockIndex - 1) * 6 + s.positionInBlock,
+    trialIndex: trialOffset + s.positionInBlock,
     postId: post.id,
     condition: plan.condition,
     set: plan.set,
@@ -259,14 +259,14 @@ export function deriveTrial(pid: number, plan: BlockPlan, post: Post, s: TrialSu
   };
 }
 
-export function cursorAfterTrial(blockIndex: Cursor["blockIndex"], position: Cursor["positionInBlock"]): Cursor {
-  if (position < 6) return { blockIndex, positionInBlock: (position + 1) as Cursor["positionInBlock"], phase: "trial" };
-  return { blockIndex, positionInBlock: 6, phase: "block_survey" };
+export function cursorAfterTrial(blockIndex: Cursor["blockIndex"], position: Cursor["positionInBlock"], postsPerBlock = 6): Cursor {
+  if (position < postsPerBlock) return { blockIndex, positionInBlock: (position + 1) as Cursor["positionInBlock"], phase: "trial" };
+  return { blockIndex, positionInBlock: postsPerBlock as Cursor["positionInBlock"], phase: "block_survey" };
 }
 
-export function cursorAfterSurvey(blockIndex: Cursor["blockIndex"]): Cursor {
+export function cursorAfterSurvey(blockIndex: Cursor["blockIndex"], postsPerBlock = 6): Cursor {
   if (blockIndex < 4) return { blockIndex: (blockIndex + 1) as Cursor["blockIndex"], positionInBlock: 1, phase: "trial" };
-  return { blockIndex: 4, positionInBlock: 6, phase: "exit_survey" };
+  return { blockIndex: 4, positionInBlock: postsPerBlock as Cursor["positionInBlock"], phase: "exit_survey" };
 }
 
 /** Reverse items 1-5 (8 - raw), means, nWrongDetected from saved trials of this block. */

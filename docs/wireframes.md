@@ -1,8 +1,12 @@
 # Wireframes: AI label study app (low fidelity)
 
-This document gives a low-fidelity ASCII wireframe for every screen in the v3 study app, where participants judge made-up social media posts from the fictional town of Riverton and decide whether to agree with an AI accuracy label. The goal is that every team member builds the same layout, and that the report can show the planned interface next to screenshots of the running app. Each wireframe is at most 46 characters wide so it reads on a phone and in the PDF. The real app works from 360 px phones to 1280 px laptops (see `architecture.md`); on wide screens the trial puts the post and the label side by side, and on phones it stacks them (§15). Treat these as content and order, not pixel layout. **v2:** the study is self-guided and once-only (public landing page at `/`, §0a, then the participation-code screen at `/start`, §0b), each post takes two taps (decision, then an inline confidence chip, §9), a progress bar and keyboard hints sit on every trial, the block survey is one matrix screen (§10), and `/admin` is a read-only KPI dashboard (§13). Under each wireframe, 2–4 notes say what is logged and which interaction rules apply. Field and event names follow `data-model.md`. Participant-facing wording (instructions, the practice post, post cards, fact sheets, B/C/D text) is copied from `stimuli.md`, which wins if the two ever differ; `_shared-decisions.md` is binding on the post bank and condition rules.
+This document gives a low-fidelity ASCII wireframe for every screen in the v3 study app, where participants judge made-up social media posts from the fictional town of Riverton and decide whether to agree with an AI accuracy label. The goal is that every team member builds the same layout, and that the report can show the planned interface next to screenshots of the running app. Wireframes prioritize readable content and order; attribution wraps across lines on narrow screens. The real app works from 360 px phones to 1280 px laptops (see `architecture.md`); on wide screens the trial puts the post and the label side by side, and on phones it stacks them (§15). Treat these as content and order, not pixel layout. **v2:** the study is self-guided and once-only (public landing page at `/`, §0a, then the participation-code screen at `/start`, §0b), each post takes two taps (decision, then an inline confidence chip, §9), a progress bar and keyboard hints sit on every trial, the block survey is one matrix screen (§10), and `/admin` is a read-only KPI dashboard (§13). Under each wireframe, 2–4 notes say what is logged and which interaction rules apply. Field and event names follow `data-model.md`. Participant-facing wording (instructions, the practice post, post cards, fact sheets, B/C/D text) is copied from `stimuli.md`, which wins if the two ever differ; `_shared-decisions.md` is binding on the post bank and condition rules.
 
 Conventions: `[ Button ]` is a button, `[1]` a tappable chip, `○`/`●` an empty/filled matrix cell, `▓░` the progress bar, `( )` is a radio option, `▸` is a collapsed row, `▾` an expanded one, `✓`/`⚠` are the two label icons, and `♡`/`↻` are likes and reposts.
+
+HCI experiment conducted as part of graduate study at Florida Polytechnic University.
+
+**Active flow:** new sessions have **8 analysed posts**, four parts of two posts, plus one practice post. Each part has one correct and one wrong label; each participant sees two false alarms and two misses. Across 32 new-session completers, each condition must receive 16 false alarms and 16 misses. These are assignment constraints for the team, not participant-facing disclosures. Saved legacy sessions keep six posts per part and 24 overall, their saved assignment, cursor and completion requirements. Render progress and debrief from the session version; do not pool eight-post and 24-post responses in analysis. The diagrams below describe new sessions unless explicitly marked otherwise. Implementation must be verified separately.
 
 The previous design (v2.1, approving an AI agent's actions) has its own wireframes in `archive/v2.1-agent-permission/wireframes.md`.
 
@@ -26,18 +30,18 @@ The public page that the recruitment link and QR code open. Desktop (about 1280 
 │ [ Take part ]  How it works ↓            │
 ├──────────────────────────────────────────┤
 │ How it works                             │
-│ ① Enter a  ② Read 24 short   ③ Answer a  │
+│ ① Enter a  ② Read 8 short   ③ Answer a  │
 │   code.      made-up posts;    few quick │
 │              agree or not      questions.│
 │              with each label             │
-│ About 15–20 minutes · phone or computer  │
+│ Four parts · phone or computer  │
 ├──────────────────────────────────────────┤
 │ Who can take part   │ Your privacy       │
-│ • Anyone aged 18+   │ • Anonymous        │
+│ • Anyone aged 18+   │ • Pseudonymous     │
 │   who reads English │ • Only a scrambled │
 │ • Once per person   │   code is kept     │
 │ • No experience     │ • Stop at any time │
-│   needed            │ • Contact: (TBD)   │
+│   needed            │                   │
 ├──────────────────────────────────────────┤
 │ Questions                                │
 │ ▸ How long does it take?                 │
@@ -45,7 +49,9 @@ The public page that the recruitment link and QR code open. Desktop (about 1280 
 │ ▸ Can I stop?                            │
 │ ▸ What if I close the tab?               │
 ├──────────────────────────────────────────┤
-│ CEN5728 Advanced HCI · Group 4 · (inst.) │
+│ HCI experiment conducted as part of     │
+│ graduate study at Florida Polytechnic   │
+│ University.                             │
 └──────────────────────────────────────────┘
 ```
 
@@ -66,11 +72,11 @@ Phone (360 px; one column, full-width buttons, the illustration under the call t
 ├────────────────────────────────┤
 │ How it works                   │
 │ ① Enter a participation code.  │
-│ ② Read 24 short made-up posts  │
+│ ② Read 8 short made-up posts  │
 │   and say whether you agree    │
 │   with each AI label.          │
 │ ③ Answer a few quick questions.│
-│ About 15–20 min · phone or PC  │
+│ Four parts · phone or PC  │
 ├────────────────────────────────┤
 │ Who can take part              │
 │ • Anyone aged 18 or over who   │
@@ -79,11 +85,11 @@ Phone (360 px; one column, full-width buttons, the illustration under the call t
 │ • No experience needed         │
 ├────────────────────────────────┤
 │ Your privacy                   │
-│ • Taking part is anonymous     │
+│ • Responses are pseudonymous  │
 │ • Only a scrambled version of  │
 │   your code is kept            │
 │ • You can stop at any time     │
-│ • Questions? Contact (TBD)     │
+│ • Saved answers remain stored │
 ├────────────────────────────────┤
 │ Questions                      │
 │ ▸ How long does it take?       │
@@ -91,13 +97,15 @@ Phone (360 px; one column, full-width buttons, the illustration under the call t
 │ ▸ Can I stop?                  │
 │ ▸ What if I close the tab?     │
 ├────────────────────────────────┤
-│ CEN5728 · Group 4 · (inst.)    │
+│ HCI experiment conducted as    │
+│ part of graduate study at      │
+│ Florida Polytechnic University.│
 └────────────────────────────────┘
 ```
 
 - **Take part** goes to `/start` (§0b). "How it works ↓" scrolls to the steps. A "Skip to main content" link is the first focusable element. Nothing is logged: no session exists yet, and the page makes no API call.
 - The **session in progress** banner, with **Continue**, appears only when the browser holds `xai-study:activeSessionId`. Continue resumes at the saved cursor; if the server no longer has the session, the banner is replaced by "We couldn't find your previous session. Choose 'Take part' and enter your code to continue."
-- The wording follows the recruitment rules in `study-protocol.md` §6: plain and neutral, with no hint that labels can be wrong or are scripted. The FAQ items are collapsed `<details>`: how long (about 15–20 minutes), AI knowledge (none needed), stopping (at any time, no penalty), closing the tab (continue with the same code within 2 hours). The contact address and institution are placeholders until ethics approves them.
+- The wording follows the recruitment rules in `study-protocol.md` §6: plain and neutral, with no hint that labels can be wrong or are scripted. The FAQ items are collapsed `<details>`: how long (duration still requires an eight-post pilot), AI knowledge (none needed), stopping (at any time, no penalty), closing the tab (continue with the same code within 2 hours). Use the university attribution above without an institutional authorization claim. Do not display an unverified assistance or deletion-request channel. Stopping is voluntary; closing the tab retains saved answers.
 
 ## 0b. Welcome / participation code (`WelcomeScreen`, `/start`)
 
@@ -106,11 +114,11 @@ Phone (360 px; one column, full-width buttons, the illustration under the call t
 │ ← Back                                   │
 │ Judging AI labels on social media posts  │
 ├──────────────────────────────────────────┤
-│ Read 24 made-up posts, each with an AI   │
+│ Read 8 made-up posts, each with an AI   │
 │ label, and decide if you agree. Short    │
 │ questions after each part.               │
 │                                          │
-│ About 15–20 minutes · desktop or phone   │
+│ Four parts · desktop or phone   │
 │                                          │
 │ Participation code                       │
 │ ┌──────────────────────────────────────┐ │
@@ -137,7 +145,7 @@ Phone (360 px; one column, full-width buttons, the illustration under the call t
 ├──────────────────────────────────────────┤
 │ You've already taken part. Thank you!    │
 │                                          │
-│ Questions? Contact: study email (TBD)    │
+│ You can close this page.                │
 └──────────────────────────────────────────┘
 ```
 
@@ -150,12 +158,12 @@ Phone (360 px; one column, full-width buttons, the illustration under the call t
 │ This study looks at how people use AI    │
 │ labels on social media posts.            │
 │                                          │
-│ • About 15–20 minutes, on your own       │
-│ • 24 made-up posts and short questions,  │
+│ • Four parts, on your own       │
+│ • 8 made-up posts and short questions,  │
 │   including how tense you felt           │
 │ • Voluntary: stop at any time            │
 │ • Stored under a number, not your name   │
-│ • Contact: study email (placeholder)     │
+│ • Saved answers remain if you stop      │
 │                                          │
 │ [ Read full consent details ▸ ]          │
 │                                          │
@@ -168,7 +176,7 @@ Phone (360 px; one column, full-width buttons, the illustration under the call t
 
 - The short text is always visible; "Read full consent details ▸" expands the full consent text in place. Continue enables only once the box is ticked, and logs `consent_given` and sets `consentAt`.
 - "I do not agree" goes straight to the Debrief (short version), and no trial data is recorded.
-- Self-guided wording: no "call the researcher" anywhere; questions go to the contact email placeholder. No back button and no link to `/admin`.
+- Self-guided wording: no "call the researcher" anywhere; the copy preserves the right to stop without promising unverified follow-up. No back button and no link to `/admin`.
 
 ## 2. Instructions (`InstructionsScreen`)
 
@@ -201,7 +209,7 @@ Phone (360 px; one column, full-width buttons, the illustration under the call t
 
 - One short screen: 3 bullets, then the practice post inline (details in §3). There is no 5 s reading lock any more.
 - The keyboard hint names the shortcuts once; trials repeat it in a small hint line. The text never says that labels may be wrong, and it is the same for every pid.
-- "Start the study" enables after the practice post has been answered, logs `practice_complete` and `block_start`, and opens post 1 of 24.
+- "Start the study" enables after the practice post has been answered, logs `practice_complete` and `block_start`, and opens post 1 of 8.
 
 ## 3. Practice post (inline on `InstructionsScreen`, §2)
 
@@ -246,7 +254,7 @@ The practice card from §2 in more detail:
 
 ```
 ┌──────────────────────────────────────────┐
-│ Post 14 of 24 · Part 3 of 4              │
+│ Post 6 of 8 · Part 3 of 4              │
 │ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░  │
 ├──────────────────────────────────────────┤
 │ ┌─ POST (PostCard) ────────────────────┐ │
@@ -270,10 +278,23 @@ The practice card from §2 in more detail:
 └──────────────────────────────────────────┘
 ```
 
-- The progress bar shows "Post n of 24" overall and "Part x of 4". `PostCard`, `LabelPanel`, [Fact sheet ▸] and the two buttons are identical in every condition. Only the explanation area changes, and its fixed height keeps the buttons in the same place. A verified account shows `✔` after the display name.
+- The progress bar shows "Post n of 8" overall and "Part x of 4". `PostCard`, `LabelPanel`, [Fact sheet ▸] and the two buttons are identical in every condition. Only the explanation area changes, and its fixed height keeps the buttons in the same place. A verified account shows `✔` after the display name.
 - Keyboard: `A` agree, `D` disagree, `F` fact sheet, `W` "Why?" (C only), `Esc` closes a panel, `1`–`7` confidence once the chips show. The hint line lists them; on phones it is hidden.
 - Logs `trial_shown` (sets `labelShownAt`), `decision_agree` / `decision_disagree` (sets `respondedAt`, `agreed`) and `visibility_hidden` / `visibility_visible`. `decisionTimeMs = decisionTimeRawMs - hiddenMs`.
 - Both buttons share one synchronous lock, and a click or key only counts after `trial_shown`. The confidence chips (§9) slide in on the same screen. The next post is prefetched while this one is shown.
+
+## 4a. Compact guidance for the first two posts of each part
+
+This is the requested interaction specification; verify the running app before calling it implemented. New sessions have only two posts per part, and both remain analysed trials, not extra practice. In legacy six-post parts, show the same cues only at positions 1 and 2 without changing later trials or saved state. Keep cues inline in a consistent location, visible without extra clicks, with no modal tour, forced wait or automatic panel opening. Avoid adding motion when the part changes; preserve visible focus, keyboard access and reduced-motion support.
+
+| Assigned condition | Post 1 cue | Post 2 reminder | What differs in this part |
+|---|---|---|---|
+| A | “Read the post and its label. You can open the fact sheet before deciding.” | “Agree or disagree, then rate how sure you are.” | Label-only baseline; fact sheet remains optional. |
+| B | “A short reason appears below the label. The fact sheet is available too.” | “Read the reason if useful, then decide.” | A visible scripted reason, with no extra control. |
+| C | “Use Why? to explore Source, Claim vs record and Wording, if useful.” | “Each row opens separately. You choose what to explore.” | Optional Why? and independent row expansion; preserve the true comparison. |
+| D | “The sentence below the label describes what would change the label.” | “Consider the if-statement, then decide.” | A scripted alternative scenario, with no new mandatory action. |
+
+Part numbers follow the participant's Williams order; Part 1 is not always A. Do not introduce a Why? button in A/B/D, force verification, reveal errors or change canonical explanation text to manufacture variety. All parts keep the same post, label, fact sheet and Agree/Disagree → confidence controls, common checking delay and Undo. The explanation area remains comparable across conditions; inspect wrappers and clipping before treating blank space as a bug. These interface differences motivate the within-person comparison; they are not findings that any interface helps. Condition-specific cue wording itself may influence behavior and must be documented as a limitation.
 
 ## 5. Explanation area variants (p15)
 
@@ -344,7 +365,7 @@ p15 is a `false_alarm` (`difficulty: subtle`): the post is TRUE (the March repor
 
 ```
 ┌──────────────────────────────────────────┐
-│ Part 3 of 4 · Post 2 of 6                │
+│ Part 3 of 4 · Post 2 of 2                │
 ├─────────────────┬────────────────────────┤
 │ (post, label,   │ FACT SHEET         [×] │
 │  explanation    │                        │
@@ -373,7 +394,7 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 
 ```
 ┌──────────────────────────────────────────┐
-│ Part 1 of 4 · Post 4 of 6                │
+│ Part 1 of 4 · Post 2 of 2                │
 ├──────────────────────────────────────────┤
 │ ┌─ POST ───────────────────────────────┐ │
 │ │ Riverton Community News ✔            │ │
@@ -413,7 +434,7 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 
 ```
 ┌──────────────────────────────────────────┐
-│ Post 14 of 24 · Part 3 of 4              │
+│ Post 6 of 8 · Part 3 of 4              │
 │ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░  │
 ├──────────────────────────────────────────┤
 │ ┌─ POST ───────────────────────────────┐ │
@@ -439,7 +460,7 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 
 ```
 ┌──────────────────────────────────────────┐
-│ Post 14 of 24 · Part 3 of 4              │
+│ Post 6 of 8 · Part 3 of 4              │
 │ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░  │
 ├──────────────────────────────────────────┤
 │ (post, label and explanation stay        │
@@ -459,7 +480,7 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 
 - Inline on the trial screen: after Agree or Disagree, the chosen button stays highlighted and locked, and the chip row slides in under it (no slide when `prefers-reduced-motion` is set). Chips are at least 44 px.
 - Confidence is **required**. Tapping a chip (or pressing `1`–`7`) shows "Saving… · Undo" for 1 s, then saves the trial and shows the next (prefetched) post. There is no Next button. Each chip choice logs `confidence_submit`; the value at submit is stored in `confidence` (1–7).
-- Undo within the 1 s window cancels the submit and lets the participant pick again. Post 6 of a part leads to the block survey.
+- Undo within the 1 s window cancels the submit and lets the participant pick again. Post 2 of a new-session part leads to the block survey.
 
 ## 10. Block survey (`BlockSurveyScreen`)
 
@@ -492,7 +513,7 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 
 - One compact screen. The 12 Jian items are a matrix (rows = items, columns = 1–7); the short stems here stand for the full item text from `surveyItems.json`, which the app shows. Then the 2 fairness items, `tension` (1–7 chips) and `frustrationTlx` (NASA-TLX frustration, 0–100 in steps of 5). Items 1–5 are reverse-scored by the server.
 - Keyboard: `▶` marks the focused row; a number key answers it and moves focus to the next row. The counter "x of 16 answered" updates live, and Continue enables only at 16 of 16.
-- The slider starts at 50 but only counts once moved (`frustrationTlxTouched`). Logs `block_survey_submit`; `nWrongDetected` is computed by the server. The heading says "Part N" and never names the condition. On phones each trust item becomes its own chip row (§15).
+- The slider starts at 50 but only counts once moved (`frustrationTlxTouched`). Logs `block_survey_submit`; `nWrongDetected` is computed by the server. Across all four parts this remains **64 required ratings**: 48 trust, 8 fairness, 4 tension and 4 frustration, in addition to decisions, confidence, practice and exit questions. Pilot this burden and total duration; fewer posts alone do not establish a short study. The heading says "Part N" and never names the condition. On phones each trust item becomes its own chip row (§15).
 
 ## 11. Exit survey (`ExitSurveyScreen`)
 
@@ -524,7 +545,7 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 
 - One screen. Questions with 6 or fewer options are chips or radios; only education (more options) stays a select. Required: social media use, label exposure and preferred part. Parts are shown in the session's own order, and the export maps them back to A/B/C/D.
 - The comment is capped at 1000 characters.
-- Logs `exit_survey_submit` and sets `status = completed` and `completedAt`. Once the server has saved the survey and the last events are flushed, the client removes every `xai-study:` key from `localStorage` and `sessionStorage` (except `xai-study:adminToken`) and then shows the debrief. Nothing about the participant is left in the browser.
+- Logs `exit_survey_submit` and sets `status = completed` and `completedAt`. Once the server has saved the survey and the last events are flushed, the client removes every `xai-study:` key from `localStorage` and `sessionStorage` (except `xai-study:adminToken`) and then shows the debrief. Participant storage keys are removed; the debrief uses session state in memory.
 
 ## 12. Debrief (`DebriefScreen`)
 
@@ -534,11 +555,11 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 ├──────────────────────────────────────────┤
 │ • The AI labels were scripted by the     │
 │   research team, not made by a real AI.  │
-│ • 8 of the 24 labels were wrong on       │
-│   purpose: 4 true posts were labeled     │
-│   misleading, 4 false posts accurate.    │
-│ • Agreeing with a wrong label is common  │
-│   and says nothing bad about you.        │
+│ • 4 of the 8 labels were wrong on       │
+│   purpose: 2 true posts were labeled     │
+│   misleading, 2 false posts accurate.    │
+│ • This task is not a test of your        │
+│   ability.                              │
 │ • Riverton, every account and agency     │
 │   were made up.                          │
 │                                          │
@@ -547,12 +568,12 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 │ │ Tap water met all 12 limits in March │ │
 │ │ → TRUE. All 12 tests were within     │ │
 │ │   safety limits.                     │ │
-│ │ ⋮ (all 8 wrong-label posts)          │ │
+│ │ ⋮ (4 assigned wrong-label posts)     │ │
 │ └──────────────────────────────────────┘ │
 │                                          │
 │ Your participant number: 7               │
-│ To withdraw your data or ask a           │
-│ question, email: study email (TBD)       │
+│ Closing this page does not delete       │
+│ answers already saved.                  │
 │ You can close this tab now.              │
 ├──────────────────────────────────────────┤
 │ Shared device? Hand it to the next       │
@@ -561,9 +582,9 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 └──────────────────────────────────────────┘
 ```
 
-- Self-guided: no "call the researcher". The participant number is shown so a withdrawal request by email can name the session; the contact address is a placeholder until ethics approves it.
-- "Show the real facts" lists all 8 wrong-label posts (p03, p04, p09, p10, p15, p16, p21, p22), whichever this participant saw, so no false claim goes uncorrected. Logs `session_complete`.
-- No back button. A declined consent lands here too, with only the thank-you and contact lines.
+- Self-guided: the participant number identifies the displayed assignment, but a reused pid is not a unique session identifier. No verified remote deletion-request channel or self-service deletion control is established; do not promise one. Stopping remains voluntary and does not erase saved responses.
+- "Show the real facts" lists the four wrong-label posts actually assigned from the bank (p03, p04, p09, p10, p15, p16, p21, p22) in a new session, or all eight in a legacy session, so each assigned wrong label receives a correction. Logs `session_complete`.
+- No back button. A declined consent lands here too, with only a thank-you and the right to stop; do not imply trials were completed.
 - The debrief is drawn from data already in memory (pid, wrong-label facts); browser storage has been cleared by the time it shows. **Next participant** returns to the landing page (`/`) with no **Continue** banner, and the next person taps **Take part** for an empty code field; a reload of the page does the same.
 
 ## 13. Admin (`AdminScreen`, `/admin`, opened by URL only)
@@ -587,14 +608,14 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 │ Balance ABDC 3 · BCAD 3 · CDBA 3 · DACB 2│
 ├──────────────────────────────────────────┤
 │ pid status    order prog  last act.      │
-│  12 in_prog.  DACB  9/24  2 min  [Ab]    │
-│  11 completed CDBA 24/24  1 h            │
-│   4 abandoned DACB  3/24  3 h    [Del]   │
+│  12 in_prog.  DACB   3/8  2 min  [Ab]    │
+│  11 completed CDBA   8/8  1 h            │
+│   4 abandoned DACB   1/8  3 h    [Del]   │
 ├──────────────────────────────────────────┤
 │ Export                                   │
 │ participants.csv  Start here       32 [↓]│
 │   One analysis-ready row per session     │
-│ trials.csv        Per trial       768 [↓]│
+│ trials.csv        Per trial       256 [↓]│
 │ surveys.csv       Block surveys   128 [↓]│
 │ events.csv        Interactions   9412 [↓]│
 │ exit.csv          Exit surveys     32 [↓]│
@@ -607,15 +628,15 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 ```
 
 - **Data and KPIs only: there is no start-session form.** Refreshes every 15 s from `GET /api/admin/kpis` and `GET /api/admin/sessions`. KPI definitions are in `data-model.md` §8.6; they use completed sessions only and exclude pilot pids ≥ 900.
-- The condition table uses small inline SVG bars (no chart library): detection, false-alarm vs miss detection, trust and tension. The balance row shows completed sessions per Williams order.
-- Sessions table: pid, status, order, progress x/24, last activity, with **Mark abandoned** (`[Ab]`) and **Delete (withdrawal)** (`[Del]`, typed confirmation). The export panel lists all seven files from `GET /api/admin/export`, each with a one-line description, its current row count and a download link (`[↓]`). `participants.csv` is marked **Start here** (one row per participant) and `kpis.csv` **Dashboard numbers**. **Download all CSVs** fetches the six CSVs one after another; ticking "Include raw JSON" adds `sessions.json`. If the index fails to load, the seven links still show, without counts.
+- Dashboard numbers above are illustrative, not study findings. Show cohort/version explicitly and keep eight-post and 24-post outcomes separate. The condition table uses small inline SVG bars (no chart library): detection, false-alarm vs miss detection, trust and tension. The balance row shows completed sessions per Williams order.
+- Sessions table: pid, status, order, progress x/8 (x/24 for legacy sessions), last activity, with **Mark abandoned** (`[Ab]`) and **Delete (withdrawal)** (`[Del]`, typed confirmation). The export panel lists all seven files from `GET /api/admin/export`, each with a one-line description, its current row count and a download link (`[↓]`). `participants.csv` is marked **Start here** (one row per session) and `kpis.csv` **Dashboard numbers**. **Download all CSVs** fetches the six CSVs one after another; ticking "Include raw JSON" adds `sessions.json`. If the index fails to load, the seven links still show, without counts.
 - Without `ADMIN_TOKEN` the page works only on the server machine (loopback); from anywhere else the API returns 403 and the page asks for the token. "Preview pid" shows any pid's assignment without creating anything.
 
 ## 14. Consequence banner (optional, off by default)
 
 ```
 ┌──────────────────────────────────────────┐
-│ Part 3 of 4 · Post 2 of 6                │
+│ Part 3 of 4 · Post 2 of 2                │
 ├──────────────────────────────────────────┤
 │ ┌─ optional, off by default ───────────┐ │
 │ │ ⓘ Posts you agree are accurate stay  │ │
@@ -638,7 +659,7 @@ The trial on a phone. Everything stacks in one column; the progress bar stays at
 
 ```
 ┌──────────────────────────────────────────┐
-│ Post 14/24 · Part 3/4                    │
+│ Post 6/8 · Part 3/4                    │
 │ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░░░░░░░░░░░░░░░░  │
 ├──────────────────────────────────────────┤
 │ ┌──────────────────────────────────────┐ │
@@ -707,8 +728,8 @@ flowchart TD
     Trial -->|"Why? (C only)"| Factors["Factor rows expanded"]
     Factors --> Trial
     Trial -->|"Agree / Disagree, A or D"| Conf["Inline confidence chips 1-7, 1 s Undo"]
-    Conf -->|"posts 1-5"| Checking
-    Conf -->|"post 6"| Survey["Block survey"]
+    Conf -->|"post 1 (legacy: 1–5)"| Checking
+    Conf -->|"post 2 (legacy: 6)"| Survey["Block survey"]
     Survey -->|"parts 1-3"| Checking
     Survey -->|"part 4"| Exit["Exit survey"]
     Exit --> Debrief

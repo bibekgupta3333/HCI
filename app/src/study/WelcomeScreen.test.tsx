@@ -74,10 +74,11 @@ describe("WelcomeScreen", () => {
   it("shows the title, description and code field with Start", () => {
     renderApp();
     expect(screen.getByRole("heading", { name: "Post Review Study" })).toBeInTheDocument();
-    expect(screen.getByText(/15–20 minutes/)).toBeInTheDocument();
+    expect(screen.getByText(/8 short made-up social media posts across 4 parts/)).toBeInTheDocument();
+    expect(screen.getByText(/Take it at your own pace/)).toBeInTheDocument();
     const input = screen.getByLabelText("Your participation code");
     expect(input).toHaveFocus();
-    expect(screen.getByText(/we store a scrambled version, never the code itself/)).toBeInTheDocument();
+    expect(screen.getByText(/We store a scrambled version, never the code itself/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
     expect(screen.queryByRole("link", { name: /admin/i })).not.toBeInTheDocument();
   });

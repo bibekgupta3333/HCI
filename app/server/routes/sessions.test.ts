@@ -5,6 +5,8 @@ import type { Cursor, SessionView, TrialSubmission, BlockSurveySubmission } from
 import { openDb } from "../db/db";
 import { createApp } from "../app";
 import { assignmentPreview } from "./participant";
+import { assignFromBank } from "../../shared/counterbalance";
+import { createSession, hashParticipantCode, setStatus } from "../db/repo";
 
 // ---------- synthetic post bank (24 posts, 6 per set, 2 wrong labels per set) ----------
 const SETS: SetId[] = ["S1", "S2", "S3", "S4"];
@@ -70,6 +72,13 @@ async function newSession(code = `person-${++codeCounter}@uni.edu`): Promise<Ses
 const start = (participantCode: unknown, extra: object = {}) =>
   request(app).post("/api/sessions").send({ participantCode, ...extra });
 
+function legacySession(code = "legacy-session"): SessionView {
+  return createSession(db, assignFromBank(77, bank), {
+    consequenceBanner: false, anxiety: false, postBankHash: "legacy-bank", appVersion: "legacy",
+    participantHash: hashParticipantCode("test-salt", code),
+  });
+}
+
 function trialBody(s: SessionView, block: number, pos: number, over: Partial<TrialSubmission> = {}): TrialSubmission {
   const plan = s.blocks[block - 1];
   const isC = plan.condition === "C";
@@ -106,7 +115,7 @@ const surveyBody = (block: number): BlockSurveySubmission => ({
 });
 
 async function completeBlock(s: SessionView, block: number, agreeFn: (postId: string) => boolean = () => true) {
-  for (let pos = 1; pos <= 6; pos++) {
+  for (let pos = 1; pos <= s.blocks[block - 1].postOrder.length; pos++) {
     const body = trialBody(s, block, pos);
     body.agreed = agreeFn(body.postId);
     const r = await request(app).post(`/api/sessions/${s.sessionId}/trials`).send(body);
@@ -369,7 +378,7 @@ describe("trials", () => {
   });
 
   it("timingFlag when decision time > 120 s; trialIndex for later blocks", async () => {
-    const s = await newSession();
+    const s = legacySession();
     const r = await request(app).post(`/api/sessions/${s.sessionId}/trials`)
       .send(trialBody(s, 3, 4, { decisionTimeRawMs: 120_001 }));
     expect(r.status).toBe(201);
@@ -402,7 +411,7 @@ describe("trials", () => {
   });
 
   it("position 6 moves cursor to block_survey and sets ended_at", async () => {
-    const s = await newSession();
+    const s = legacySession();
     for (let pos = 1; pos <= 5; pos++) await request(app).post(`/api/sessions/${s.sessionId}/trials`).send(trialBody(s, 1, pos));
     const r = await request(app).post(`/api/sessions/${s.sessionId}/trials`).send(trialBody(s, 1, 6));
     expect(r.body.cursor).toEqual({ blockIndex: 1, positionInBlock: 6, phase: "block_survey" });
@@ -432,8 +441,82 @@ describe("events", () => {
 });
 
 describe("block surveys and exit", () => {
-  it("requires 6 trials, scores, counts detections, advances", async () => {
+  it.each([2, 6])("completes and resumes the stored %i-post block protocol through HTTP", async (postsPerBlock) => {
+    const code = `protocol-${postsPerBlock}`;
+    const s = postsPerBlock === 6 ? legacySession(code) : await newSession(code);
+    const plans = s.blocks;
+    expect(plans.map((b) => b.postOrder.length)).toEqual(Array(4).fill(postsPerBlock));
+    expect((await request(app).post(`/api/sessions/${s.sessionId}/consent`)).status).toBe(200);
+    expect((await request(app).put(`/api/sessions/${s.sessionId}/cursor`)
+      .send({ blockIndex: 1, positionInBlock: 1, phase: "trial" })).status).toBe(204);
+    const exit = { ageRange: "25-34", gender: null, education: "bachelors", socialMediaUse: "daily",
+      labelExposure: "sometimes", preferredCondition: "C", comment: "" };
+    for (const plan of plans) {
+      const block = plan.blockIndex;
+      for (let pos = 1; pos <= postsPerBlock; pos++) {
+        const presentation = await request(app).get(`/api/sessions/${s.sessionId}/presentation/${block}/${pos}`);
+        expect(presentation.status).toBe(200);
+        expect(presentation.body.postId).toBe(plan.postOrder[pos - 1]);
+        expect(presentation.body).not.toHaveProperty("groundTruth");
+        const r = await request(app).post(`/api/sessions/${s.sessionId}/trials`)
+          .send(trialBody(s, block, pos, { agreed: byId.get(plan.postOrder[pos - 1])!.isAiCorrect }));
+        expect(r.status).toBe(201);
+        expect(trialRow(s.sessionId, block, pos).trial_index).toBe((block - 1) * postsPerBlock + pos);
+        expect(r.body.cursor).toEqual({ blockIndex: block,
+          positionInBlock: pos === postsPerBlock ? pos : pos + 1,
+          phase: pos === postsPerBlock ? "block_survey" : "trial" });
+        if (pos < postsPerBlock) {
+          expect((await request(app).post(`/api/sessions/${s.sessionId}/block-surveys`).send(surveyBody(block))).status).toBe(400);
+        }
+        if (block === 1 && pos === 1) {
+          const resumed = await start(code);
+          expect(resumed.status).toBe(200);
+          expect(resumed.body.sessionId).toBe(s.sessionId);
+          expect(resumed.body.blocks).toEqual(plans);
+          expect(resumed.body.cursor).toEqual(r.body.cursor);
+        }
+      }
+      const survey = await request(app).post(`/api/sessions/${s.sessionId}/block-surveys`).send(surveyBody(block));
+      expect(survey.status).toBe(201);
+      expect(survey.body.nWrongDetected).toBe(postsPerBlock === 2 ? 1 : 2);
+      expect(survey.body.cursor).toEqual(block < 4
+        ? { blockIndex: block + 1, positionInBlock: 1, phase: "trial" }
+        : { blockIndex: 4, positionInBlock: postsPerBlock, phase: "exit_survey" });
+      if (block < 4) expect((await request(app).post(`/api/sessions/${s.sessionId}/exit-survey`).send(exit)).status).toBe(400);
+    }
+    const done = await request(app).post(`/api/sessions/${s.sessionId}/exit-survey`).send(exit);
+    expect(done.status).toBe(200);
+    expect(done.body.status).toBe("completed");
+    expect(done.body.cursor).toEqual({ blockIndex: 4, positionInBlock: postsPerBlock, phase: "done" });
+    expect(done.body.blocks).toEqual(plans);
+    expect((db.prepare("SELECT COUNT(*) AS n FROM trials WHERE session_id = ?").get(s.sessionId) as { n: number }).n).toBe(postsPerBlock * 4);
+    expect((await start(code)).status).toBe(409);
+  });
+
+  it("rejects positions outside a short stored plan without saving a trial or cursor", async () => {
     const s = await newSession();
+    expect((await request(app).get(`/api/sessions/${s.sessionId}/presentation/1/3`)).status).toBe(404);
+    expect((await request(app).post(`/api/sessions/${s.sessionId}/trials`)
+      .send(trialBody(s, 1, 3, { postId: bank.posts[0].id }))).status).toBe(400);
+    expect((await request(app).put(`/api/sessions/${s.sessionId}/cursor`)
+      .send({ blockIndex: 1, positionInBlock: 3, phase: "trial" })).status).toBe(400);
+    expect((db.prepare("SELECT COUNT(*) AS n FROM trials").get() as { n: number }).n).toBe(0);
+    expect((await request(app).get(`/api/sessions/${s.sessionId}`)).body.cursor).toEqual(s.cursor);
+  });
+
+  it("derives trial indices from preceding stored block lengths", async () => {
+    const assignment = assignFromBank(78, bank);
+    assignment.blocks[1].postOrder = assignment.blocks[1].postOrder.slice(0, 2);
+    const s = createSession(db, assignment, {
+      consequenceBanner: false, anxiety: false, postBankHash: "test", appVersion: "test",
+    });
+    const r = await request(app).post(`/api/sessions/${s.sessionId}/trials`).send(trialBody(s, 3, 1));
+    expect(r.status).toBe(201);
+    expect(trialRow(s.sessionId, 3, 1).trial_index).toBe(9);
+  });
+
+  it("requires 6 trials, scores, counts detections, advances", async () => {
+    const s = legacySession();
     expect((await request(app).post(`/api/sessions/${s.sessionId}/block-surveys`).send(surveyBody(1))).status).toBe(400);
     // disagree with every wrong label -> both detected
     await completeBlock(s, 1, (id) => byId.get(id)!.isAiCorrect);
@@ -470,7 +553,7 @@ describe("block surveys and exit", () => {
     expect((await request(app).post(`/api/sessions/${s.sessionId}/exit-survey`).send(exit)).status).toBe(400);
     await completeBlock(s, 4);
     const last = await request(app).post(`/api/sessions/${s.sessionId}/block-surveys`).send(surveyBody(4));
-    expect(last.body.cursor).toEqual({ blockIndex: 4, positionInBlock: 6, phase: "exit_survey" });
+    expect(last.body.cursor).toEqual({ blockIndex: 4, positionInBlock: 2, phase: "exit_survey" });
     expect((await request(app).post(`/api/sessions/${s.sessionId}/exit-survey`).send({ ...exit, ageRange: "99" })).status).toBe(400);
     const done = await request(app).post(`/api/sessions/${s.sessionId}/exit-survey`).send(exit);
     expect(done.status).toBe(200);
@@ -480,5 +563,27 @@ describe("block surveys and exit", () => {
     // completed session rejects further writes; the pid stays taken; the same code is refused
     expect((await request(app).post(`/api/sessions/${s.sessionId}/trials`).send(trialBody(s, 1, 1))).status).toBe(409);
     expect((await newSession()).pid).not.toBe(s.pid);
+  });
+});
+
+describe("participant cancellation", () => {
+  it("preserves saved trials, ends without admin permission and blocks repeat participation", async () => {
+    const s = await newSession("cancel-person");
+    await request(app).post(`/api/sessions/${s.sessionId}/trials`).send(trialBody(s, 1, 1)).expect(201);
+    const ended = await request(app).post(`/api/sessions/${s.sessionId}/cancel`).expect(200);
+    expect(ended.body).toMatchObject({ status: "abandoned", cursor: { phase: "done" } });
+    expect(db.prepare("SELECT COUNT(*) AS n FROM trials WHERE session_id=?").get(s.sessionId)).toEqual({ n: 1 });
+    expect(db.prepare("SELECT COUNT(*) AS n FROM exit_surveys WHERE session_id=?").get(s.sessionId)).toEqual({ n: 0 });
+    await request(app).post(`/api/sessions/${s.sessionId}/cancel`).expect(200);
+    await request(app).post(`/api/sessions/${s.sessionId}/trials`).send(trialBody(s, 1, 2)).expect(409);
+    await start("cancel-person").expect(409);
+  });
+
+  it("does not change completed sessions and returns 404 for an unknown session", async () => {
+    const s = await newSession();
+    setStatus(db, s.sessionId, "completed", new Date().toISOString());
+    await request(app).post(`/api/sessions/${s.sessionId}/cancel`).expect(409);
+    expect(db.prepare("SELECT status FROM sessions WHERE session_id=?").get(s.sessionId)).toEqual({ status: "completed" });
+    await request(app).post("/api/sessions/not-a-session/cancel").expect(404);
   });
 });

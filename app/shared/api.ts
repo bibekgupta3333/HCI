@@ -9,7 +9,7 @@ export interface BlockPlan {
   blockIndex: 1 | 2 | 3 | 4;
   condition: Condition;
   set: SetId;
-  postOrder: string[]; // 6 post ids, shuffled, wrong labels never both in positions 1-2
+  postOrder: string[]; // 2 distinct ids for new short sessions; 6 for saved legacy sessions
 }
 
 export interface Assignment {
@@ -111,7 +111,9 @@ export interface AdminSessionRow {
   status: SessionStatus;
   conditionOrder: string; // e.g. "CDBA"
   setRotation: number;
-  trialsSaved: number;    // 0-24
+  trialsSaved: number;    // response count, compare with plannedTrials
+  plannedTrials?: number; // derived from saved blocks (8 short, 24 legacy)
+  studyVariant?: string; // short-8, legacy-24, or custom-N
   surveysSaved: number;   // 0-4
   startedAt: string;
   completedAt: string | null;

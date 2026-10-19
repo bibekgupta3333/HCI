@@ -37,6 +37,11 @@ export default function DebriefScreen() {
   const navigate = useNavigate();
   const [showFacts, setShowFacts] = useState(false);
   const pid = session?.pid ?? null;
+  const exitedEarly = session?.status === "abandoned";
+  const totalPosts = session?.blocks.reduce((total, block) => total + block.postOrder.length, 0) || 8;
+  const wrongLabels = totalPosts === 24 ? 8 : totalPosts / 2;
+  const assignedPostIds = new Set(session?.blocks.flatMap((block) => block.postOrder) ?? []);
+  const facts = DEBRIEF_FACTS.filter((fact) => assignedPostIds.has(fact.postId));
 
   useEffect(() => {
     clearParticipantStorage(); // safety net; idempotent
@@ -50,30 +55,31 @@ export default function DebriefScreen() {
 
   return (
     <main className="screen debrief-screen">
-      <h1>Thank you!</h1>
-      <p className="debrief-lead">That's the end of the study. Here is what it was really about.</p>
+      <h1>{exitedEarly ? "You've left the study" : "Thank you!"}</h1>
+      <p className="debrief-lead">{exitedEarly
+        ? "Your session has ended. Answers already saved are kept; unfinished answers are not submitted by exiting. Here is what the study was about."
+        : "That's the end of the study. Here is what it was really about."}</p>
       <ul className="debrief-points">
         <li>
           <strong>None of these posts were real.</strong> Riverton, Alder County, the people, the
           accounts and the agencies were all made up by our team. Some posts made claims that were
-          not true, and they are not true anywhere.
+          not true within this fictional setting.
         </li>
         <li>
           <strong>The AI labels were scripted.</strong> The AI tool was not a real AI. Every label
           and every reason it gave was written in advance by our study team.
         </li>
         <li>
-          <strong>8 of the 24 labels were deliberately wrong.</strong> There were two kinds of
+          <strong>{exitedEarly ? "In the planned session, " : ""}{wrongLabels} of the {totalPosts} labels were deliberately wrong.</strong> There were two kinds of
           mistake. A <strong>false alarm</strong> is when a true post is labeled "Likely
-          misleading" (4 posts). A <strong>miss</strong> is when a false post is labeled "Likely
-          accurate" (4 posts). We wanted to see whether people notice each kind, and whether the
+          misleading". A <strong>miss</strong> is when a false post is labeled "Likely
+          accurate". We wanted to see whether people notice each kind, and whether the
           way the AI explains itself makes a difference. That's why the screen looked a little
           different in each of the four parts.
         </li>
         <li>
-          Agreeing with some of the wrong labels is very common and has been found in many
-          studies, especially when a label says a post is accurate. It says nothing bad about you;
-          it's exactly what we're studying.
+          This study examines how people respond to labels and explanations. Your answers are
+          not a judgment of your ability.
         </li>
         <li>
           We didn't tell you this at the start because knowing that mistakes were planted would
@@ -94,7 +100,7 @@ export default function DebriefScreen() {
       {showFacts && (
         <section id="debrief-facts" className="debrief-facts" aria-label="The real facts">
           <ul>
-            {DEBRIEF_FACTS.map((f) => (
+            {facts.map((f) => (
               <li key={f.postId} data-post-id={f.postId}>
                 <strong>{f.claim}</strong>
                 <br />→ {f.verdict}. {f.fact}
@@ -114,13 +120,12 @@ export default function DebriefScreen() {
 
       <h2>Your data</h2>
       <p>
-        Now that you know the real purpose, you can still ask us to delete your answers, without
-        any penalty. To withdraw, email [PLACEHOLDER: researcher contact email] before
-        {" "}[PLACEHOLDER: withdrawal deadline], quoting your participant number
-        {pid !== null ? <>: <strong className="debrief-pid">{pid}</strong></> : null}.
-        {pid !== null && " You may want to note it down now."}
+        Your answers have been saved on the study server. This browser's study session storage
+        has been cleared so another participant can start. Clearing browser storage does not delete
+        your saved answers.
+        {pid !== null && <> Your participant number: <strong className="debrief-pid">{pid}</strong>.</>}
       </p>
-      <p>Concerns about your rights: [PLACEHOLDER: IRB office contact].</p>
+      <p>HCI experiment conducted as part of graduate study at Florida Polytechnic University.</p>
 
       <p className="debrief-close">
         <strong>You can close this page now.</strong>

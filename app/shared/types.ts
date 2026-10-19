@@ -151,7 +151,7 @@ export interface Trial {
   trialId: string;            // `${pid}-${blockIndex}-${positionInBlock}`
   blockIndex: 1 | 2 | 3 | 4;
   positionInBlock: 1 | 2 | 3 | 4 | 5 | 6;
-  trialIndex: number;         // 1-24
+  trialIndex: number;         // 1-8 short / 1-24 saved legacy
   postId: string;
   condition: Condition;
   set: SetId;
@@ -206,7 +206,7 @@ export interface Block {
   blockIndex: 1 | 2 | 3 | 4;
   condition: Condition;
   set: SetId;
-  postOrder: string[];        // 6 post ids
+  postOrder: string[];        // 2 short / 6 saved legacy post ids
   startedAt: string | null;
   endedAt: string | null;
   trials: Trial[];

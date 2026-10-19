@@ -2,8 +2,8 @@
 import express from "express";
 import type Database from "better-sqlite3";
 import type { Post, PostBank } from "../../shared/types";
-import type { SessionView, TrialSaved } from "../../shared/api";
-import { assignFromBank } from "../../shared/counterbalance";
+import type { Cursor, SessionView, TrialSaved } from "../../shared/api";
+import { assignShortFromBank } from "../../shared/counterbalance";
 import { buildPresentation } from "../../shared/labelEngine";
 import {
   getSession, getTrials, hashParticipantCode, incrementResume, insertBlockSurvey, insertEvents,
@@ -62,7 +62,7 @@ export function sessionsRouter(deps: SessionsDeps): express.Router {
     const result = startOrResumeSession(db, {
       participantHash: hashParticipantCode(participantSalt, code),
       staleMinutes,
-      assign: (pid) => assignFromBank(pid, bank),
+      assign: (pid) => assignShortFromBank(pid, bank),
       opts: { consequenceBanner: o.consequenceBanner === true, anxiety: false, postBankHash, appVersion },
     });
     switch (result.kind) {
@@ -84,6 +84,18 @@ export function sessionsRouter(deps: SessionsDeps): express.Router {
     res.json(load(s.sessionId));
   });
 
+  // Voluntary participant exit; saved responses remain, and repeat exit requests are safe.
+  router.post("/:id/cancel", (req, res) => {
+    const s = load(req.params.id);
+    if (s.status === "completed") throw new HttpError(409, "conflict", "session is completed");
+    db.transaction(() => {
+      if (s.status === "in_progress") setStatus(db, s.sessionId, "abandoned", new Date().toISOString());
+      updateCursor(db, s.sessionId, { ...s.cursor, phase: "done" });
+      touchActivity(db, s.sessionId);
+    })();
+    res.json(load(s.sessionId));
+  });
+
   router.post("/:id/consent", (req, res) => {
     const s = loadActive(req.params.id);
     if (!s.consentAt) recordConsent(db, s.sessionId, new Date().toISOString());
@@ -96,9 +108,10 @@ export function sessionsRouter(deps: SessionsDeps): express.Router {
     const s = load(req.params.id);
     const block = Number(req.params.block);
     const pos = Number(req.params.pos);
-    if (!Number.isInteger(block) || block < 1 || block > 4 || !Number.isInteger(pos) || pos < 1 || pos > 6)
+    if (!Number.isInteger(block) || block < 1 || block > 4 || !Number.isInteger(pos) || pos < 1)
       throw notFound("block or position out of range");
     const plan = blockPlan(s, block);
+    if (pos > plan.postOrder.length) throw notFound("position out of range for block plan");
     const post = postsById.get(plan.postOrder[pos - 1]);
     if (!post) throw notFound("post not found in bank");
     res.json(buildPresentation(post, plan.condition));
@@ -108,14 +121,17 @@ export function sessionsRouter(deps: SessionsDeps): express.Router {
     const s = loadActive(req.params.id);
     const sub = validateTrialSubmission(req.body);
     const plan = blockPlan(s, sub.blockIndex);
+    if (sub.positionInBlock > plan.postOrder.length)
+      throw new ValidationError("positionInBlock is outside the saved block plan");
     const post = postsById.get(plan.postOrder[sub.positionInBlock - 1]);
     if (!post) throw new HttpError(500, "invariant", "planned post missing from bank");
-    const trial = deriveTrial(s.pid, plan, post, sub);
-    const cursor = cursorAfterTrial(sub.blockIndex, sub.positionInBlock);
+    const offset = s.blocks.filter((b) => b.blockIndex < sub.blockIndex).reduce((n, b) => n + b.postOrder.length, 0);
+    const trial = deriveTrial(s.pid, plan, post, sub, offset);
+    const cursor = cursorAfterTrial(sub.blockIndex, sub.positionInBlock, plan.postOrder.length);
     db.transaction(() => {
       insertTrial(db, s.sessionId, trial); // ConflictError on duplicate -> 409
       markBlockStarted.run(trial.labelShownAt, s.sessionId, trial.blockIndex);
-      if (trial.positionInBlock === 6) markBlockEnded.run(trial.respondedAt, s.sessionId, trial.blockIndex);
+      if (trial.positionInBlock === plan.postOrder.length) markBlockEnded.run(trial.respondedAt, s.sessionId, trial.blockIndex);
       updateCursor(db, s.sessionId, cursor);
       touchActivity(db, s.sessionId);
     })();
@@ -141,7 +157,10 @@ export function sessionsRouter(deps: SessionsDeps): express.Router {
 
   router.put("/:id/cursor", (req, res) => {
     const s = loadActive(req.params.id);
-    updateCursor(db, s.sessionId, validateCursor(req.body));
+    const cursor = validateCursor(req.body);
+    if (cursor.positionInBlock > blockPlan(s, cursor.blockIndex).postOrder.length)
+      throw new ValidationError("positionInBlock is outside the saved block plan");
+    updateCursor(db, s.sessionId, cursor);
     touchActivity(db, s.sessionId);
     res.status(204).end();
   });
@@ -151,10 +170,10 @@ export function sessionsRouter(deps: SessionsDeps): express.Router {
     const sub = validateBlockSurvey(req.body);
     const plan = blockPlan(s, sub.blockIndex);
     const blockTrials = getTrials(db, s.sessionId).filter((t) => t.blockIndex === sub.blockIndex);
-    if (blockTrials.length !== 6)
-      throw new ValidationError(`block ${sub.blockIndex} has ${blockTrials.length} of 6 trials saved`);
+    if (blockTrials.length !== plan.postOrder.length)
+      throw new ValidationError(`block ${sub.blockIndex} has ${blockTrials.length} of ${plan.postOrder.length} trials saved`);
     const survey = scoreBlockSurvey(sub, plan.condition, blockTrials, TRUST_ITEM_IDS, new Date().toISOString());
-    const cursor = cursorAfterSurvey(sub.blockIndex);
+    const cursor = cursorAfterSurvey(sub.blockIndex, plan.postOrder.length);
     db.transaction(() => {
       insertBlockSurvey(db, s.sessionId, survey); // ConflictError on duplicate -> 409
       updateCursor(db, s.sessionId, cursor);
@@ -172,7 +191,7 @@ export function sessionsRouter(deps: SessionsDeps): express.Router {
     db.transaction(() => {
       insertExitSurvey(db, s.sessionId, exitWithTimestamp(sub, now));
       setStatus(db, s.sessionId, "completed", now);
-      updateCursor(db, s.sessionId, { blockIndex: 4, positionInBlock: 6, phase: "done" });
+      updateCursor(db, s.sessionId, { blockIndex: 4, positionInBlock: blockPlan(s, 4).postOrder.length as Cursor["positionInBlock"], phase: "done" });
       touchActivity(db, s.sessionId, now);
     })();
     res.json(load(s.sessionId));

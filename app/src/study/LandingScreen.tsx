@@ -14,7 +14,7 @@ import { getStoredSessionId, useStudy } from "../state/StudyContext";
 import LandingIllustration from "../components/LandingIllustration";
 
 const FAQ: ReadonlyArray<{ q: string; a: string }> = [
-  { q: "How long does it take?", a: "About 15–20 minutes." },
+  { q: "How long does it take?", a: "A short study with 8 posts across 4 parts and a questionnaire after each part." },
   { q: "Do I need to know about AI?", a: "No. No experience with AI or social media is needed." },
   { q: "Can I stop?", a: "Yes, at any time, with no penalty." },
   {
@@ -98,7 +98,7 @@ export default function LandingScreen(): JSX.Element {
             <li className="landing__step">
               <span className="landing__step-num" aria-hidden="true">2</span>
               <span className="landing__step-text">
-                Read 24 short made-up posts and say whether you agree with each AI label.
+                Read 8 short made-up posts across 4 parts and say whether you agree with each AI label.
               </span>
             </li>
             <li className="landing__step">
@@ -106,7 +106,7 @@ export default function LandingScreen(): JSX.Element {
               <span className="landing__step-text">Answer a few quick questions.</span>
             </li>
           </ol>
-          <p className="landing__note">It takes about 15–20 minutes and works on a phone or computer.</p>
+          <p className="landing__note">A short study that works on a phone or computer. Take it at your own pace.</p>
         </section>
 
         <section className="landing__section" aria-labelledby="who-title">
@@ -125,10 +125,10 @@ export default function LandingScreen(): JSX.Element {
             Your privacy
           </h2>
           <ul className="landing__list">
-            <li>Taking part is anonymous.</li>
+            <li>We don't ask for your name. Responses are linked to a study session.</li>
             <li>We only keep a scrambled version of your code, never the code itself.</li>
             <li>You can stop at any time.</li>
-            <li>Questions? Contact [PLACEHOLDER: researcher contact email].</li>
+            <li>Answers already saved remain on the study server if you stop.</li>
           </ul>
         </section>
 
@@ -146,7 +146,7 @@ export default function LandingScreen(): JSX.Element {
       </main>
 
       <footer className="landing__footer">
-        <p>CEN5728 Advanced HCI · Group 4 · [PLACEHOLDER: institution]</p>
+        <p>HCI experiment conducted as part of graduate study at Florida Polytechnic University.</p>
       </footer>
     </div>
   );

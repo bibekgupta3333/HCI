@@ -81,16 +81,18 @@ describe("LandingScreen", () => {
       expect(screen.getByRole("heading", { level: 2, name })).toBeInTheDocument();
     }
     expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
-    expect(screen.getByRole("contentinfo")).toHaveTextContent("CEN5728 Advanced HCI · Group 4");
+    expect(screen.getByRole("contentinfo")).toHaveTextContent("HCI experiment conducted as part of graduate study at Florida Polytechnic University.");
     expect(screen.getByRole("link", { name: "Skip to main content" })).toHaveAttribute("href", "#main-content");
     expect(screen.getByRole("link", { name: "How it works ↓" })).toHaveAttribute("href", "#how-it-works");
     expect(container.querySelector("#how-it-works")).not.toBeNull();
     const steps = within(container.querySelector(".landing__steps") as HTMLElement).getAllByRole("listitem");
     expect(steps).toHaveLength(3);
-    expect(screen.getByText(/24 short made-up posts/)).toBeInTheDocument();
-    expect(screen.getByText(/15–20 minutes and works on a phone or computer/)).toBeInTheDocument();
+    expect(screen.getByText(/8 short made-up posts across 4 parts/)).toBeInTheDocument();
+    expect(screen.getByText(/short study that works on a phone or computer/)).toBeInTheDocument();
     expect(screen.getByText(/18 or over who reads English/)).toBeInTheDocument();
     expect(screen.getByText(/scrambled version of your code/)).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/PLACEHOLDER|\bIRB\b|professor|supervisor|contact|anonymous/i);
+    expect(container.textContent).toContain("Answers already saved remain on the study server if you stop.");
     expect(container.querySelectorAll("details.landing__faq-item")).toHaveLength(4);
     expect(screen.getByText("What if I close the tab?")).toBeInTheDocument();
     expect(screen.getByText(/same code within 2 hours/)).toBeInTheDocument();

@@ -40,6 +40,12 @@ function isTypingTarget(t: EventTarget | null): boolean {
 
 export default function InstructionsScreen() {
   const { session, advance } = useStudy();
+  const totalPosts = session?.blocks.reduce((total, block) => total + block.postOrder.length, 0) || 8;
+  const postsPerPart = session?.blocks.map((block) => block.postOrder.length) ?? [2, 2, 2, 2];
+  const partCount = postsPerPart.length || 4;
+  const partSizes = postsPerPart.length && postsPerPart.every((size) => size === postsPerPart[0])
+    ? `${postsPerPart[0]} posts each`
+    : `${postsPerPart.join(", ")} posts in the respective parts`;
   const logger = useLogger();
   const navigate = useNavigate();
   const [practice, setPractice] = useState<PracticePresentation | null>(null);
@@ -104,7 +110,7 @@ export default function InstructionsScreen() {
       <h1>How this study works</h1>
       <ul className="instructions-list">
         <li>
-          You will read 24 short social media posts from Riverton, a small town in Alder County.
+          You will read {totalPosts} short social media posts from Riverton, a small town in Alder County.
           The town, the people and the accounts are all made up for this study. An AI tool has read
           each post and given it an <strong>AI label</strong>: <strong>✓ Likely accurate</strong>{" "}
           (the AI judges that the post's claim is correct) or <strong>⚠ Likely misleading</strong>{" "}
@@ -120,7 +126,7 @@ export default function InstructionsScreen() {
           For each post, decide whether you agree with the AI label. Click{" "}
           <strong>Agree with label</strong> if you think the label is right for this post. Click{" "}
           <strong>Disagree with label</strong> if you think the label is wrong for this post. After
-          each post you'll rate how confident you are. The study has 4 parts of 6 posts each, with
+          each post you'll rate how confident you are. The study has {partCount} parts of {partSizes}, with
           a short questionnaire after each part.
         </li>
       </ul>

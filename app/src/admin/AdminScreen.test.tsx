@@ -313,7 +313,7 @@ describe("ExportPanel", () => {
   it("renders the index with descriptions, row counts and highlights", async () => {
     render(<ExportPanel refreshKey={0} />);
     const participants = await screen.findByTestId("export-participants.csv");
-    expect(within(participants).getByText("Start here — one row per participant")).toBeInTheDocument();
+    expect(within(participants).getByText("Start here — one row per session")).toBeInTheDocument();
     expect(within(participants).getByText("About participants.csv")).toBeInTheDocument();
     expect(within(participants).getByText("10")).toBeInTheDocument();
     expect(participants).toHaveClass("admin__export--featured");
@@ -340,7 +340,7 @@ describe("ExportPanel", () => {
       );
       expect(within(r).getAllByText("—")).toHaveLength(2); // description + rows
     }
-    expect(screen.getByText("Start here — one row per participant")).toBeInTheDocument();
+    expect(screen.getByText("Start here — one row per session")).toBeInTheDocument();
   });
 
   it("Download all clicks each CSV in sequence and skips sessions.json by default", async () => {

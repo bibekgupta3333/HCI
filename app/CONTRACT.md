@@ -1,5 +1,20 @@
 # Build contract (read before writing code)
 
+## Current short-study override — 2026-10-18
+
+This section supersedes six-trial assumptions in the historical build-round details below. New sessions sample **2 distinct posts per part, 8 overall**, via `assignShortFromBank`; `assignFromBank` remains the legacy six-post planner. One correct and one wrong label per part; two false alarms and two misses per participant. Error types alternate by condition index and flip across consecutive 16-person cycles; 32 participants balance that factor. Keep the 24-post source bank and its validation unchanged.
+
+Stored block plans govern all presentation limits, trial numbering, cursor transitions and survey eligibility. Existing six-post sessions continue unchanged. The final cursor position derives from the last stored block. Do not reset the database.
+
+The client shows compact condition-specific control guidance on each part’s first two posts, without revealing answers or changing the A–D information. Per-block surveys retain all items. This is a shortened exploratory design, not a claim of equivalent statistical precision to 24 trials.
+
+Admin progress uses stored `plannedTrials`. `participants.csv`, `trials.csv` and `surveys.csv` append `plannedTrials` and `studyVariant` (`short-8`, `legacy-24`, or `custom-N`). Filter by version in analysis; dashboard monitoring totals may contain both lengths and must display a warning.
+
+Participant screens use “HCI experiment conducted as part of graduate study at Florida Polytechnic University”; no unfinished IRB/contact/professor placeholders, invented approval or withdrawal-contact promises.
+
+See `../docs/parts-and-study-defense.md` and the current study protocol for the rationale.
+
+
 > v2 changes folded in from CONTRACT-v2.md (kept for history). Where the two differ, the v2 rules below win.
 
 This file is binding for everyone who builds the app. The design docs are in `../docs/`; `../docs/_shared-decisions.md` is the source of truth for the study, `../docs/stimuli.md` for wording, `../docs/data-model.md` for field names.
@@ -126,6 +141,10 @@ LikertScale({ name, label, min=1, max=7, minLabel, maxLabel, value: number|null,
 SliderScale({ name, label, min=0, max=100, step=5, start=50, minLabel, maxLabel, value, touched, onChange(v), onTouch() })
 PostRatingStrip({ item: ScaleItem; onSubmit(confidence: Likert7): void })
 ```
+
+## Voluntary participant exit
+
+Every active participant screen includes **Exit study**. A confirmation dialog offers **Keep participating** or **Yes, exit study**. `POST /api/sessions/:id/cancel` requires the active session UUID, not an admin token. It marks the session `abandoned`, retains saved responses, moves its cursor to `done` and returns `SessionView`; retries on already-abandoned sessions are idempotent, completed sessions return 409, unknown sessions 404. New response writes are rejected after abandonment. The client clears participant study storage only after successful cancellation and opens the early-exit debrief. The same participation code cannot start again. Closing the page remains possible; a failed cancel leaves browser state available for retry.
 
 ## HTTP API (JSON; errors `{error, detail?}` with 400 validation / 404 not found / 409 conflict)
 | Method & path | Body → response | Rules |

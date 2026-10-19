@@ -7,6 +7,14 @@ Every doc in `docs/` must agree with these decisions. Sources:
 
 The previous design (v2.1, approving an AI agent's actions) is archived in `archive/v2.1-agent-permission/`.
 
+## Active short-study override — 2026-10-18
+
+NEW sessions use four parts of **two distinct posts each (8 total)**. The 24-post bank below is retained for sampling and legacy sessions, not shown in full to new participants. Each part selects one correct and one wrong label. Each person sees two false alarms and two misses; each condition’s wrong type flips in the next 16-person cycle, giving a 32-person condition-by-error balance. Shuffle the two positions; the legacy rule barring both wrong posts from positions 1–2 does not apply to the short design.
+
+Existing saved six-post plans remain intact. Derive progress, eligibility and counts from the saved plans; do not pool short and legacy outcomes. Exports append `plannedTrials` and `studyVariant`. Keep the full block questionnaires, acknowledge 64 ratings remain, and describe duration/power cautiously.
+
+Add compact first-two-post guidance explaining each part’s existing interaction, without answers or compulsory verification. See [parts-and-study-defense.md](parts-and-study-defense.md). Participant attribution is an HCI experiment conducted as part of graduate study at Florida Polytechnic University. Remove visible approval/contact/professor placeholders without inventing substitutes.
+
 ## Domain (v3): AI accuracy labels on social media posts
 **Main question:** "When the AI label is wrong, do explanations help people catch it, and how do they make people feel?"
 
@@ -26,15 +34,14 @@ The previous design (v2.1, approving an AI agent's actions) is archived in `arch
 - A fourth condition is added (counterfactual).
 - Tension and frustration measures are added.
 
-This needs Professor Hamam's approval, and ethics approval because of the deception and stress measures. The research questions keep the proposal's core: agreement, trust, error detection and fairness.
+The research questions retain agreement, trust, error detection and fairness. The app does not claim institutional approval or endorsement.
 
-## Stack (unchanged)
-- React 18 + TypeScript + Vite, built as a static single-page app.
-- `StudyContext` (React Context + reducer).
-- Static JSON: `src/data/posts.json` (the post bank and fact sheets) and `src/data/surveyItems.json`.
-- No database. Responses are saved to `localStorage` (key `xai-study:sessions`) after every trial.
-- `/admin` exports JSON and CSV.
-- It runs in a desktop browser, in a moderated lab session. Analysis is done in R or Python.
+## Stack (implemented)
+- React 18 + TypeScript + Vite client; Express 5 backend with better-sqlite3.
+- One server-side SQLite file, API persistence, admin CSV/JSON exports.
+- `app/shared/data/posts.json` is server-only; `surveyItems.json` supplies the scales.
+- Browser stores active-session id only and clears study storage after final save.
+- Self-start on desktop/phone, no admin permission. Analysis occurs outside the app.
 
 ## Modules (names to use consistently)
 - `src/engine/labelEngine.ts`: the Wizard-of-Oz labeller. Its functions are `buildPresentation(post, condition)` (an allow-listed payload with no correctness fields), `getTruth(postId)` (called only by `logger`) and `validatePost(post)` (checks the ground truth against the fact sheet's key fact).

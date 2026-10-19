@@ -1,7 +1,7 @@
 // Consent screen (wireframes.md §1; CONTRACT-v2 §C). Self-guided: a short plain-language summary,
 // the full consent text (study-protocol.md §4, adapted for self-guided sessions) behind a
-// "Read full consent details" disclosure, an 18+ checkbox and Continue. [PLACEHOLDER] markers stay
-// visible until the team fills them in. "I do not agree" shows a thank-you and records nothing.
+// "Read full consent details" disclosure, an 18+ checkbox and Continue.
+// "I do not agree" shows a thank-you and records no study answers.
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
@@ -10,6 +10,7 @@ import { useLogger } from "../logging/logger";
 
 export default function ConsentScreen() {
   const { session, advance } = useStudy();
+  const totalPosts = session?.blocks.reduce((total, block) => total + block.postOrder.length, 0) || 8;
   const logger = useLogger();
   const navigate = useNavigate();
   const [checked, setChecked] = useState(false);
@@ -51,22 +52,22 @@ export default function ConsentScreen() {
       <p className="consent-lead">How people use AI labels on social media posts</p>
       <ul className="consent-summary">
         <li>
-          <strong>What you'll do:</strong> read 24 short posts about a made-up town, decide whether
+          <strong>What you'll do:</strong> read {totalPosts} short posts about a made-up town, decide whether
           you agree with an AI tool's label on each one, and answer a few short questionnaires.
         </li>
         <li>
-          <strong>Time:</strong> about 15–20 minutes.
+          <strong>Pace:</strong> a short study with a questionnaire after each part. Take it at your own pace.
         </li>
         <li>
           <strong>Voluntary:</strong> taking part is your choice, and you can stop at any time by
           closing the page.
         </li>
         <li>
-          <strong>Anonymous:</strong> we don't record your name. Only a scrambled version of your
-          participation code is kept, so the same person can't take part twice.
+          <strong>Your data:</strong> we don't ask for your name. Only a scrambled version of your
+          participation code is kept to prevent repeat submissions with the same code.
         </li>
         <li>
-          <strong>Questions?</strong> Email [PLACEHOLDER: researcher contact email].
+          Answers already saved remain on the study server if you stop.
         </li>
       </ul>
 
@@ -77,37 +78,30 @@ export default function ConsentScreen() {
           <p>
             <strong>Study:</strong> How people use AI labels on social media posts
             <br />
-            <strong>Study team:</strong> CEN5728 Group 4, [PLACEHOLDER: institution]. Supervisor:
-            {" "}[PLACEHOLDER: instructor name].
-            <br />
-            <strong>Approval:</strong> [PLACEHOLDER: IRB/ethics approval number]
+            HCI experiment conducted as part of graduate study at Florida Polytechnic University.
           </p>
           <p>
             We are studying how people use an AI tool that labels social media posts. You will read
-            24 short posts about a made-up town. Each post has a label from the AI tool, and you
+            {totalPosts} short posts about a made-up town. Each post has a label from the AI tool, and you
             decide whether you agree with it. You will also answer short questionnaires, including
-            how tense or frustrated you felt. The study takes about 15–20 minutes, and you do it on
-            your own, at your own pace.
+            how tense or frustrated you felt. You do the study on your own, at your own pace.
           </p>
           <p>
             All posts, people and places are fictional, and some posts contain claims that are not
-            true. The risks are no greater than normal social media use. Some parts of the study
+            true. You may feel tense or frustrated while judging the labels. Some parts of the study
             will be explained to you fully at the end.
           </p>
           <p>
-            We do not record your name. The participation code you typed is never stored; we keep
-            only a scrambled version of it, so the same person can't take part twice. Your answers
-            are stored under a number only and will be reported as group results. Please do not
+            We do not ask for your name. The participation code you typed is never stored; we keep
+            only a scrambled version of it to recognize repeat use of the same code. Your answers,
+            response times and interactions are saved on the study server under a session identifier
+            and participant number. Results will be reported as group summaries. Please do not
             type personal details in the comment box.
           </p>
           <p>
             Taking part is voluntary. You can stop at any time without giving a reason, simply by
-            closing the page, and you can ask us to delete your answers, now or later, without any
-            penalty.
-          </p>
-          <p>
-            Questions: [PLACEHOLDER: researcher contact email]. Concerns about your rights:
-            {" "}[PLACEHOLDER: IRB office contact].
+            closing the page, without any penalty. Closing the page does not delete answers already
+            saved on the study server.
           </p>
           <p>
             By ticking the box below and clicking Continue, you confirm that you are 18 or older and

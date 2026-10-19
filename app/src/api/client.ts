@@ -91,6 +91,7 @@ export const api = {
   },
   getSession: (id: string) => request<SessionView>("GET", `/sessions/${enc(id)}`),
   resumeSession: (id: string) => request<SessionView>("POST", `/sessions/${enc(id)}/resume`),
+  cancelSession: (id: string) => request<SessionView>("POST", `/sessions/${enc(id)}/cancel`),
   consent: (id: string) => request<SessionView>("POST", `/sessions/${enc(id)}/consent`),
   getPractice: () => request<PracticePresentation>("GET", "/practice"),
   getPresentation: (id: string, blockIndex: number, position: number) =>

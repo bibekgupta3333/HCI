@@ -16,7 +16,7 @@ export const TRIAL_COLUMNS = [
   "topic", "aiLabel", "groundTruth", "isAiCorrect", "errorType", "difficulty", "agreed", "detectedError",
   "confidence", "decisionTimeMs", "decisionTimeRawMs", "hiddenMs", "hiddenCount", "blurCount", "timingFlag",
   "factSheetOpened", "factSheetOpenMs", "explanationOpened", "factorsExpanded", "timeToFirstExpandMs",
-  "resumed", "labelShownAt", "respondedAt", "conditionOrder", "setRotation", "status",
+  "resumed", "labelShownAt", "respondedAt", "conditionOrder", "setRotation", "status", "plannedTrials", "studyVariant",
 ];
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -26,7 +26,7 @@ const TRUST_SCORED = TRUST_RAW.map((c) => `${c}_s`);
 export const SURVEY_COLUMNS = [
   "pid", "sessionId", "blockIndex", "condition", ...TRUST_RAW, ...TRUST_SCORED, "trustMean",
   "fairness1", "fairness2", "fairnessMean", "tension", "frustrationTlx", "frustrationTlxTouched",
-  "nWrongDetected", "submittedAt",
+  "nWrongDetected", "submittedAt", "plannedTrials", "studyVariant",
 ];
 
 export const EVENT_COLUMNS = [
@@ -41,14 +41,16 @@ export const EXIT_COLUMNS = [
 
 const TRIAL_BOOLEANS = ["isAiCorrect", "agreed", "detectedError", "timingFlag", "factSheetOpened", "explanationOpened", "resumed"];
 
-interface SessionMeta { pid: number; conditionOrder: string; setRotation: number; status: string }
+interface SessionMeta { pid: number; conditionOrder: string; setRotation: number; status: string; plannedTrials: number; studyVariant: string }
 
 function sessionMeta(db: Database.Database): Map<string, SessionMeta> {
   const rows = db
-    .prepare("SELECT session_id, pid, condition_order, set_rotation, status FROM sessions")
-    .all() as { session_id: string; pid: number; condition_order: string; set_rotation: number; status: string }[];
+    .prepare(`SELECT s.session_id, s.pid, s.condition_order, s.set_rotation, s.status,
+      (SELECT COALESCE(SUM(json_array_length(b.post_order)),0) FROM blocks b WHERE b.session_id=s.session_id) AS planned_trials FROM sessions s`)
+    .all() as { session_id: string; pid: number; condition_order: string; set_rotation: number; status: string; planned_trials: number }[];
   return new Map(rows.map((r) => [r.session_id, {
     pid: r.pid, conditionOrder: r.condition_order, setRotation: r.set_rotation, status: r.status,
+    plannedTrials: r.planned_trials, studyVariant: r.planned_trials === 8 ? "short-8" : r.planned_trials === 24 ? "legacy-24" : `custom-${r.planned_trials}`,
   }]));
 }
 
@@ -88,6 +90,8 @@ function withSession(row: Row, meta: Map<string, SessionMeta>): Row {
     conditionOrder: orderString(pick(row, "conditionOrder") ?? m?.conditionOrder),
     setRotation: pick(row, "setRotation") ?? m?.setRotation,
     status: pick(row, "status", "sessionStatus") ?? m?.status,
+    plannedTrials: m?.plannedTrials,
+    studyVariant: m?.studyVariant,
   };
 }
 
@@ -149,7 +153,7 @@ export const PARTICIPANT_COLUMNS = [
   "durationMin", "trialsSaved", "surveysSaved", "agreementRate", "wrongDetected", "falseAlarmDetected",
   "missDetected", "detectionRate", "meanConfidence", "medianDecisionMs", "factSheetOpenRate",
   ...CONDS.flatMap((c) => [`agreement_${c}`, `detected_${c}`, `trust_${c}`, `fairness_${c}`, `tension_${c}`, `frustration_${c}`]),
-  "ageRange", "gender", "education", "socialMediaUse", "labelExposure", "preferredCondition", "comment",
+  "ageRange", "gender", "education", "socialMediaUse", "labelExposure", "preferredCondition", "comment", "plannedTrials", "studyVariant",
 ];
 
 /** Round to `dp` decimals; null for null/non-finite. */
@@ -187,6 +191,7 @@ function groupBy<T extends { session_id: string }>(rows: T[]): Map<string, T[]> 
 }
 
 export function participantRows(db: Database.Database): Row[] {
+  const meta = sessionMeta(db);
   const sessions = db.prepare(
     `SELECT session_id, pid, status, condition_order, set_rotation, started_at, completed_at
        FROM sessions ORDER BY pid, started_at, session_id`,
@@ -223,6 +228,8 @@ export function participantRows(db: Database.Database): Row[] {
       durationMin: dur >= 0 ? round(dur, 1) : null,
       trialsSaved: ts.length,
       surveysSaved: ss.length,
+      plannedTrials: meta.get(s.session_id)?.plannedTrials,
+      studyVariant: meta.get(s.session_id)?.studyVariant,
       agreementRate: ratio(ts.filter((t) => t.agreed === 1).length, ts.length),
       wrongDetected: detected(wrong),
       falseAlarmDetected: detected(wrong.filter((t) => t.error_type === "false_alarm")),

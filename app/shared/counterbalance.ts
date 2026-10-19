@@ -1,6 +1,6 @@
 // Counterbalancing (docs/system-design.md §4). Pure: safe to import from client or server.
 import { mulberry32 } from "./rng";
-import type { Condition, SetId } from "./types";
+import type { Condition, Post, SetId } from "./types";
 import type { Assignment, BlockPlan } from "./api";
 
 export const WILLIAMS = ["ABDC", "BCAD", "CDBA", "DACB"] as const;
@@ -83,4 +83,31 @@ export function assignFromBank(
   }
   for (const s of SETS) setPosts[s].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   return assign(pid, setPosts, wrongIds);
+}
+
+/** Two-post protocol for new sessions; the full bank and legacy assignment remain intact. */
+export function assignShortFromBank(
+  pid: number,
+  bank: { posts: Pick<Post, "id" | "set" | "isAiCorrect" | "errorType">[] },
+): Assignment {
+  // Validate the six-post sets through the legacy path and retain its Williams/set plan.
+  const assignment = assignFromBank(pid, bank);
+  const cycle = Math.floor((pid - 1) / 16);
+  const correctIndex = ((pid - 1) % K + cycle) % K;
+  const rng = mulberry32(pid);
+  const allIds = bank.posts.map((p) => p.id);
+  if (new Set(allIds).size !== allIds.length) throw new Error("post ids must be globally distinct");
+  assignment.blocks = assignment.blocks.map((block): BlockPlan => {
+    const posts = bank.posts.filter((p) => p.set === block.set).sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+    const correct = posts.filter((p) => p.isAiCorrect);
+    const wrong = posts.filter((p) => !p.isAiCorrect);
+    if (correct.length !== 4 || wrong.filter((p) => p.errorType === "false_alarm").length !== 1 ||
+        wrong.filter((p) => p.errorType === "miss").length !== 1) {
+      throw new Error(`set ${block.set} must have four correct labels, one false alarm and one miss`);
+    }
+    const errorType = (COND_INDEX[block.condition] + cycle) % 2 === 0 ? "false_alarm" : "miss";
+    const selectedWrong = wrong.find((p) => p.errorType === errorType)!;
+    return { ...block, postOrder: fisherYates([correct[correctIndex].id, selectedWrong.id], rng) };
+  }) as Assignment["blocks"];
+  return assignment;
 }

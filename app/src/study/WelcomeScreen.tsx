@@ -69,9 +69,9 @@ export default function WelcomeScreen(): JSX.Element {
       </p>
       <h1>Post Review Study</h1>
       <p className="welcome__intro">
-        You'll judge 24 short made-up social media posts, each shown with an AI accuracy label.
+        You'll judge 8 short made-up social media posts across 4 parts, each shown with an AI accuracy label.
         <br />
-        It takes about 15–20 minutes.
+        A short study with a questionnaire after each part. Take it at your own pace.
       </p>
 
       {activeId ? (
@@ -102,8 +102,8 @@ export default function WelcomeScreen(): JSX.Element {
               autoFocus
             />
             <p id="participation-code-hint" className="welcome__hint">
-              Use your university email or student ID. It's only used to make sure each person takes part once — we
-              store a scrambled version, never the code itself.
+              Use your university email or student ID. We store a scrambled version, never the code itself,
+              to recognize this code when you return and prevent repeat submissions with it.
             </p>
           </div>
           <button type="submit" className="btn btn--primary" disabled={sending}>

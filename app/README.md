@@ -1,4 +1,6 @@
-# AI label study app (CEN5728 Group 4, v3)
+# AI label HCI experiment (graduate study, Florida Polytechnic University)
+
+**Current short version (2026-10-18):** new sessions show 2 posts per part (8 total), sampled from the unchanged 24-post bank. Each part has one correct and one wrong label. Existing 24-post sessions resume their original plans. First-two-post interaction help explains each part without revealing answers. Per-block questionnaires remain complete. Use `plannedTrials` and `studyVariant` in exports to analyse versions separately; dashboard totals may include both. [Study rationale and defense](../docs/parts-and-study-defense.md). Duration requires a fresh pilot. For formal short-study collection, use a separate `DB_PATH=data/short-study.db` so the 32-slot schedule starts at pid 1; preserve the earlier database unchanged.
 
 A Wizard-of-Oz study app for the question *"When the AI label is wrong, do explanations help people catch it, and how do they make people feel?"* Participants read 24 made-up social media posts from the fictional town of Riverton. Each post carries a scripted AI label ("✓ Likely accurate" or "⚠ Likely misleading"), and the participant clicks **Agree with label** or **Disagree with label**, then rates their confidence. A fact sheet that settles each post's truth can be opened on every trial. 8 of the 24 labels are wrong on purpose.
 
@@ -61,6 +63,8 @@ npm run typecheck                          # TypeScript only
 2. Tap **Take part**. On the code screen (`/start`; **← Back** returns to the landing page), type your participation code (for example your university email or student ID) and press **Start** or Enter. The code is only used to stop people taking part twice; it is never stored as typed.
 3. Read the short consent, then follow the screens: instructions with a practice post, 4 parts of 6 posts, a short questionnaire after each part, the exit survey and the debrief.
 4. On each post: **Agree** (`A`) or **Disagree** (`D`), then tap how sure you are (`1`–`7`). `F` opens the fact sheet, `W` opens "Why?" where shown, `Esc` closes a panel.
+
+To stop early, select **Exit study** on any active participant screen, then **Yes, exit study**. Saved answers remain stored, the session is marked abandoned, browser study storage is cleared, and a debrief explains the experiment. **Keep participating** returns to the current screen. After confirmed exit, the same code cannot start again.
 
 If the tab closes, open the site again in the same browser and click **Continue** in the "session in progress" banner on the landing page, or type the same code at `/start` on any device to resume.
 

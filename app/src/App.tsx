@@ -11,6 +11,7 @@ import ExitSurveyScreen from "./study/ExitSurveyScreen";
 import DebriefScreen from "./study/DebriefScreen";
 import AdminScreen from "./admin/AdminScreen";
 import { LoggerProvider } from "./logging/logger";
+import StudyExitControl from "./study/StudyExitControl";
 
 /** Keeps participants on the route for the server cursor (blocks Back-button skipping and URL edits). */
 function ParticipantGuard({ children }: { children: JSX.Element }) {
@@ -39,7 +40,7 @@ function ParticipantGuard({ children }: { children: JSX.Element }) {
   }
   const expected = routeForCursor(session.cursor);
   if (location.pathname !== expected) return <Navigate to={expected} replace />;
-  return children;
+  return <><StudyExitControl />{children}</>;
 }
 
 /** One event logger per active session; numbering continues from the server after a resume. */

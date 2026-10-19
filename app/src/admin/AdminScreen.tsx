@@ -297,6 +297,7 @@ export default function AdminScreen() {
 
       <section className="admin__section" aria-labelledby="admin-cond-title">
         <h2 id="admin-cond-title" className="admin__section-title">By condition (completed sessions)</h2>
+        <p className="admin__notice">The short protocol uses 8 posts; saved legacy sessions retain 24. These monitoring totals may include both versions. For study analysis, filter CSVs by studyVariant and do not pool the versions.</p>
         <div className="admin__table-wrap">
           <table className="admin__table" aria-labelledby="admin-cond-title">
             <thead>
@@ -424,7 +425,7 @@ export default function AdminScreen() {
                     <td>{r.pid}</td>
                     <td><span className={`admin__status admin__status--${r.status}`}>{r.status.replace("_", " ")}</span></td>
                     <td>{r.conditionOrder}</td>
-                    <td>{r.trialsSaved}/24</td>
+                    <td>{r.trialsSaved}/{r.plannedTrials ?? 24}</td>
                     <td>{r.surveysSaved}/4</td>
                     <td>{fmtDateTime(r.startedAt)}</td>
                     <td title={fmtDateTime(r.lastActivityAt)}>{relativeTime(r.lastActivityAt, now)}</td>

@@ -1,5 +1,7 @@
 # Design docs
 
+**Current short version:** new participants see 2 posts per part (8 total), sampled from the 24-post bank. Existing six-post-per-part sessions remain supported. See [parts-and-study-defense.md](parts-and-study-defense.md) and [study-protocol.md](study-protocol.md) for the current rationale and procedure. Older diagrams/PDFs may still depict the full-length design; do not treat them as current session-count specifications.
+
 These are the design docs for the Group 4 CEN5728 study app. The code is in [`../app/`](../app/README.md), and its run guide is [`app/README.md`](../app/README.md). All diagrams are Mermaid and render on GitHub.
 
 **Stack:** React 18 + TypeScript + Vite client, served by a local Node server (Express 5) that stores all responses in one SQLite file (`better-sqlite3`, `app/data/study.db`) and exports CSV/JSON from `/admin`. Ground truth stays on the server; the browser keeps only the active session id. This replaced the earlier plan of a static SPA with `localStorage` persistence (see [architecture.md](architecture.md), ADR-4).

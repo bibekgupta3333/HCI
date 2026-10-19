@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { adminRouter, adminAccess, exportFilename, isLoopback } from "./admin";
 import { loadPostBank } from "../../shared/labelEngine";
-import { assignFromBank } from "../../shared/counterbalance";
+import { assignShortFromBank } from "../../shared/counterbalance";
 import type { Assignment, BlockPlan } from "../../shared/api";
 import type { Condition, PostBank, SetId } from "../../shared/types";
 
@@ -122,7 +122,7 @@ describe("GET /assignments/:pid", () => {
   it("previews the counterbalanced assignment without creating a session", async () => {
     const app = makeApp(db, undefined, { bank: BANK });
     const res = await request(app).get("/api/admin/assignments/905").expect(200);
-    expect(res.body).toEqual(assignFromBank(905, BANK));
+    expect(res.body).toEqual(assignShortFromBank(905, BANK));
     const n = db.prepare("SELECT COUNT(*) AS n FROM sessions").get() as { n: number };
     expect(n.n).toBe(0);
   });
