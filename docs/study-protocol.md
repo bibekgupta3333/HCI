@@ -1,6 +1,6 @@
 # Study Protocol: Riverton Post-Label Study (v3.1, self-guided, open participation)
 
-This document is the protocol for the CEN5728 Group 4 study on AI accuracy labels for social media posts: "When the AI label is wrong, do explanations help people catch it, and how do they make people feel?". The study is **self-guided**. Anyone opens the study link and starts on their own, on a lab laptop or their own device (desktop or phone). No researcher is needed to start or run a session. Participation is requested once per person; the server blocks reuse of a hashed participation code, which is not verified identity. The research team only deploys the app, watches the admin dashboard (data and KPIs), records reported issues and exports the data.
+This document is the protocol for the CEN5728 Group 4 study on AI accuracy labels for social media posts: "Do People Trust AI More When It Explains Itself? A Comparative Study of Explanation". The study is **self-guided**. Anyone opens the study link and starts on their own, in a desktop or laptop browser; responsive phone/tablet support remains available. No researcher is needed to start or run a session. Participation is requested once per person; the server blocks reuse of a hashed participation code, which is not verified identity. The research team only deploys the app, watches the admin dashboard (data and KPIs), records reported issues and exports the data.
 
 The document has two readers:
 - The **study reviewer** needs the aims, risks, deception, consent, debrief and data handling in one place.
@@ -32,19 +32,39 @@ There's no moderator to keep sessions consistent, so the app does that job. With
 
 | Item | Detail |
 |---|---|
-| Title | Explanations and error detection in AI accuracy labels |
-| Main question | When the AI label is wrong, do explanations help people catch it, and how do they make people feel? |
-| Aims | **RQ1:** do explanations help people catch wrong labels, and does it differ for false alarms (a true post labeled "Likely misleading") vs misses (a false post labeled "Likely accurate")? **RQ2:** which explanation type gives the best error detection? **RQ3:** do wrong labels create tension, and does explanation type make it better or worse? Hypotheses H1–H6 are in `_shared-decisions.md`. |
+| Title | Do People Trust AI More When It Explains Itself? A Comparative Study of Explanation |
+| Main question | Which interface packages support appropriate/calibrated reliance: accepting correct labels and rejecting wrong labels? |
+| Aims | Primary: compare appropriate reliance across A–D packages, with correct acceptance and wrong rejection reported separately. Secondary: per-condition Jian-based subjective trust, perceived fairness, tension, frustration, confidence, timing and inspection behavior. Custom trust is retained only for saved brief sessions. Error-type differences are exploratory. See [analysis plan](pilot-and-analysis-plan.md). |
 | Format | **Self-guided web study.** The participant opens the study URL and goes through it alone. Nobody needs to be present. |
-| Device | A lab laptop, or the participant's own device: desktop, laptop, tablet or phone (works from 360 px wide). Any current browser. |
+| Device | A desktop or laptop browser is the primary participation interface. Responsive tablet/phone support remains available from 360 px; retain keyboard, zoom and touch accessibility. |
 | Task | The participant reads made-up social media posts from the fictional town of Riverton (fictional Alder County). Each post carries an AI label, "Likely accurate" or "Likely misleading". A "Fact sheet ▸" button opens a fictional official record about the post. Each post takes **two taps**: **Agree** or **Disagree** with the label, then a confidence chip from 1 to 7. |
-| Apparatus | A Wizard-of-Oz web app: a React SPA plus a small Node/Express server with a SQLite file. No AI model runs; every label and explanation is scripted. **4 of the 8 labels are deliberately wrong** (2 false alarms, 2 misses) for new sessions. Saved legacy sessions retain 8 wrong labels among 24 posts. |
-| Design | Within-subjects, 4 conditions: **A** No explanation (label only), **B** Static reason (one fixed sentence), **C** Interactive "Why?" (three expandable rows: Source, Claim vs record, Wording), **D** Counterfactual (one "would be … if …" sentence). New sessions have 4 parts of 2 posts, one part per condition, plus 1 unanalysed practice post. Each part has 1 correct and 1 wrong label. Saved legacy sessions retain 6 posts per part. The pid sets the condition order (4×4 Williams square), the condition-to-set pairing and the within-part post order. A full condition/set rotation cycle is 16 pids; see §8 for error-type balance across 32 new-session completers. |
+| Apparatus | A Wizard-of-Oz web app: a React SPA plus a small Node/Express server with a SQLite file. No AI model runs; every label and explanation is scripted. **4 of the 8 labels are deliberately wrong** (2 false alarms, 2 misses) for new sessions. Existing short sessions retain 4 wrong among 8 posts; saved 24-post sessions retain 8 wrong labels. |
+| Design | Within-subjects, 4 conditions: **A** No explanation (label only), **B** Static reason (one fixed sentence), **C** Interactive "Why?" (three expandable rows: Source, Claim vs record, Wording), **D** Counterfactual (one "would be … if …" sentence). New sessions have 4 parts of 2 posts, one part per condition, plus 1 unanalysed practice post. Each part has 1 correct and 1 wrong label. Existing short sessions retain two posts per part; saved full plans retain six. The pid sets the condition order (4×4 Williams square), the condition-to-set pairing and the within-part post order. A full condition/set rotation cycle is 16 pids; see §8 for error-type balance across 32 new-session completers. |
 | Assignment | **The server assigns the pid automatically.** It takes the lowest pid ≥ 1 that has no in-progress or completed session. At session creation the server sweeps sessions inactive for 2 hours, marks them abandoned and makes their pid available for **reuse**. This keeps the 16-participant cycle balanced without anyone handing out numbers. |
-| Measures | **Per post:** agreement, error detection (on wrong labels), confidence (1–7, required), decision time, fact-sheet use, "Why?" row use (C only). **Per part:** the Jian et al. (2000) trust scale (12 items), 2 fairness items, tension (1–7) and NASA-TLX frustration (0–100). **Exit:** demographics, social media use, how often they've seen platform labels, preferred interface and an open comment. |
+| Measures | **Per post:** agreement, confidence 1–7, server-derived label correctness, wrong-label rejection, timing, fact-sheet and C interactions. **Per part, restored protocol:** 12 Jian-based trust items, two fairness items, tension 1–7 and frustration 0–100 in steps of 5 with explicit interaction: 16 ratings × four parts = 64. Historical brief sessions retain three ratings per part. **Exit:** demographics, social-media use, label exposure, preference and optional comment. |
 | Sample size | **Target N = 32 new-session completers.** Sixteen covers a condition/set rotation cycle, but is not the stopping target for the requested 32-person error-type balance. Neither count is a power guarantee. |
 | Duration | Must be measured in the eight-post pilot; do not reuse the legacy 15–20 minute estimate as a validated duration. |
 | Attribution | HCI experiment conducted as part of graduate study at Florida Polytechnic University. |
+
+### Protocol, questionnaire and outcome versions
+
+New sessions use `protocolVersion=calibrated-full-v1` and `questionnaireVersion=full-v1`. Previously started brief sessions retain `calibrated-brief-v1` and `brief-v1`. Older full-questionnaire eight-post and 24-post sessions retain their full questionnaire and saved assignment under `legacy-full-v1`; migration/default handling treats absent protocol metadata as legacy. **Do not infer protocol from trial count or upgrade on resume.** Formal new-protocol collection uses a separate database from earlier cohorts and the pilot.
+
+Appropriate reliance is `(correct-label acceptances + wrong-label rejections) / all trials`. Report correct acceptance / correct trials, wrong rejection / wrong trials, overreliance (wrong acceptance / wrong trials), and underreliance (correct rejection / correct trials). Zero denominators produce null. Agreement/disagreement measures behavior, not proof of comprehension. Full Jian-based subjective trust is secondary and measured after each condition; report the AI-label wording adaptation. Custom trust applies only to historical brief sessions.
+
+Brief records store `trustResponses=[]`; `trustMean`, `fairness1`, `fairness2` and `fairnessMean` are NULL. Store the custom response as `briefTrust`. These rules apply only to historical brief sessions; restored full sessions collect all trust/fairness items with their original scoring. Existing full scores retain their original raw answers and scoring and are analysed separately.
+
+C includes extra factual comparison through Claim vs record. Its Why? controls and evidence remain unchanged. Compare categorical interface packages; do not attribute a C difference solely to interactivity or order A–D by depth. A static equal-content control is a proposed follow-up only. Detailed methods and limitations are in [methods and limitations](methods-and-limitations.md); pilot and analysis procedures are in [pilot and analysis plan](pilot-and-analysis-plan.md).
+
+### Block-survey guidance and presentation
+
+After each part, show the neutral instruction: **“Rate the AI labeling system in this part, not the post authors or the website design. There are no right or wrong answers.”** This instruction applies to the questionnaire ratings, not to the preceding post decisions. It does not announce whether labels are correct or encourage agreement, distrust or verification.
+
+Use the h1 “Part {b} of 4: Your ratings”. For `calibrated-full-v1` and legacy full questionnaires, group the unchanged items under h2 headings “Trust” (12 items), “Fairness” (2), and “How you felt” (tension and frustration). Keep each scale's own anchors visible: trust 1 “Not at all” to 7 “Extremely”; fairness 1 “Strongly disagree” to 7 “Strongly agree”; tension 1 “Not at all tense” to 7 “Extremely tense”; frustration 0 “Very low” to 100 “Very high”. Keep “x of 16 answered” and the accessible Continue control in a fixed footer. The desktop survey is scoped to a maximum width of 1000 px, with seven 44 px rating chips per row; scroll margins keep focused questions clear of the footer. Do not replace trust anchors with agreement anchors. Saved brief sessions retain their three questions, their original anchors and “x of 3 answered”.
+
+Until the frustration slider is touched, show **“Move the slider to select your answer”**. Its unanswered accessible value text is “Unanswered. Move the slider to select your answer”. The underlying start remains 50; it is not a completed answer. Require `frustrationTlxTouched=true` and an integer from 0–100 divisible by 5. Intentional selection of 50 counts without moving away first: Enter or Space on the focused slider, pointer-up selection, or a value change marks it answered. Moving away from and back to 50 also counts. After interaction, show the selected numeric value; answer counts and Continue eligibility follow the same validation as before. Failed saves remain retryable.
+
+These are UI clarity changes, not psychometric validation or changes to canonical questionnaire wording. Use the original item text and order from `app/shared/data/surveyItems.json`, preserve reverse scoring of Jian items 1–5 and the existing trust/fairness means, and retain saved brief protocol behavior. The frustration item remains a single item, not a full weighted NASA-TLX score. Desktop/laptop layouts are primary; responsive layouts preserve the same questions, anchors, required counts and accessible controls.
 
 ## 3. Eligibility and exclusions
 
@@ -64,7 +84,7 @@ The prior-knowledge item is a proposed addition, not an implemented measure; its
 
 There are only two exclusions. Nobody is excluded for demographics, social media habits, device or performance.
 
-1. **Group 4 members** take part in the **pilot only** (§15), because they wrote the posts and know which labels are wrong. Pilot sessions use pids **901+** or a separate pilot database, and never count toward the main study.
+1. **Group 4 members** take part in the **pilot only** (§15), because they wrote the posts and know which labels are wrong. Pilot/testing sessions use a separate database and never count toward the main study. Self-start does not allocate pilot pids 900+.
 2. **Each person takes part once.** A second session would be contaminated by the first debrief, which reveals the wrong labels. §3.3 explains how this is enforced.
 
 ### 3.3 Once per person: the participation code
@@ -101,7 +121,7 @@ There are only two exclusions. Nobody is excluded for demographics, social media
 
 ### 4.1 Risk level
 
-The anticipated burdens include boredom, fatigue, tension and frustration; this is a risk description, not a formal determination. Participants read short fictional posts, tap buttons and answer questionnaires. The risks are no greater than everyday social media use: mild boredom or fatigue, and possibly mild tension or frustration when a label seems wrong.
+The anticipated burdens include boredom, fatigue, tension and frustration; this is a risk description, not a formal determination. Participants read short fictional posts, tap buttons and answer questionnaires. Anticipated burdens include mild boredom or fatigue and possible tension or frustration when a label seems wrong; their severity has not been established by a formal review.
 
 HCI experiment conducted as part of graduate study at Florida Polytechnic University. This protocol does not establish institutional authorization or a formal risk determination. The scripted labels, withheld information and affect questions require an appropriate review process before research recruitment.
 
@@ -110,19 +130,19 @@ HCI experiment conducted as part of graduate study at Florida Polytechnic Univer
 - **What is withheld.** Participants are told they're evaluating "an AI tool that labels social media posts". They're not told that the labels are scripted, or that 4 of the 8 labels are deliberately wrong in new sessions.
 - **Why it's needed.** The study measures whether people notice wrong labels, and how explanations change that. If participants knew errors were planted, or which kinds, they'd hunt for them, and agreement and detection would no longer reflect how people normally treat platform labels. A scripted labeller is also the only way to give every participant identical labels and identically worded explanations across conditions.
 - **Risk of withholding information.** The deception concerns the source and accuracy of labels. Fictional content and a corrective debrief reduce risk, but do not establish absence of harm. Procedure, data use and participation rights must be described accurately.
-- **Disclosure.** The debrief screen appears automatically straight after the exit survey (§13). It explains the deception and shows the real facts. Participants may still withdraw their data once they know the true purpose (§4.6).
-- **Limitation of the unmoderated format.** Closing the page early can prevent access to the corrective debrief. No remote follow-up or early-exit debrief route is established by this protocol; this remains a substantive limitation (§17).
+- **Disclosure.** The debrief screen appears automatically straight after the exit survey (§13). It explains the deception and shows the real facts. Stopping and the limits of any subsequent data-deletion request are described in §4.6; no verified remote request channel is established.
+- **Limitation of the unmoderated format.** Closing the page early can prevent access to the corrective debrief. The Exit study control offers an early-exit debrief (§13.3), but closing the tab can bypass it and no remote follow-up channel is established (§17).
 
 ### 4.3 Exposure to made-up misleading claims
 
 Each new session includes 2 false posts labeled "Likely accurate" (misses) and 2 true posts labeled "Likely misleading" (false alarms). The truth distribution of the 4 correctly labeled posts depends on selection; do not infer that half the eight posts are false. Legacy sessions retain their original 24-post assignment. A participant could leave believing a false claim. Mitigations:
 - **Everything is fictional.** The town (Riverton), county (Alder County), people, accounts and agencies are invented. No false claim is about a real place, person or organization, and there are no real brands.
 - **No health-risk claims.** No post makes a claim that could cause harm if believed (for example about medicines, treatments or safety actions), and no post touches health care. Posts about local services (such as a parking rate or tap-water results) concern the fictional town only, and the debrief corrects them.
-- **The debrief corrects every wrong label.** The debrief screen states plainly that **none of these posts were real**. Its "Show the real facts" section gives the real fact for each of the 4 wrong labels shown in a new session, or 8 in a legacy session (§13.2).
+- **The debrief corrects every wrong label.** The debrief screen states plainly that **none of these posts were real**. Its "Show the real facts" section gives the real fact for each of the 4 wrong labels shown in a new session, or 8 in a saved 24-post session (§13.2).
 
 ### 4.4 Stress measures and distress without a moderator
 
-Each part asks how tense the participant felt, and includes the NASA-TLX frustration item. These are standard workload items about the task, not about personal life, and are unlikely to cause distress. The debrief explains the scripted labels and makes clear that the task is not a test of ability.
+Each part asks how tense the participant felt, and includes the NASA-TLX frustration item. These are task-related self-reports, not diagnostic measures; the frustration item is not a full weighted NASA-TLX score. Their acceptability needs pilot review. The debrief explains the scripted labels and makes clear that the task is not a test of ability.
 
 Nobody is present to watch for distress, so the safeguards are built into the text and the app:
 - **Stopping is always possible.** The consent text says the participant can stop at any time by **closing the page**, without giving a reason and without penalty. Nothing else is needed.
@@ -156,7 +176,7 @@ Shown on the consent screen as a short text, with the full text under "Read full
 
 > **Consent to take part in a research study**
 >
-> **Study:** How people use AI labels on social media posts
+> **Study:** Do People Trust AI More When It Explains Itself? A Comparative Study of Explanation
 > HCI experiment conducted as part of graduate study at Florida Polytechnic University.
 >
 > We're studying how people use an AI tool that labels social media posts. You'll read 8 short posts about a made-up town. Each post has a label from the AI tool, and you decide whether you agree with it. You'll also answer short questions, including how tense or frustrated you felt. You do it on your own, with two posts and a questionnaire in each of four parts.
@@ -178,7 +198,7 @@ The app stores the consent timestamp without a signature or name. The eight-post
 > HCI experiment conducted as part of graduate study at Florida Polytechnic University. We are studying how people use AI labels on social media posts.
 >
 > - **What:** read 8 short made-up posts, each with an AI label, decide whether you agree with each label, and answer a few quick questions.
-> - **Format:** four parts of two posts, with questions after each part, on your phone or computer.
+> - **Format:** four parts of two posts, with questions after each part, in a browser, preferably on a desktop or laptop; responsive phone support is available.
 > - **Who:** anyone aged 18 or over who reads English. No experience with social media or AI is needed.
 >
 > Open the study link or scan its QR code, then choose **Take part**.
@@ -217,7 +237,7 @@ Record and verify the actual deployment host and study URL in the deployment log
 - [ ] Open the study URL on **a desktop browser and a phone**. Check that the landing page loads over HTTPS, that **Take part** opens the code screen (`/start`), and that **← Back** returns.
 - [ ] Open `/admin?token=…`. Check that the KPI cards load and the sessions table is empty. From another device, check that `/admin` without the token is refused.
 - [ ] In the admin panel, preview the assignments for pids 1–4 and 16. Check them against the sheet in §8.
-- [ ] Run the pilot (§15), then clear the pilot data before the main study (§15.3).
+- [ ] Run the pilot (§15), then use a separate fresh main-cohort database (§15.3).
 - [ ] **Daily backup** of the database while data collection is open:
   `sqlite3 app/data/study.db ".backup 'backups/study-$(date +%Y%m%d).db'"`
   Copy the result to the team's private drive (§14.2). Use `.backup`, not a plain file copy, so the copy is consistent while the server runs.
@@ -226,9 +246,9 @@ Record and verify the actual deployment host and study URL in the deployment log
 
 New sessions contain **8 analysed posts: 2 in each of 4 parts**. Each part contains exactly **1 correctly labeled post and 1 wrongly labeled post**. Across a participant's four parts there are **2 false alarms and 2 misses**. Across **32 new-session completers**, each condition must contain **16 false alarms and 16 misses** (and 32 correctly labeled posts). Verify these constraints from saved assignments, including after abandoned pid reuse; Williams condition order alone does not establish error-type balance. Do not reveal this structure before the debrief.
 
-Keep the 24-post bank as the source pool and preserve canonical wording. Saved legacy six-post parts retain their original posts, order, cursor, survey requirements and debrief. Record the session version in analysis, and **do not pool 8-post and 24-post sessions**: trial counts, error prevalence, exposure and workload differ.
+Keep the 24-post bank as the source pool and preserve canonical wording. Existing eight-post and 24-post plans retain their posts, order, cursor, protocol-specific survey requirements and debrief. Record the session version in analysis, and **do not pool 8-post and 24-post sessions**: trial counts, error prevalence, exposure and workload differ.
 
-The following compact guidance is a design specification to verify against the app, not a claim of implementation. Show a brief condition-specific cue on the first post of each part and a shorter reminder on its second post. Keep it inline and readable without a modal tour, forced panel opening or correctness feedback. The second post still leads to the full block survey. A new part means a different explanation interface in the assigned Williams order, not a fixed A→B→C→D sequence.
+The following compact guidance is a design specification to verify against the app, not a claim of implementation. Show a brief condition-specific cue on the first post of each part and a shorter reminder on its second post. Keep it inline and readable without a modal tour, forced panel opening or correctness feedback. The second post leads to the questionnaire specified by the stored session protocol. A new part means a different explanation interface in the assigned Williams order, not a fixed A→B→C→D sequence.
 
 | Assigned interface | First-post cue | Second-post reminder | Rationale for study defense |
 |---|---|---|---|
@@ -239,11 +259,11 @@ The following compact guidance is a design specification to verify against the a
 
 All conditions keep the same Agree/Disagree → confidence 1–7 sequence, optional fact sheet, checking delay and Undo behavior. Do not add required tasks merely to make parts feel different. New wording must not reveal errors, imply a reason is truthful or force verification. Differences in onboarding text can influence behavior and should be recorded as a limitation.
 
-Keep all **12 trust items per part** plus 2 fairness, tension and frustration: **16 ratings × 4 parts = 64 required block-survey ratings**, in addition to 8 decisions, 8 confidence ratings, practice and exit questions. Eight posts do not establish a short or effortless study. Pilot total time, survey fatigue, guidance clarity and accidental submissions before giving a duration estimate.
+New `calibrated-full-v1` sessions require **16 ratings × 4 parts = 64 block ratings**, plus eight decisions, eight confidence ratings, practice and exit questions. Previously started `calibrated-brief-v1` sessions retain three ratings per part (12 total). Saved `legacy-full-v1` sessions retain **16 × 4 = 64 block ratings**, even if their plan has eight posts. Pilot burden, comprehension, guidance and accidental submissions before estimating duration.
 
 ## 8. Assignment sheet (pid → condition order and sets)
 
-The server assigns pids itself (§2), so the team doesn't hand them out. This sheet is for **checking** what the server did (in the admin preview and balance grid) and for analysis. One cycle is 16 pids, and pid 17 repeats pid 1's order and sets (17 = 1, 18 = 2, …, 32 = 16). Only the seeded within-part post order differs.
+The server assigns pids itself (§2), so the team doesn't hand them out. This sheet is for **checking** what the server did (in the admin preview and balance grid) and for analysis. One cycle is 16 pids, and pid 17 repeats pid 1's order and sets (17 = 1, 18 = 2, …, 32 = 16). For short plans, the assigned wrong-label type flips in the next 16-slot cycle, as well as the seeded selections/order differing.
 
 For new sessions, these sets are selection pools, not instructions to present all six posts. The selection constraints in §7.3 apply within them. Legacy sessions retain all six assigned posts. The sheet is computed from the shared formulas in `_shared-decisions.md`:
 - `order = williams[(pid - 1) % 4]`, with `williams = [ABDC, BCAD, CDBA, DACB]`
@@ -286,8 +306,8 @@ The admin panel (`/admin`, protected by `ADMIN_TOKEN`) **doesn't start sessions*
 
 | What to watch | Where | What it should look like | Action if not |
 |---|---|---|---|
-| Completed vs target | KPI cards and progress toward N = 32 (min 16) | Rising; check completed assignments rather than assuming every lower pid has finished | Push recruitment. Target 32 new-session completers and verify actual assignment balance. |
-| Completion rate | KPI card | Most started sessions complete (aim > 70%) | Many abandons at the same screen point to a usability bug: check the sessions table's progress (x/8 for new sessions; x/24 for legacy) and fix it via the deviations log. |
+| Completed vs target | KPI cards and progress toward N = 32 (balance/feasibility target) | Rising; check completed assignments rather than assuming every lower pid has finished | Push recruitment. Target 32 new-session completers and verify actual assignment balance. |
+| Completion rate | KPI card | Most started sessions complete (aim > 70%) | Many abandons at the same screen point to a usability bug: check the sessions table's progress (x/8 or x/24 according to saved plan) and fix it via the deviations log. |
 | Median and p90 session time | KPI card | Eight-post median and p90 established by pilot | Much longer: check instruction length and phone layout. Much shorter (< 8 min): possible click-through; see §12.1. |
 | Balance grid | Completed sessions by condition order | Each order within 1 of the others; exactly 4 each at 16 and 8 each at 32 | Check for stale in-progress sessions holding pids. Never edit assignments by hand. |
 | Detection rates (sanity check only) | Per-condition and per-error-type table | Overall detection on wrong labels roughly 20–80% | Near 0% or 100% everywhere suggests a bug (for example the wrong label shown) or leaked study details. Don't use these numbers to change the study mid-way. |
@@ -332,12 +352,12 @@ Duration remains to be measured in the eight-post pilot. The sequence is:
 | 2 | Consent | Reads the short text (full details on demand), ticks the box, Continue |
 | 3 | Instructions + practice | One screen with 3 bullet points and 1 practice post (not logged as a trial) |
 | 4 | Part 1: 2 posts | Per post: ~800 ms "AI is checking…", then **Agree/Disagree**, then a confidence chip **1–7**. That's two taps; there's a 1 s Undo. Fact sheet and "Why?" (C) are optional. |
-| 5 | Survey after Part 1 | One screen: 12 trust items (matrix), 2 fairness, tension, frustration slider ("x of 16 answered") |
+| 5 | Survey after Part 1 | New protocol: 12 Jian-based trust items, two fairness items, tension and frustration; 16 answers required, frustration slider touched. Saved brief sessions retain their three-rating survey. |
 | 6–11 | Parts 2–4 + surveys | Same as 4–5, in the pid's condition order |
 | 12 | Exit survey | One screen, chips and radios; reminder not to type personal details |
 | 13 | Debrief | Reads the debrief; "Show the real facts"; sees the corrective facts and participant number |
 
-New sessions show "Post n of 8" and "Part x of 4"; legacy sessions show their original denominator of 24. There is no time limit. Timing flags follow the implemented per-trial rules; do not invent a session-level exclusion threshold.
+New sessions show "Post n of 8" and "Part x of 4"; existing sessions show their saved denominator of 8 or 24. There is no time limit. Timing flags follow the implemented per-trial rules; do not invent a session-level exclusion threshold.
 
 ## 12. Incident handling (self-guided)
 
@@ -359,8 +379,8 @@ Self-guided sessions rely on the app's error and retry states; remote human assi
 ### 12.1 Sessions to review before analysis
 
 These are decided **before** looking at condition results, using only the session data (not condition outcomes). Log each decision.
-- **Click-through:** for example, a median decision time under 1 s across a whole part, or the same confidence on all 8 posts (24 in legacy sessions).
-- **Probable repeat participant:** near-ceiling detection, together with comments revealing knowledge of the design.
+- **Click-through:** review timing and repeated patterns as flags, not automatic exclusions; identical confidence alone does not establish inattention. Any exclusion rule must be fixed in the [analysis plan](pilot-and-analysis-plan.md) before outcome inspection.
+- **Probable repeat participant:** documented evidence of earlier participation or disclosed prior knowledge; high detection alone does not establish duplicate participation.
 - **Self-reported prior knowledge** (if the exit item in §3.1 is added): kept in the main analysis and dropped in the sensitivity analysis.
 
 ## 13. Debrief
@@ -389,11 +409,11 @@ The debrief screen appears automatically after the exit survey. Synchronize the 
 >
 > **[Next participant]** (returns to the landing page; for shared lab devices)
 
-For saved legacy sessions, use the original 8-of-24 disclosure and corresponding facts. New sessions disclose 4-of-8 and the corrections for the posts actually assigned.
+For saved 24-post sessions, use the original 8-of-24 disclosure and corresponding facts. Existing eight-post/full-questionnaire sessions retain the 4-of-8 disclosure. New sessions disclose 4-of-8 and the corrections for the posts actually assigned.
 
 ### 13.2 The real facts (the "Show the real facts" section)
 
-Final post wording is in `stimuli.md`; this table is the full wrong-label bank. A new-session debrief selects the four assigned errors; a legacy debrief selects its eight. Do not imply all eight errors were shown in an eight-post session.
+Final post wording is in `stimuli.md`; this table is the full wrong-label bank. A new-session debrief selects the four assigned errors; a saved 24-post debrief selects its eight. Existing eight-post/full-questionnaire sessions also select their four assigned errors. Do not imply all eight errors were shown in an eight-post session.
 
 | Post | What the post said | AI label | Error | What the (fictional) record actually says |
 |---|---|---|---|---|
@@ -422,9 +442,9 @@ If cancellation fails, the message offers retry and the browser session remains 
 - **Browser:** only the active session id, and only while a session is in progress. Once the exit survey is saved, the app removes every `xai-study:` key from `localStorage` and `sessionStorage` (except the researcher's `xai-study:adminToken`), so nothing about the participant stays in the browser after they finish.
 - **Exports:** JSON and CSV files from `/admin`. The analysis works from these:
   - **`participants.csv` is the starting point**: one row per session with the per-participant totals, the per-condition scores (`agreement_A` … `frustration_D`) and the exit answers. Keep `status = completed` and `isPilot = FALSE` before any test. It never contains the participation-code hash.
-  - `trials.csv` (one row per trial) for the trial-level mixed models (H1–H2, H6), `surveys.csv` for item-level trust and fairness, `events.csv` for interaction sequences, `exit.csv` for the exit survey on its own.
-  - `kpis.csv` holds the dashboard numbers (completed, non-pilot only) for the monitoring section of the report. It is not the analysis.
-  - `sessions.json` is the complete archive: every CSV can be rebuilt from it.
+  - `trials.csv` (one row per trial) for reliance summaries and the planned trial-level analyses, `surveys.csv` for restored full trust/fairness/affect or the saved protocol's brief/legacy measures, `events.csv` for interaction sequences, `exit.csv` for the exit survey on its own.
+  - `kpis.csv` holds the dashboard numbers (completed, non-pilot only) for the monitoring section of the report. It is a monitoring summary, not a substitute for the analysis plan; label the protocol and trial-count cohort.
+  - `sessions.json` is a nested analysis export, not an identity-preserving database backup; participation hashes and salt are omitted.
 
 ### 14.2 Backups, exports and storage
 
@@ -465,50 +485,17 @@ No calendar retention period or designated deletion owner has been established f
 
 ### 15.1 Who and how
 
-- **Participants:** the six Group 4 members, each completing the full study as a participant **before** looking at any pilot results.
-- **Pilot sessions must never use main-study pids.** POST `/api/sessions` never assigns pids 901+, so pick one of:
-  - **(a) a separate pilot database:** run the same build with `DB_PATH=data/pilot.db`. Pilots get pids 1–6 in that file only. Delete the file before the main study.
-  - **(b) pids 901–906 in the main database**, created by the team through an admin pilot procedure. These are excluded from KPIs automatically.
-  - Use (a) unless an explicit pilot-creation route is implemented and verified; do not assume (b) exists. Either way, check each pilot pid's assignment with the admin preview (`/api/admin/assignments/:pid`).
-- The intended pilot assignments (the same formulas) cover all four condition orders:
-
-| pid | Order | Rotation | Part 1 | Part 2 | Part 3 | Part 4 |
-|---|---|---|---|---|---|---|
-| 901 | A-B-D-C | 1 | A / S2 | B / S3 | D / S1 | C / S4 |
-| 902 | B-C-A-D | 1 | B / S3 | C / S4 | A / S2 | D / S1 |
-| 903 | C-D-B-A | 1 | C / S4 | D / S1 | B / S3 | A / S2 |
-| 904 | D-A-C-B | 1 | D / S1 | A / S2 | C / S4 | B / S3 |
-| 905 | A-B-D-C | 2 | A / S3 | B / S4 | D / S2 | C / S1 |
-| 906 | B-C-A-D | 2 | B / S4 | C / S1 | A / S3 | D / S2 |
-
-  With option (a), pilot pids 1–6 get the rows for pids 1–6 in §8 instead. That also covers all four orders.
-- **At least 2 pilots on a phone and at least 2 on a desktop/laptop.** Each pilot uses their own code.
-- Members who wrote post content (the post bank and the B/C/D text) are marked in the pilot log, and their detection rates aren't used to judge post difficulty.
-- Each pilot also tries the incidents at least once across the team: refresh mid-part, close the tab and resume with the same code on another device, and a second attempt after completing with the same code on the same device (the Welcome screen shows a fresh **Start**; typing the code again gives "already taken part").
+Plan a **6–8-person pilot in a separate SQLite database**, using the restored eight-post/full protocol. Include at least two phone and two desktop/laptop sessions and cover all four Williams orders. Prefer people without prior stimulus knowledge for comprehension feedback. Team members may test technical behavior, but mark their prior knowledge and do not use their detection performance to establish difficulty. Self-start does not allocate pids 900+; a separate file keeps pilot pids out of the main cohort without requiring an unimplemented creation route.
 
 ### 15.2 What to check
 
-| Check | How | Target / action if missed |
-|---|---|---|
-| Session length | Admin median/p90; pilot notes | Measure eight-post duration and the burden of 64 block ratings; no validated target time yet. Preserve the agreed posts and measures. |
-| Phone and desktop | Pilots on both | Every screen usable at 360 px; fact sheet opens as a bottom sheet on phones; no horizontal scroll; tap targets easy to hit. |
-| Detection rate on wrong labels | `detectedError` on the 4 wrong labels per new session (8 in legacy), overall and split by false alarm vs miss and clear vs subtle | Overall **20–80%**. Under 20%: the errors are too hard to spot; over 80%: too obvious. Revise post or fact-sheet wording in `stimuli.md`. |
-| Fact-sheet use | `factSheetOpened`, `factSheetOpenMs`; ask "Did you use the fact sheet? Why or why not?" | Opened at least sometimes by most pilots. If never, check the button's visibility; don't add prompting text. |
-| Agree/Disagree clarity | Ask: "On a 'Likely misleading' label, what did Agree mean?" | Everyone answers correctly. If not, revise the instructions or button text. |
-| "Why?" panel use (C) | `explanationOpened`, `factorsExpanded` | Opened at least once by most pilots; if never, check the button's visibility. |
-| Two-tap flow and Undo | Pilot notes | No accidental submissions. Undo noticed. |
-| Once-only and resume | The incident tries in §15.1 | Resume works across devices; a repeat attempt with the same code is blocked by the server; after the debrief, no `xai-study:` key except `xai-study:adminToken` is left in DevTools > Application, and **Next participant** opens a fresh landing page with no Continue banner. |
-| Wording clarity | "Was any post, label, reason or fact sheet unclear?" | Fix unclear wording in `stimuli.md` and `posts.json`. |
-| Stress items | "Were the tension and frustration questions clear and comfortable to answer?" | Clear; no pilot uncomfortable. |
-| Admin and export | KPIs load; exports open in R or pandas | Loads with no manual cleanup; the pilot is excluded from KPIs (option b) or lives in its own database (option a). |
+Follow the [pilot and analysis plan](pilot-and-analysis-plan.md) for the detailed procedure. Review actual duration by phase, burden of the 64 block ratings, comprehension of Agree/Disagree under both label classes, confidence/Undo, discoverability of fact sheets and Why?, readable C evidence, the neutral system-rating instruction, section headings, scale anchors, answer counts and touched frustration slider. Confirm that the untouched slider prompt is understood without treating its initial 50 as an answer. Check 360 px layout, keyboard use, retry/resume, event sequencing, early exit, final cleanup, the next participant and exports/cohort labels.
+
+This pilot evaluates **burden, comprehension and technical feasibility, not statistical significance**. Tiny per-condition counts do not justify requiring detection to fall in a target band or selecting stimuli for a favorable condition effect. Review misunderstood wording and control failures with documented reasons; any material stimulus change needs coordinated canonical text and bank updates before collection.
 
 ### 15.3 After the pilot
 
-Any change made after the pilot goes in the deviations log with its reason, and the commit hash is recorded. Before the first main-study participant:
-- Clear the pilot data (delete `data/pilot.db`, or delete the pilot sessions).
-- Check that the main database has no sessions.
-
-The main study then runs on one fixed build.
+Record changes and the tested build identifier in the deviations log. Retain the isolated pilot database securely under the eventual retention policy; start formal collection with a different, verified empty database and preserve earlier study files unchanged. Do not clear or relabel existing eight-post or 24-post responses. The main study uses a fixed build and versioned protocol; any later deviation is documented.
 
 ## 16. Deviations log template
 
@@ -536,8 +523,8 @@ Example entries:
 - The Exit study button provides a remote early-stop debrief. Closing the tab instead can still bypass it; a verified post-participation deletion-request route remains unresolved. Stopping remains voluntary; it does not erase saved data.
 - Retention periods, deletion ownership, deployment logging, compensation terms and actual storage permissions require documented decisions.
 - Prior-knowledge collection is proposed and needs implementation verification.
-- New-session selection, per-condition error-type balance across 32 completers and legacy resume preservation require implementation and export verification. Never pool the two session versions.
-- The 64 required block ratings remain a substantial burden; duration and usability need pilot evidence. The target sample and counterbalancing are not a power analysis or evidence of novel findings.
+- New-session selection, per-condition error-type balance across 32 completers and legacy resume preservation require implementation and export verification. Keep restored eight/full, historical eight/brief, old eight/full and old 24/full cohorts separate.
+- New `calibrated-full-v1` sessions and saved legacy full sessions require 64 block ratings; saved brief sessions retain 12. Duration, comprehension and usability need pilot evidence. The target sample and counterbalancing are not a power analysis or evidence of novel findings.
 
 ---
 

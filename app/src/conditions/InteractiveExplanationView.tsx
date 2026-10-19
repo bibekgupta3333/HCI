@@ -38,11 +38,9 @@ function FactorRow({ factor, idBase, expanded, onToggle }: RowProps) {
           {factor.passes ? "✓" : "✗"}
         </span>
       </button>
-      {expanded && (
-        <p id={detailId} className="factor-row__detail">
-          {factor.detail}
-        </p>
-      )}
+      <p id={detailId} className="factor-row__detail" hidden={!expanded}>
+        {expanded ? factor.detail : null}
+      </p>
     </li>
   );
 }
@@ -81,19 +79,18 @@ function InteractiveInner({ presentation, onWhy, onFactorToggle }: ExplanationPr
       >
         Why? <span className="why-button__arrow" aria-hidden="true">{open ? "▴" : "▾"}</span>
       </button>
-      {open && (
-        <ul id={listId} className="factor-list">
-          {factors.map((f) => (
-            <FactorRow
-              key={f.key}
-              factor={f}
-              idBase={idBase}
-              expanded={expanded[f.key]}
-              onToggle={() => toggleFactor(f.key)}
-            />
-          ))}
-        </ul>
-      )}
+      {/* Keep the controlled target present even while its content is collapsed. */}
+      <ul id={listId} className="factor-list" hidden={!open}>
+        {open && factors.map((f) => (
+          <FactorRow
+            key={f.key}
+            factor={f}
+            idBase={idBase}
+            expanded={expanded[f.key]}
+            onToggle={() => toggleFactor(f.key)}
+          />
+        ))}
+      </ul>
     </section>
   );
 }

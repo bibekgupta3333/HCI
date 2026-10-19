@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS meta (
 
 CREATE TABLE IF NOT EXISTS sessions (
   session_id         TEXT PRIMARY KEY,           -- uuid v4
+  protocol_version   TEXT NOT NULL DEFAULT 'legacy-full-v1' CHECK (protocol_version IN ('legacy-full-v1','calibrated-brief-v1','calibrated-full-v1')),
   pid                INTEGER NOT NULL CHECK (pid >= 1),
   condition_order    TEXT NOT NULL,              -- e.g. "CDBA"
   set_rotation       INTEGER NOT NULL CHECK (set_rotation BETWEEN 0 AND 3),
@@ -102,10 +103,12 @@ CREATE TABLE IF NOT EXISTS block_surveys (
   condition                TEXT NOT NULL,
   trust_raw                TEXT NOT NULL,        -- JSON array of 12 raw answers
   trust_scored             TEXT NOT NULL,        -- JSON array of 12 scored answers (items 1-5 reversed: 8 - raw)
-  trust_mean               REAL NOT NULL,
-  fairness1                INTEGER NOT NULL,
-  fairness2                INTEGER NOT NULL,
-  fairness_mean            REAL NOT NULL,
+  questionnaire_version    TEXT NOT NULL DEFAULT 'full-v1' CHECK (questionnaire_version IN ('full-v1','brief-v1')),
+  brief_trust              INTEGER CHECK (brief_trust BETWEEN 1 AND 7),
+  trust_mean               REAL,
+  fairness1                INTEGER,
+  fairness2                INTEGER,
+  fairness_mean            REAL,
   tension                  INTEGER NOT NULL CHECK (tension BETWEEN 1 AND 7),
   frustration_tlx          INTEGER NOT NULL CHECK (frustration_tlx BETWEEN 0 AND 100 AND frustration_tlx % 5 = 0),
   frustration_tlx_touched  INTEGER NOT NULL CHECK (frustration_tlx_touched = 1),

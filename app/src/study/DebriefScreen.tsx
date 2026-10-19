@@ -67,7 +67,8 @@ export default function DebriefScreen() {
         </li>
         <li>
           <strong>The AI labels were scripted.</strong> The AI tool was not a real AI. Every label
-          and every reason it gave was written in advance by our study team.
+          and every reason it gave was written in advance by our study team. No AI model or
+          large language model (LLM) generated the labels or explanations during the study.
         </li>
         <li>
           <strong>{exitedEarly ? "In the planned session, " : ""}{wrongLabels} of the {totalPosts} labels were deliberately wrong.</strong> There were two kinds of
@@ -78,8 +79,9 @@ export default function DebriefScreen() {
           different in each of the four parts.
         </li>
         <li>
-          This study examines how people respond to labels and explanations. Your answers are
-          not a judgment of your ability.
+          We wanted to learn whether explanations help people accept correct labels and question
+          wrong ones, and how the interfaces make people feel. More trust is not automatically
+          better. Your answers are not a judgment of your ability.
         </li>
         <li>
           We didn't tell you this at the start because knowing that mistakes were planted would

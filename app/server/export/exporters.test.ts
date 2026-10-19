@@ -159,15 +159,15 @@ describe("exporters", () => {
     expect(JSON.parse(sessionsJson(fresh))).toEqual([]);
   });
 
-  it("column lists match CONTRACT.md exactly", () => {
-    expect(TRIAL_COLUMNS).toHaveLength(37);
+  it("preserves existing columns and appends protocol metadata", () => {
+    expect(TRIAL_COLUMNS).toHaveLength(38);
     expect(TRIAL_COLUMNS.slice(0, 3)).toEqual(["pid", "sessionId", "trialId"]);
-    expect(TRIAL_COLUMNS.slice(-5)).toEqual(["conditionOrder", "setRotation", "status", "plannedTrials", "studyVariant"]);
-    expect(SURVEY_COLUMNS).toHaveLength(4 + 24 + 9 + 2);
+    expect(TRIAL_COLUMNS.slice(-6)).toEqual(["conditionOrder", "setRotation", "status", "plannedTrials", "studyVariant", "protocolVersion"]);
+    expect(SURVEY_COLUMNS).toHaveLength(4 + 24 + 9 + 2 + 3);
     expect(SURVEY_COLUMNS[4]).toBe("trust_01");
     expect(SURVEY_COLUMNS[27]).toBe("trust_12_s");
-    expect(EVENT_COLUMNS).toHaveLength(12);
-    expect(EXIT_COLUMNS).toHaveLength(10);
+    expect(EVENT_COLUMNS).toHaveLength(13);
+    expect(EXIT_COLUMNS).toHaveLength(11);
   });
 
   it("trials.csv: one row per trial with session fields and CSV encodings", () => {
@@ -209,7 +209,7 @@ describe("exporters", () => {
     expect(r.trust_06).toBe("6");
     expect(r.trust_06_s).toBe("6");
     expect(r.trust_12).toBe("5");
-    expect(Number(r.trustMean)).toBeCloseTo(survey(1, "C").trustMean);
+    expect(Number(r.trustMean)).toBeCloseTo(survey(1, "C").trustMean!);
     expect(r).toMatchObject({
       fairness1: "5", fairness2: "6", fairnessMean: "5.5", tension: "3", frustrationTlx: "35",
       frustrationTlxTouched: "TRUE", nWrongDetected: "1", submittedAt: "2026-11-03T14:20:00.000Z",
@@ -291,10 +291,10 @@ describe("participants.csv", () => {
     ]);
     expect(PARTICIPANT_COLUMNS.slice(19, 25)).toEqual(["agreement_A", "detected_A", "trust_A", "fairness_A", "tension_A", "frustration_A"]);
     expect(PARTICIPANT_COLUMNS.slice(37, 43)).toEqual(["agreement_D", "detected_D", "trust_D", "fairness_D", "tension_D", "frustration_D"]);
-    expect(PARTICIPANT_COLUMNS.slice(-9)).toEqual([
+    expect(PARTICIPANT_COLUMNS.slice(43, 52)).toEqual([
       "ageRange", "gender", "education", "socialMediaUse", "labelExposure", "preferredCondition", "comment", "plannedTrials", "studyVariant",
     ]);
-    expect(PARTICIPANT_COLUMNS).toHaveLength(19 + 24 + 7 + 2);
+    expect(PARTICIPANT_COLUMNS).toHaveLength(19 + 24 + 7 + 2 + 32);
   });
 
   it("computes totals, rates (3 dp), duration (1 dp) and per-condition fields", () => {
@@ -312,7 +312,7 @@ describe("participants.csv", () => {
       agreement_A: "", detected_A: "", trust_A: "", fairness_A: "", tension_A: "", frustration_A: "",
       ageRange: "18-24", gender: "", education: "bachelors", preferredCondition: "C", comment: exit.comment,
     });
-    expect(r.trust_C).toBe(String(Math.round(survey(1, "C").trustMean * 1000) / 1000));
+    expect(r.trust_C).toBe(String(Math.round(survey(1, "C").trustMean! * 1000) / 1000));
   });
 
   it("includes in-progress and pilot sessions, flags pilots, leaves duration empty when not completed", () => {
@@ -343,7 +343,7 @@ describe("kpis.csv", () => {
     insertTrial(db, s.sessionId, trial());
     setStatus(db, s.sessionId, "completed", "2026-10-17T10:00:00.000Z");
     const k = computeKpis(db, now);
-    const rows = records(kpisCsv(db, now));
+    const rows = records(kpisCsv(db, now, "all"));
     expect(parseCsv(kpisCsv(db, now))[0]).toEqual(KPI_COLUMNS);
     expect(rows[0]).toEqual({ section: "meta", key: "all", metric: "generatedAt", value: now.toISOString() });
     const get = (section: string, key: string, metric: string) =>
@@ -363,7 +363,7 @@ describe("kpis.csv", () => {
     for (const b of k.balance) expect(get("balance", b.conditionOrder, "completed")).toBe(String(b.completed));
     expect(get("balance", "CDBA", "completed")).toBe("1");
     expect(get("daily", "2026-10-17", "completed")).toBe("1");
-    const expected = 1 + 11 + 13 * 4 + 2 * 2 + k.balance.length + k.dailyCompleted.length;
+    const expected = 2 + Object.keys(k.primaryOutcome!).length + 11 + k.byCondition.reduce((n, c) => n + Object.keys(c).length - 1, 0) + 2 * 2 + k.balance.length + k.dailyCompleted.length;
     expect(rows).toHaveLength(expected);
   });
 
@@ -399,11 +399,56 @@ describe("study-version metadata", () => {
   it("exports the planned length even for unfinished short and legacy sessions", () => {
     const db = openDb(":memory:");
     createSession(db, assignment, opts);
-    const short: Assignment = { ...assignment, pid: 8, blocks: assignment.blocks.map(b => ({ ...b, postOrder: b.postOrder.slice(0, 2) })) as Assignment["blocks"] };
+    const short: Assignment = { ...assignment, pid: 8, blocks: assignment.blocks.map(b => ({ ...b, postOrder: b.postOrder.slice(0, 2) })) as Assignment["blocks"] as Assignment["blocks"] };
     createSession(db, short, opts);
     const rows = records(participantsCsv(db));
     expect(rows.find(r => r.pid === "7")).toMatchObject({ plannedTrials: "24", studyVariant: "legacy-24", trialsSaved: "0" });
     expect(rows.find(r => r.pid === "8")).toMatchObject({ plannedTrials: "8", studyVariant: "short-8", trialsSaved: "0" });
+    db.close();
+  });
+});
+
+describe("brief and legacy export isolation", () => {
+  it("exports both protocols, leaves full-scale scores blank for brief surveys, and defaults KPI CSV to current", () => {
+    const db = openDb(":memory:");
+    const legacy = createSession(db, assignment, { consequenceBanner: false, anxiety: false, postBankHash: "h", appVersion: "v" });
+    const current = createSession(db, { ...assignment, pid: 8, seed: 8, blocks: assignment.blocks.map((b) => ({ ...b, postOrder: b.postOrder.slice(0, 2) })) as Assignment["blocks"] }, {
+      consequenceBanner: false, anxiety: false, postBankHash: "h", appVersion: "v", protocolVersion: "calibrated-brief-v1",
+    });
+    insertBlockSurvey(db, legacy.sessionId, survey(1, "C"));
+    insertBlockSurvey(db, current.sessionId, { ...survey(1, "C"), questionnaireVersion: "brief-v1", briefTrust: 6,
+      trustResponses: [], trustMean: null, fairness1: null, fairness2: null, fairnessMean: null });
+    for (const s of [legacy, current]) {
+      insertTrial(db, s.sessionId, trial());
+      insertTrial(db, s.sessionId, trial({ trialId: "7-1-2", positionInBlock: 2, trialIndex: 2,
+        isAiCorrect: true, agreed: true, detectedError: null, errorType: null, difficulty: null }));
+      setStatus(db, s.sessionId, "completed", "2026-10-17T12:00:00Z");
+    }
+    const sv = records(surveysCsv(db));
+    expect(sv.find((r) => r.sessionId === current.sessionId)).toMatchObject({
+      protocolVersion: "calibrated-brief-v1", questionnaireVersion: "brief-v1", briefTrust: "6",
+      trustMean: "", fairness1: "", fairness2: "", fairnessMean: "", trust_01: "", trust_01_s: "",
+    });
+    expect(sv.find((r) => r.sessionId === legacy.sessionId)).toMatchObject({
+      protocolVersion: "legacy-full-v1", questionnaireVersion: "full-v1", briefTrust: "", trust_01: "1", trust_01_s: "7",
+    });
+    const participants = records(participantsCsv(db));
+    expect(participants).toHaveLength(2);
+    const brief = participants.find((r) => r.sessionId === current.sessionId)!;
+    expect(brief).toMatchObject({ protocolVersion: "calibrated-brief-v1", questionnaireVersion: "brief-v1", briefTrust: "6",
+      trust_C: "", fairness_C: "", briefTrust_C: "6", correctAcceptanceRate: "1", wrongRejectionRate: "1",
+      appropriateRelianceRate: "1", overrelianceRate: "0", underrelianceRate: "0", appropriateRelianceRate_C: "1",
+      correctAcceptanceRate_A: "", wrongRejectionRate_A: "", plannedTrials: "8", studyVariant: "short-8" });
+    const defaultRows = records(kpisCsv(db));
+    expect(defaultRows.find((r) => r.metric === "protocolVersion")?.value).toBe("calibrated-full-v1");
+    expect(defaultRows.find((r) => r.section === "summary" && r.metric === "completed")?.value).toBe("0");
+    const rows = records(kpisCsv(db, new Date(), "calibrated-brief-v1"));
+    expect(rows.find((r) => r.metric === "protocolVersion")?.value).toBe("calibrated-brief-v1");
+    expect(rows.find((r) => r.section === "summary" && r.metric === "completed")?.value).toBe("1");
+    expect(rows.find((r) => r.section === "primaryOutcome" && r.metric === "trials")?.value).toBe("2");
+    const raw = records(trialsCsv(db));
+    expect(new Set(raw.map((r) => r.protocolVersion))).toEqual(new Set(["legacy-full-v1", "calibrated-brief-v1"]));
+    expect(JSON.parse(sessionsJson(db)).map((s: { protocolVersion: string }) => s.protocolVersion)).toContain("calibrated-brief-v1");
     db.close();
   });
 });

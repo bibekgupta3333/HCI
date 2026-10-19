@@ -4,7 +4,7 @@ import { getSession, listSessions, setStatus, deleteSession } from "../db/repo";
 import {
   trialsCsv, surveysCsv, eventsCsv, exitCsv, sessionsJson, participantsCsv, kpisCsv, exportIndex,
 } from "../export/exporters";
-import type { PostBank } from "../../shared/types";
+import { CURRENT_PROTOCOL, type PostBank } from "../../shared/types";
 import { assignShortFromBank } from "../../shared/counterbalance";
 import { computeKpis } from "../kpi";
 
@@ -69,9 +69,13 @@ export function adminRouter(deps: { db: Database.Database; adminToken?: string; 
     res.status(403).json({ error: "forbidden", detail: "admin is only available on this computer unless ADMIN_TOKEN is set" });
   });
 
-  router.get("/kpis", (_req, res) => {
+  router.get("/kpis", (req, res) => {
+    const protocol = req.query.protocolVersion ?? CURRENT_PROTOCOL;
+    if (protocol !== "all" && protocol !== "legacy-full-v1" && protocol !== "calibrated-brief-v1" && protocol !== CURRENT_PROTOCOL) {
+      return void res.status(400).json({ error: "validation", detail: "invalid protocolVersion" });
+    }
     res.setHeader("Cache-Control", "no-store");
-    res.json(computeKpis(db));
+    res.json(computeKpis(db, new Date(), protocol));
   });
 
   router.get("/assignments/:pid", (req, res) => {

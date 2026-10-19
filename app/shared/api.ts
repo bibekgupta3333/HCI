@@ -1,7 +1,7 @@
 // API contract between the React client and the Express + SQLite server.
 // Every agent builds against these types. Do not change a shape without updating API.md.
 import type {
-  Condition, SetId, Presentation, FactorKey, Likert7, ExitSurvey, EventType, Phase, PracticePost,
+  Condition, SetId, Presentation, FactorKey, Likert7, ExitSurvey, EventType, Phase, PracticePost, StudyProtocol,
 } from "./types";
 
 // ---------- assignment ----------
@@ -33,6 +33,7 @@ export interface SessionView {
   sessionId: string;
   pid: number;
   status: SessionStatus;
+  protocolVersion?: StudyProtocol; // absent means legacy-full-v1; persisted for real sessions
   conditionOrder: [Condition, Condition, Condition, Condition];
   setRotation: 0 | 1 | 2 | 3;
   blocks: [BlockPlan, BlockPlan, BlockPlan, BlockPlan];
@@ -87,7 +88,8 @@ export interface EventSubmission {
   wallClock: string;
 }
 
-export interface BlockSurveySubmission {
+export interface FullBlockSurveySubmission {
+  questionnaireVersion?: "full-v1";
   blockIndex: 1 | 2 | 3 | 4;
   trustRaw: Likert7[];         // 12 raw answers in item order; server reverse-scores items 1-5
   fairness1: Likert7;
@@ -97,6 +99,16 @@ export interface BlockSurveySubmission {
   frustrationTlxTouched: boolean; // must be true
   anxiety?: number[] | null;
 }
+
+export interface BriefBlockSurveySubmission {
+  blockIndex: 1 | 2 | 3 | 4;
+  questionnaireVersion: "brief-v1";
+  briefTrust: Likert7;
+  tension: Likert7;
+  frustrationTlx: number;
+  frustrationTlxTouched: boolean;
+}
+export type BlockSurveySubmission = FullBlockSurveySubmission | BriefBlockSurveySubmission;
 
 export type ExitSurveySubmission = Omit<ExitSurvey, "submittedAt">;
 
@@ -112,6 +124,7 @@ export interface AdminSessionRow {
   conditionOrder: string; // e.g. "CDBA"
   setRotation: number;
   trialsSaved: number;    // response count, compare with plannedTrials
+  protocolVersion?: StudyProtocol;
   plannedTrials?: number; // derived from saved blocks (8 short, 24 legacy)
   studyVariant?: string; // short-8, legacy-24, or custom-N
   surveysSaved: number;   // 0-4
@@ -121,7 +134,20 @@ export interface AdminSessionRow {
 }
 
 // GET /api/admin/kpis. Pilot pids >= 900 are excluded everywhere; condition and error KPIs use completed sessions only.
+export interface RelianceSummary {
+  trials: number;
+  correctTrials: number;
+  wrongTrials: number;
+  correctAcceptanceRate: number | null;
+  wrongRejectionRate: number | null;
+  appropriateRelianceRate: number | null;
+  overrelianceRate: number | null;
+  underrelianceRate: number | null;
+}
+
 export interface Kpis {
+  cohort?: StudyProtocol | "all";
+  primaryOutcome?: RelianceSummary;
   generatedAt: string;
   sessions: { started: number; inProgress: number; completed: number; abandoned: number; completionRate: number | null };
   target: { n: number; minimum: number; completed: number; cycle1Completed: number; cycle2Completed: number };
@@ -129,7 +155,9 @@ export interface Kpis {
   byCondition: Array<{ condition: Condition; trials: number; agreementRate: number | null; wrongTrials: number;
     detectionRate: number | null; falseAlarmDetection: number | null; missDetection: number | null;
     factSheetOpenRate: number | null; meanConfidence: number | null; medianDecisionMs: number | null;
-    trustMean: number | null; fairnessMean: number | null; tensionMean: number | null; frustrationMean: number | null }>;
+    trustMean: number | null; fairnessMean: number | null; tensionMean: number | null; frustrationMean: number | null;
+    correctAcceptanceRate?: number | null; wrongRejectionRate?: number | null; appropriateRelianceRate?: number | null;
+    overrelianceRate?: number | null; underrelianceRate?: number | null; briefTrustMean?: number | null }>;
   byErrorType: Array<{ errorType: "false_alarm" | "miss"; n: number; detectionRate: number | null }>;
   balance: Array<{ conditionOrder: string; completed: number }>;
   dailyCompleted: Array<{ date: string; n: number }>;

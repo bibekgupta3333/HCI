@@ -5,7 +5,7 @@ import type {
   Assignment, BlockPlan, Cursor, SessionStatus, SessionView, AdminSessionRow, EventSubmission,
 } from "../../shared/api";
 import type {
-  BlockSurvey, Condition, ExitSurvey, FactorKey, Phase, Trial, TrustResponse,
+  BlockSurvey, Condition, ExitSurvey, FactorKey, Phase, Trial, TrustResponse, StudyProtocol,
 } from "../../shared/types";
 
 type DB = Database.Database;
@@ -66,6 +66,7 @@ function sessionViewFromRow(db: DB, r: Row): SessionView {
     sessionId: r.session_id,
     pid: r.pid,
     status: r.status,
+    protocolVersion: r.protocol_version ?? "legacy-full-v1",
     conditionOrder: splitOrder(r.condition_order),
     setRotation: r.set_rotation,
     blocks,
@@ -126,6 +127,8 @@ function surveyFromRow(r: Row, itemIds?: string[]): BlockSurvey {
   return {
     blockIndex: r.block_index,
     condition: r.condition,
+    questionnaireVersion: r.questionnaire_version ?? "full-v1",
+    briefTrust: r.brief_trust ?? null,
     trustResponses,
     trustMean: r.trust_mean,
     fairness1: r.fairness1,
@@ -174,6 +177,7 @@ export interface CreateSessionOpts {
   anxiety: boolean;
   postBankHash: string;
   appVersion: string;
+  protocolVersion?: StudyProtocol; // omitted by historical/manual callers: legacy-full-v1
   participantHash?: string | null; // HMAC of the participation code; never the raw code
 }
 
@@ -183,15 +187,15 @@ export function createSession(db: DB, a: Assignment, opts: CreateSessionOpts): S
   const insertSession = stmt(db, `INSERT INTO sessions
     (session_id, pid, condition_order, set_rotation, seed, status, consequence_banner, anxiety,
      cursor_block, cursor_position, cursor_phase, resume_count, post_bank_hash, app_version, started_at,
-     participant_hash, last_activity_at)
-    VALUES (?, ?, ?, ?, ?, 'in_progress', ?, ?, 1, 1, 'consent', 0, ?, ?, ?, ?, ?)`);
+     participant_hash, last_activity_at, protocol_version)
+    VALUES (?, ?, ?, ?, ?, 'in_progress', ?, ?, 1, 1, 'consent', 0, ?, ?, ?, ?, ?, ?)`);
   const insertBlock = stmt(db, `INSERT INTO blocks (session_id, block_index, condition, set_id, post_order)
     VALUES (?, ?, ?, ?, ?)`);
   const tx = db.transaction(() => {
     insertSession.run(
       sessionId, a.pid, a.conditionOrder.join(""), a.setRotation, a.seed,
       b(opts.consequenceBanner), b(opts.anxiety), opts.postBankHash, opts.appVersion, now,
-      opts.participantHash ?? null, now,
+      opts.participantHash ?? null, now, opts.protocolVersion ?? "legacy-full-v1",
     );
     for (const blk of a.blocks) {
       insertBlock.run(sessionId, blk.blockIndex, blk.condition, blk.set, JSON.stringify(blk.postOrder));
@@ -216,6 +220,7 @@ export function listSessions(db: DB): AdminSessionRow[] {
     sessionId: r.session_id,
     pid: r.pid,
     status: r.status,
+    protocolVersion: r.protocol_version ?? "legacy-full-v1",
     conditionOrder: r.condition_order,
     setRotation: r.set_rotation,
     trialsSaved: r.trials_saved,
@@ -383,8 +388,8 @@ export function insertEvents(db: DB, sessionId: string, evs: EventSubmission[]):
 export function insertBlockSurvey(db: DB, sessionId: string, s: BlockSurvey): void {
   const ins = stmt(db, `INSERT INTO block_surveys
     (session_id, block_index, condition, trust_raw, trust_scored, trust_mean, fairness1, fairness2, fairness_mean,
-     tension, frustration_tlx, frustration_tlx_touched, n_wrong_detected, anxiety, submitted_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+     tension, frustration_tlx, frustration_tlx_touched, n_wrong_detected, anxiety, submitted_at, questionnaire_version, brief_trust)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
   runOrConflict(() => {
     ins.run(
       sessionId, s.blockIndex, s.condition,
@@ -392,6 +397,7 @@ export function insertBlockSurvey(db: DB, sessionId: string, s: BlockSurvey): vo
       JSON.stringify(s.trustResponses.map((r) => r.scored)),
       s.trustMean, s.fairness1, s.fairness2, s.fairnessMean, s.tension, s.frustrationTlx,
       b(s.frustrationTlxTouched), s.nWrongDetected, s.anxiety == null ? null : JSON.stringify(s.anxiety), s.submittedAt,
+      s.questionnaireVersion ?? "full-v1", s.briefTrust ?? null,
     );
   }, `block survey ${s.blockIndex} already saved`);
 }
@@ -414,18 +420,19 @@ function sessionCols(r: Row) {
     conditionOrder: r.condition_order,
     setRotation: r.set_rotation,
     status: r.status,
+    protocolVersion: r.protocol_version ?? "legacy-full-v1",
   };
 }
 
 export function allTrialRows(db: DB): Record<string, unknown>[] {
-  const rows = stmt(db, `SELECT t.*, s.condition_order, s.set_rotation, s.status
+  const rows = stmt(db, `SELECT t.*, s.condition_order, s.set_rotation, s.status, s.protocol_version
     FROM trials t JOIN sessions s ON s.session_id = t.session_id
     ORDER BY t.pid, s.started_at, t.session_id, t.block_index, t.position_in_block`).all() as Row[];
   return rows.map((r) => ({ ...sessionCols(r), ...trialFromRow(r) }));
 }
 
 export function allSurveyRows(db: DB): Record<string, unknown>[] {
-  const rows = stmt(db, `SELECT bs.*, s.pid, s.condition_order, s.set_rotation, s.status
+  const rows = stmt(db, `SELECT bs.*, s.pid, s.condition_order, s.set_rotation, s.status, s.protocol_version
     FROM block_surveys bs JOIN sessions s ON s.session_id = bs.session_id
     ORDER BY s.pid, s.started_at, bs.session_id, bs.block_index`).all() as Row[];
   return rows.map((r) => {
@@ -439,6 +446,8 @@ export function allSurveyRows(db: DB): Record<string, unknown>[] {
     for (let i = 0; i < 12; i++) out[`trust_${String(i + 1).padStart(2, "0")}`] = raw[i] ?? null;
     for (let i = 0; i < 12; i++) out[`trust_${String(i + 1).padStart(2, "0")}_s`] = scored[i] ?? null;
     Object.assign(out, {
+      questionnaireVersion: r.questionnaire_version ?? "full-v1",
+      briefTrust: r.brief_trust ?? null,
       trustMean: r.trust_mean,
       fairness1: r.fairness1,
       fairness2: r.fairness2,
@@ -455,14 +464,14 @@ export function allSurveyRows(db: DB): Record<string, unknown>[] {
 }
 
 export function allEventRows(db: DB): Record<string, unknown>[] {
-  const rows = stmt(db, `SELECT e.*, s.pid, s.condition_order, s.set_rotation, s.status
+  const rows = stmt(db, `SELECT e.*, s.pid, s.condition_order, s.set_rotation, s.status, s.protocol_version
     FROM events e JOIN sessions s ON s.session_id = e.session_id
     ORDER BY s.pid, s.started_at, e.session_id, e.seq`).all() as Row[];
   return rows.map((r) => ({ ...sessionCols(r), ...eventFromRow(r) }));
 }
 
 export function allExitRows(db: DB): Record<string, unknown>[] {
-  const rows = stmt(db, `SELECT x.*, s.pid, s.condition_order, s.set_rotation, s.status
+  const rows = stmt(db, `SELECT x.*, s.pid, s.condition_order, s.set_rotation, s.status, s.protocol_version
     FROM exit_surveys x JOIN sessions s ON s.session_id = x.session_id
     ORDER BY s.pid, s.started_at, x.session_id`).all() as Row[];
   return rows.map((r) => ({ ...sessionCols(r), ...exitFromRow(r) }));
@@ -495,6 +504,7 @@ export function allSessionsFull(db: DB): unknown[] {
       consequenceBanner: toBool(s.consequence_banner),
       anxiety: toBool(s.anxiety),
       status: s.status,
+      protocolVersion: s.protocol_version ?? "legacy-full-v1",
       consentAt: s.consent_at ?? null,
       startedAt: s.started_at,
       completedAt: s.completed_at ?? null,

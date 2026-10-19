@@ -6,8 +6,10 @@
 import type Database from "better-sqlite3";
 import { toCsv } from "./csv";
 import { allEventRows, allExitRows, allSessionsFull, allSurveyRows, allTrialRows } from "../db/repo";
-import { computeKpis, median, PILOT_PID_MIN } from "../kpi";
+import { computeKpis, median, mean, relianceSummary, PILOT_PID_MIN } from "../kpi";
 import type { Kpis } from "../kpi";
+
+import { CURRENT_PROTOCOL, type StudyProtocol } from "../../shared/types";
 
 type Row = Record<string, unknown>;
 
@@ -16,7 +18,7 @@ export const TRIAL_COLUMNS = [
   "topic", "aiLabel", "groundTruth", "isAiCorrect", "errorType", "difficulty", "agreed", "detectedError",
   "confidence", "decisionTimeMs", "decisionTimeRawMs", "hiddenMs", "hiddenCount", "blurCount", "timingFlag",
   "factSheetOpened", "factSheetOpenMs", "explanationOpened", "factorsExpanded", "timeToFirstExpandMs",
-  "resumed", "labelShownAt", "respondedAt", "conditionOrder", "setRotation", "status", "plannedTrials", "studyVariant",
+  "resumed", "labelShownAt", "respondedAt", "conditionOrder", "setRotation", "status", "plannedTrials", "studyVariant", "protocolVersion",
 ];
 
 const pad2 = (n: number) => String(n).padStart(2, "0");
@@ -26,30 +28,30 @@ const TRUST_SCORED = TRUST_RAW.map((c) => `${c}_s`);
 export const SURVEY_COLUMNS = [
   "pid", "sessionId", "blockIndex", "condition", ...TRUST_RAW, ...TRUST_SCORED, "trustMean",
   "fairness1", "fairness2", "fairnessMean", "tension", "frustrationTlx", "frustrationTlxTouched",
-  "nWrongDetected", "submittedAt", "plannedTrials", "studyVariant",
+  "nWrongDetected", "submittedAt", "plannedTrials", "studyVariant", "protocolVersion", "questionnaireVersion", "briefTrust",
 ];
 
 export const EVENT_COLUMNS = [
   "pid", "sessionId", "seq", "trialId", "blockIndex", "condition", "postId", "type", "factorKey", "tMs",
-  "perfNow", "wallClock",
+  "perfNow", "wallClock", "protocolVersion",
 ];
 
 export const EXIT_COLUMNS = [
   "pid", "sessionId", "ageRange", "gender", "education", "socialMediaUse", "labelExposure",
-  "preferredCondition", "comment", "submittedAt",
+  "preferredCondition", "comment", "submittedAt", "protocolVersion",
 ];
 
 const TRIAL_BOOLEANS = ["isAiCorrect", "agreed", "detectedError", "timingFlag", "factSheetOpened", "explanationOpened", "resumed"];
 
-interface SessionMeta { pid: number; conditionOrder: string; setRotation: number; status: string; plannedTrials: number; studyVariant: string }
+interface SessionMeta { pid: number; conditionOrder: string; setRotation: number; status: string; plannedTrials: number; studyVariant: string; protocolVersion: StudyProtocol }
 
 function sessionMeta(db: Database.Database): Map<string, SessionMeta> {
   const rows = db
-    .prepare(`SELECT s.session_id, s.pid, s.condition_order, s.set_rotation, s.status,
+    .prepare(`SELECT s.session_id, s.pid, s.condition_order, s.set_rotation, s.status, s.protocol_version,
       (SELECT COALESCE(SUM(json_array_length(b.post_order)),0) FROM blocks b WHERE b.session_id=s.session_id) AS planned_trials FROM sessions s`)
-    .all() as { session_id: string; pid: number; condition_order: string; set_rotation: number; status: string; planned_trials: number }[];
+    .all() as { session_id: string; pid: number; condition_order: string; set_rotation: number; status: string; protocol_version: StudyProtocol; planned_trials: number }[];
   return new Map(rows.map((r) => [r.session_id, {
-    pid: r.pid, conditionOrder: r.condition_order, setRotation: r.set_rotation, status: r.status,
+    protocolVersion: r.protocol_version, pid: r.pid, conditionOrder: r.condition_order, setRotation: r.set_rotation, status: r.status,
     plannedTrials: r.planned_trials, studyVariant: r.planned_trials === 8 ? "short-8" : r.planned_trials === 24 ? "legacy-24" : `custom-${r.planned_trials}`,
   }]));
 }
@@ -92,6 +94,7 @@ function withSession(row: Row, meta: Map<string, SessionMeta>): Row {
     status: pick(row, "status", "sessionStatus") ?? m?.status,
     plannedTrials: m?.plannedTrials,
     studyVariant: m?.studyVariant,
+    protocolVersion: m?.protocolVersion,
   };
 }
 
@@ -118,6 +121,8 @@ export function surveyRows(db: Database.Database): Row[] {
     TRUST_SCORED.forEach((c, i) => { if (row[c] === undefined) row[c] = scored?.[i]; });
     row.fairness1 = pick(r, "fairness1", "fairness_1");
     row.fairness2 = pick(r, "fairness2", "fairness_2");
+    row.questionnaireVersion = r.questionnaireVersion ?? "full-v1";
+    row.briefTrust = r.briefTrust ?? null;
     row.frustrationTlxTouched = toBool(row.frustrationTlxTouched);
     return row;
   });
@@ -154,6 +159,9 @@ export const PARTICIPANT_COLUMNS = [
   "missDetected", "detectionRate", "meanConfidence", "medianDecisionMs", "factSheetOpenRate",
   ...CONDS.flatMap((c) => [`agreement_${c}`, `detected_${c}`, `trust_${c}`, `fairness_${c}`, `tension_${c}`, `frustration_${c}`]),
   "ageRange", "gender", "education", "socialMediaUse", "labelExposure", "preferredCondition", "comment", "plannedTrials", "studyVariant",
+  "protocolVersion", "questionnaireVersion", "briefTrust",
+  "correctAcceptanceRate", "wrongRejectionRate", "appropriateRelianceRate", "overrelianceRate", "underrelianceRate",
+  ...CONDS.flatMap((c) => ["correctAcceptanceRate", "wrongRejectionRate", "appropriateRelianceRate", "overrelianceRate", "underrelianceRate", "briefTrust"].map((m) => `${m}_${c}`)),
 ];
 
 /** Round to `dp` decimals; null for null/non-finite. */
@@ -174,7 +182,7 @@ interface PTrial {
   detected_error: number | null; confidence: number; decision_time_ms: number; fact_sheet_opened: number;
 }
 interface PSurvey {
-  session_id: string; condition: string; trust_mean: number; fairness_mean: number; tension: number; frustration_tlx: number;
+  session_id: string; condition: string; trust_mean: number | null; fairness_mean: number | null; brief_trust: number | null; questionnaire_version: string; tension: number; frustration_tlx: number;
 }
 interface PExit {
   session_id: string; age_range: string; gender: string | null; education: string; social_media_use: string;
@@ -201,7 +209,7 @@ export function participantRows(db: Database.Database): Row[] {
        FROM trials`,
   ).all() as PTrial[]);
   const surveys = groupBy(db.prepare(
-    `SELECT session_id, condition, trust_mean, fairness_mean, tension, frustration_tlx FROM block_surveys`,
+    `SELECT session_id, condition, trust_mean, fairness_mean, brief_trust, questionnaire_version, tension, frustration_tlx FROM block_surveys`,
   ).all() as PSurvey[]);
   const exits = new Map((db.prepare(
     `SELECT session_id, age_range, gender, education, social_media_use, label_exposure, preferred_condition, comment
@@ -217,6 +225,10 @@ export function participantRows(db: Database.Database): Row[] {
     const dur = s.status === "completed" && s.completed_at
       ? (Date.parse(s.completed_at) - Date.parse(s.started_at)) / 60000 : NaN;
     const row: Row = {
+      ...relianceSummary(ts),
+      protocolVersion: meta.get(s.session_id)?.protocolVersion,
+      questionnaireVersion: ss[0]?.questionnaire_version ?? (meta.get(s.session_id)?.protocolVersion === "calibrated-brief-v1" ? "brief-v1" : "full-v1"),
+      briefTrust: round(mean(ss.map((v) => v.brief_trust)), 3),
       pid: s.pid,
       sessionId: s.session_id,
       isPilot: s.pid >= PILOT_PID_MIN,
@@ -249,6 +261,9 @@ export function participantRows(db: Database.Database): Row[] {
     for (const c of CONDS) {
       const ct = ts.filter((t) => t.condition === c);
       const sv = ss.find((v) => v.condition === c);
+      const reliance = relianceSummary(ct);
+      for (const metric of ["correctAcceptanceRate", "wrongRejectionRate", "appropriateRelianceRate", "overrelianceRate", "underrelianceRate"] as const) row[`${metric}_${c}`] = reliance[metric];
+      row[`briefTrust_${c}`] = sv?.brief_trust ?? null;
       row[`agreement_${c}`] = ratio(ct.filter((t) => t.agreed === 1).length, ct.length);
       row[`detected_${c}`] = ct.length === 0 ? null : detected(ct);
       row[`trust_${c}`] = round(sv?.trust_mean, 3);
@@ -268,6 +283,8 @@ export const KPI_COLUMNS = ["section", "key", "metric", "value"];
 export function kpiRowsFrom(k: Kpis): Row[] {
   const rows: Row[] = [{ section: "meta", key: "all", metric: "generatedAt", value: k.generatedAt }];
   const add = (section: string, key: string, metric: string, value: unknown) => rows.push({ section, key, metric, value });
+  add("meta", "all", "protocolVersion", k.cohort);
+  for (const [metric, value] of Object.entries(k.primaryOutcome ?? {})) add("primaryOutcome", "all", metric, value);
   const summary: [string, number | null][] = [
     ["started", k.sessions.started], ["inProgress", k.sessions.inProgress], ["completed", k.sessions.completed],
     ["abandoned", k.sessions.abandoned], ["completionRate", k.sessions.completionRate],
@@ -288,8 +305,8 @@ export function kpiRowsFrom(k: Kpis): Row[] {
   return rows;
 }
 
-export function kpiRows(db: Database.Database, now: Date = new Date()): Row[] { return kpiRowsFrom(computeKpis(db, now)); }
-export function kpisCsv(db: Database.Database, now: Date = new Date()): string { return toCsv(kpiRows(db, now), KPI_COLUMNS); }
+export function kpiRows(db: Database.Database, now: Date = new Date(), protocolVersion: StudyProtocol | "all" = CURRENT_PROTOCOL): Row[] { return kpiRowsFrom(computeKpis(db, now, protocolVersion)); }
+export function kpisCsv(db: Database.Database, now: Date = new Date(), protocolVersion: StudyProtocol | "all" = CURRENT_PROTOCOL): string { return toCsv(kpiRows(db, now, protocolVersion), KPI_COLUMNS); }
 
 // ---------- export index (GET /api/admin/export) ----------
 export interface ExportIndexEntry { name: string; description: string; rows: number }
@@ -300,10 +317,10 @@ const count = (db: Database.Database, table: string) =>
 export const EXPORT_INDEX: { name: string; description: string; rows: (db: Database.Database) => number }[] = [
   { name: "participants.csv", description: "One analysis-ready row per session (all statuses, pilots flagged): totals, detection, per-condition scores and exit answers.", rows: (db) => count(db, "sessions") },
   { name: "trials.csv", description: "One row per trial: post, AI label, truth, agreement, detection, confidence, timing and explanation use.", rows: (db) => count(db, "trials") },
-  { name: "surveys.csv", description: "One row per block survey: 12 trust items (raw and scored), trust mean, fairness, tension, frustration.", rows: (db) => count(db, "block_surveys") },
+  { name: "surveys.csv", description: "One row per block survey: versioned brief trust or legacy Jian items and fairness; tension and frustration.", rows: (db) => count(db, "block_surveys") },
   { name: "events.csv", description: "Interaction log: one row per client event (fact sheet, Why?, factor expands, visibility).", rows: (db) => count(db, "events") },
   { name: "exit.csv", description: "One row per exit survey: demographics, social media use, label exposure, preferred condition, comment.", rows: (db) => count(db, "exit_surveys") },
-  { name: "kpis.csv", description: "Dashboard KPIs in long form (section, key, metric, value); completed non-pilot sessions only.", rows: (db) => kpiRows(db).length },
+  { name: "kpis.csv", description: "Dashboard KPIs in long form (section, key, metric, value); current calibrated-full-v1 cohort; outcomes use completed non-pilot sessions.", rows: (db) => kpiRows(db).length },
   { name: "sessions.json", description: "Full nested record of every session (blocks, trials, surveys, exit, events) for archiving.", rows: (db) => count(db, "sessions") },
 ];
 

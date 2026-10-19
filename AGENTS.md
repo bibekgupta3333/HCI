@@ -1,12 +1,14 @@
 # AGENTS.md
 
+**Full questionnaire restored (2026-10-19):** new sessions use `calibrated-full-v1` with `questionnaireVersion=full-v1`. After EACH of four parts, collect the original 12 Jian-based trust items, two fairness items, tension and frustration: 16 ratings per part, 64 total. Keep eight posts (two per part), appropriate reliance as primary, the unchanged paper title and the interface-package limitation. Trust is now measured separately for each explanation condition. Preserve previously started `calibrated-brief-v1` sessions and their brief surveys on resume; do not mix or relabel their data. Dashboard/KPI exports default to the restored full cohort. Earlier brief-default descriptions below document the superseded revision and apply only to saved brief sessions. Schema 4 preserves all earlier responses. Pilot the restored questionnaire burden; no completion-time or power guarantee is established.
+
 Guidance for every coding agent working in this repository. Read this before changing the app. This is a working project guide, not a claim that the study is approved or its findings are established.
 
 ## 1. Project and current scope
 
 CEN5728 Advanced HCI, Group 4: **When the AI label is wrong, do explanations help people catch it, and how do they make people feel?**
 
-This is a working, self-guided research website. New participants judge 8 distinct fictional social media posts (two per part, sampled from the 24-post bank) with scripted AI accuracy labels and optional fact sheets. Some labels deliberately contradict the facts. The experiment compares four explanation interfaces, error detection, trust, fairness and affect. It uses **Wizard-of-Oz** decisions: no model, LLM, external fact-check service or live social-media feed runs.
+This is a working, self-guided research website. New participants judge 8 distinct fictional social media posts (two per part, sampled from the 24-post bank) with scripted AI accuracy labels and optional fact sheets. Some labels deliberately contradict the facts. The experiment compares four explanation interface packages, appropriate reliance, error detection, full condition-specific trust, fairness and affect. It uses **Wizard-of-Oz** decisions: no model, LLM, external fact-check service or live social-media feed runs.
 
 Current requirements:
 
@@ -54,6 +56,24 @@ The current user instruction takes precedence over older documents. Verify runni
 - Complete authorized reversible fixes without repeatedly asking permission. Do not commit, publish or deploy merely because a previous agent offered to do so.
 - Never claim servers are running, tests pass, a backup exists, or approval was granted without current evidence. Temporary files can disappear between sessions.
 
+## Historical brief measurement revision — calibrated reliance (2026-10-18)
+
+The paper title is unchanged: **Do People Trust AI More When It Explains Itself? A Comparative Study of Explanation**. Primary outcomes are accepting correct labels and rejecting wrong ones, combined as behavioral appropriate reliance. Greater agreement or trust alone is not success.
+
+- New sessions persist `protocolVersion=calibrated-brief-v1`; old sessions remain `legacy-full-v1` after migration, regardless of 8/24 planned trials. Never select questionnaires by plan length or upgrade a resumed session.
+- New block surveys collect `questionnaireVersion=brief-v1`: custom `briefTrust` 1–7, tension 1–7 and frustration 0–100, three ratings per part/twelve total. Do not call briefTrust a validated or shortened Jian scale. Fairness and the full Jian items are not collected in this protocol.
+- Full-v1 questionnaires remain for saved legacy sessions. For brief-v1, store legacy trust/fairness scores as null and trust arrays empty, never zero, repeated single-item values or imputed scores. Use separate fields for `briefTrustMean` and historical Jian `trustMean`.
+- Report correctAcceptanceRate, wrongRejectionRate, appropriateRelianceRate, overrelianceRate and underrelianceRate with counts and clear denominators. No eligible trials means null, not zero. All-agree and all-reject strategies are both incomplete reliance behaviors.
+- A–D are interface packages. C's factual comparison is deliberately unchanged, so a C advantage cannot isolate interactivity or explanation depth. An equal-information static follow-up is proposed, not implemented.
+- Dashboard/KPI exports default to the current protocol; raw response exports preserve all versions and include protocol/questionnaire identifiers. Do not pool cohorts or compare custom single-item trust directly with Jian means.
+- Keep the eight-post design exploratory. Pilot separately before formal collection; N=32 is an assignment/feasibility target, not established power. See `docs/pilot-and-analysis-plan.md` and `docs/methods-and-limitations.md` for the analysis/reporting plan and transparent simulated-AI description. Do not reveal planted errors in recruitment copy.
+
+This historical section applies to saved brief sessions only. The restored full-questionnaire revision at the top governs new sessions.
+
+## Questionnaire presentation
+
+The participant interface runs in a web browser, with desktop/laptop readability and existing responsive support. Neutral survey instructions ask participants to rate the AI labeling system used in the completed part, rather than the post authors or website design. Do not redefine abstract trust items, coach answers or reveal planted errors. Keep canonical wording, item order, scale endpoints and full/brief version-specific validation unchanged. Before interaction, the frustration slider says “Move the slider to select your answer”; its underlying start of 50 is not a submitted answer. An intentional selection of 50 remains valid. UI clarity does not establish psychometric validity or measured burden; pilot the presentation.
+
 ## 4. Study design and invariants
 
 ### Conditions
@@ -85,7 +105,7 @@ B, C's rationale text, and D may support a wrong AI label. Do not automatically 
 
 The user explicitly shortened NEW sessions to two posts per part (8 total). The full 24-post bank remains canonical. Each part samples one correct and one wrong label from its assigned set; posts never repeat across parts. Each participant sees two false alarms and two misses overall. The wrong-label type is selected by condition index plus the 16-person-cycle parity, and flips in the next cycle; condition × error-type balance therefore needs 32 participants. Shuffle both positions; do not always put the wrong post second.
 
-This is a short exploratory study: one wrong trial per condition cannot estimate both error types within that condition for an individual. Keep the 12-item Jian scale per block; four surveys still mean 64 ratings and need pilot burden assessment. Do not promise a full-paper result or a validated time estimate.
+This is a short exploratory study: one wrong trial per condition cannot estimate both error types within that condition for an individual. For the current protocol use three custom block ratings (12 overall); the original 12-item Jian and fairness questionnaire remains only for saved legacy sessions. Do not promise a full-paper result or a validated time estimate.
 
 Existing sessions retain their persisted six-post block plans. All cursor transitions, progress, survey eligibility and debrief counts must use saved block lengths. Never shorten an existing session or delete responses. CSVs append `plannedTrials` and `studyVariant` (`short-8` / `legacy-24`); analyse these versions separately. For formal short-cohort collection, use a new `DB_PATH` and preserve the old file: legacy pids occupying slots can otherwise prevent 32 additional short participants from completing the intended 32-slot balance. Admin monitoring may show both, with an explicit warning.
 
@@ -160,12 +180,12 @@ Limitations: a different code bypasses the check; codes are not verified identit
 | Level | Required information |
 |---|---|
 | Trial | Assignment/post identifiers, agreement, required confidence 1–7, truth/error type derived on server, decision timing, hidden/blur counts, fact-sheet use/time, C interactions, resumed flag |
-| Block | 12 Jian trust items, two fairness items, tension 1–7, NASA-TLX frustration 0–100 in steps of 5, number of wrong labels detected |
+| Block | Current brief-v1: custom perceived trust1–7, tension1–7, frustration0–100(step5), detected-error count; saved full-v1: original Jian/fairness measures |
 | Session | pid and UUID sessionId, assignment/seed, cursor/status, timestamps, resume count, post-bank hash and app version, exit answers |
 | Event | Monotonic session sequence, optional trial identifiers, event type/factor, relative performance time and wall-clock time |
 
 - `detectedError = !agreed` on wrong labels; **null on correct labels**. It measures behavioral disagreement, not proof of the participant's reasoning.
-- Trust items 1–5 reverse score `8 - raw`; items 6–12 remain raw. Compute trust and fairness means on the server. Keep raw and scored trust values in exports.
+- **Legacy full-v1 only:** trust items 1–5 reverse score `8 - raw`; items 6–12 remain raw. Compute trust and fairness means on the server. Keep raw and scored trust values in exports.
 - The frustration slider starts at 50 and requires interaction (`frustrationTlxTouched`) before submit. Do not report its single item as a full weighted NASA-TLX score.
 - `nWrongDetected` is the server-derived count per block, 0–2.
 - `decisionTimeMs = decisionTimeRawMs - hiddenMs`; timing flag is set for hidden periods or adjusted time over 120000 ms. Do not silently discard flagged trials.
@@ -218,7 +238,7 @@ SQLite file defaults to `app/data/study.db`. File databases use WAL and foreign 
 | `blocks` | Stored condition/set/post order, keyed by session/block |
 | `trials` | Responses/scoring, keyed by session/block/position |
 | `events` | Deduplicated event sequence, keyed by session/seq |
-| `block_surveys` | One questionnaire per session/block |
+| `block_surveys` | Versioned questionnaire per session/block; nullable uncollected legacy scores and separate brief trust |
 | `exit_surveys` | One exit survey per session |
 
 Statuses: `in_progress`, `completed`, `abandoned`. Cursor phases include consent, instructions, trial/post_rating, block_survey, exit_survey and done. A block survey requires all trials in that saved block plan (two new / six legacy); completion requires four saved block surveys. Reject duplicate trial/survey writes and validate ranges and assigned post IDs. The server derives correctness and scores; never trust client-supplied truth.
@@ -274,7 +294,7 @@ npm run build          # typecheck + client build to dist/
 npm start              # production API + dist/ on :3001
 ```
 
-Development participants: `http://localhost:5173/`; admin: `/admin` on that origin. Production participants: `http://localhost:3001/`. Do not send development participants to the API-only origin or a bare trial URL. No lint script is currently defined. `npm start` uses POSIX environment syntax; Windows needs Git Bash/WSL or the workaround in the README.
+Development participants: `http://localhost:5173/`; admin: `/admin` on that origin. Production participants: `http://localhost:3001/`. Do not send development participants to the API-only origin or a bare trial URL. No lint script is currently defined. Preserve the protocol-aware migration and run its retention tests for changes to survey schemas. `npm start` uses POSIX environment syntax; Windows needs Git Bash/WSL or the workaround in the README.
 
 | Environment | Default / purpose |
 |---|---|

@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 const mocks = vi.hoisted(() => ({
+  protocolVersion: undefined as "calibrated-full-v1" | "calibrated-brief-v1" | "legacy-full-v1" | undefined,
   submitBlockSurvey: vi.fn(),
   log: vi.fn(),
   flush: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock("../state/StudyContext", () => ({
   useStudy: () => ({
     dispatch: mocks.dispatch,
     session: {
+      protocolVersion: mocks.protocolVersion,
       sessionId: "sess-1",
       pid: 3,
       blocks: [
@@ -35,11 +37,13 @@ vi.mock("../state/StudyContext", () => ({
     c.phase === "trial" ? `/trial/${c.blockIndex}/${c.positionInBlock}` : `/${c.phase}`,
 }));
 vi.mock("../logging/logger", () => ({ useLogger: () => ({ log: mocks.log, flush: mocks.flush, nextSeq: () => 1 }) }));
-vi.mock("../../shared/data/surveyItems.json", () => {
+vi.mock("../../shared/data/surveyItems.json", async (orig) => {
+  const actual = await orig<{ default: typeof import("../../shared/data/surveyItems.json") }>();
   const scale = { min: 1, max: 7, minLabel: "Not at all", maxLabel: "Extremely" };
   return {
     default: {
       schemaVersion: 1,
+      briefTrust: actual.default.briefTrust,
       trustScale: scale,
       trustItems: Array.from({ length: 12 }, (_, i) => ({
         id: `jian-${String(i + 1).padStart(2, "0")}`,
@@ -89,6 +93,7 @@ const slider = () => screen.getByRole("slider", { name: /irritated/ });
 describe("BlockSurveyScreen", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.protocolVersion = undefined;
     mocks.submitBlockSurvey.mockResolvedValue({ nWrongDetected: 1, cursor: { blockIndex: 3, positionInBlock: 1, phase: "trial" } });
     mocks.flush.mockResolvedValue(undefined);
   });
@@ -96,11 +101,29 @@ describe("BlockSurveyScreen", () => {
   it("shows the part heading without naming the condition", () => {
     renderAt(2);
     const h = screen.getByRole("heading", { level: 1 });
-    expect(h).toHaveTextContent("Part 2 of 4 done — a few quick questions about the AI labels in that part");
+    expect(h).toHaveTextContent("Part 2 of 4: Your ratings");
     expect(h.textContent).not.toMatch(/condition|\bC\b/);
   });
 
+  it.each(["calibrated-full-v1", "calibrated-brief-v1"] as const)("gives neutral part-specific instructions for %s", (protocol) => {
+    mocks.protocolVersion = protocol;
+    renderAt(3);
+    const form = screen.getByRole("form", { name: "Part 3 of 4: Your ratings" });
+    expect(form).toHaveAccessibleDescription("Rate the AI labeling system you just used in this part, not the post authors or the website design. There are no right or wrong answers.");
+    expect(screen.getByRole("heading", { name: "Trust", level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "How you felt", level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(protocol === "calibrated-brief-v1" ? "0 of 3 answered" : "0 of 16 answered");
+  });
+
+  it("describes trust and fairness sections with their distinct canonical endpoints", () => {
+    mocks.protocolVersion = "calibrated-full-v1";
+    renderAt(2);
+    expect(screen.getByRole("region", { name: "Trust" })).toHaveAccessibleDescription("Rate each statement: 1 = Not at all; 7 = Extremely.");
+    expect(screen.getByRole("region", { name: "Fairness" })).toHaveAccessibleDescription("Rate each statement: 1 = Strongly disagree; 7 = Strongly agree.");
+  });
+
   it("renders trust and fairness matrices with their own anchors and 7 chips per row", () => {
+    mocks.protocolVersion = "calibrated-full-v1";
     renderAt(1);
     const trust = screen.getByRole("group", { name: "Trust in the AI labels" });
     const fair = screen.getByRole("group", { name: "Fairness of the AI labels" });
@@ -153,11 +176,14 @@ describe("BlockSurveyScreen", () => {
     expect(continueBtn()).toBeDisabled();
     answerAllLikert();
     expect(screen.getByText("15 of 16 answered")).toBeInTheDocument();
+    expect(screen.getAllByText(/Move the slider/)).toHaveLength(1);
+    expect(slider()).toHaveAccessibleDescription("Move the slider to select your answer");
     expect(continueBtn()).toBeDisabled();
     fireEvent.click(continueBtn());
     expect(mocks.submitBlockSurvey).not.toHaveBeenCalled();
     fireEvent.change(slider(), { target: { value: "55" } });
     expect(screen.getByText("16 of 16 answered")).toBeInTheDocument();
+    expect(screen.queryByText(/Move the slider/)).not.toBeInTheDocument();
     expect(continueBtn()).toBeEnabled();
   });
 
@@ -170,7 +196,8 @@ describe("BlockSurveyScreen", () => {
     expect(continueBtn()).toBeEnabled();
   });
 
-  it("submits the payload in item order, logs, flushes, dispatches and navigates", async () => {
+  it.each([undefined, "legacy-full-v1", "calibrated-full-v1"] as const)("submits the full payload in item order with logging and navigation for %s", async (protocol) => {
+    mocks.protocolVersion = protocol;
     renderAt(2);
     answerAllLikert();
     fireEvent.change(slider(), { target: { value: "35" } });
@@ -212,4 +239,96 @@ describe("BlockSurveyScreen", () => {
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith("/exit_survey"));
     expect(mocks.submitBlockSurvey.mock.calls[0][1].frustrationTlx).toBe(50);
   });
+
+  it.each([undefined, "legacy-full-v1", "calibrated-full-v1"] as const)("keeps the full 16-rating form for protocol %s", (protocol) => {
+    mocks.protocolVersion = protocol;
+    renderAt(1);
+    expect(screen.getByText("0 of 16 answered")).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /How much did you trust/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Fairness" })).toBeInTheDocument();
+  });
+
+  describe("brief questionnaire", () => {
+    beforeEach(() => { mocks.protocolVersion = "calibrated-brief-v1"; });
+
+    const trustGroup = () => screen.getByRole("group", { name: /How much did you trust the AI labels in this part/ });
+    function answerBriefLikert() {
+      fireEvent.click(within(trustGroup()).getByRole("radio", { name: "7, Completely" }));
+      fireEvent.click(within(screen.getByRole("group", { name: /How tense/ })).getByRole("radio", { name: "2" }));
+    }
+
+    it("renders only three ratings with no selected trust default and requires all three", () => {
+      renderAt(2);
+      expect(screen.getByText("0 of 3 answered")).toBeInTheDocument();
+      expect(screen.queryByText("Fairness")).not.toBeInTheDocument();
+      expect(screen.queryByText(/Trust item/)).not.toBeInTheDocument();
+      expect(screen.getAllByRole("radio")).toHaveLength(14);
+      expect(within(trustGroup()).getAllByRole("radio").every((r) => !(r as HTMLInputElement).checked)).toBe(true);
+      fireEvent.submit(continueBtn().closest("form")!);
+      expect(mocks.submitBlockSurvey).not.toHaveBeenCalled();
+      answerBriefLikert();
+      expect(screen.getByText("2 of 3 answered")).toBeInTheDocument();
+      expect(continueBtn()).toBeDisabled();
+      fireEvent.keyDown(slider(), { key: "ArrowLeft" });
+      expect(screen.getByText("3 of 3 answered")).toBeInTheDocument();
+      expect(continueBtn()).toBeEnabled();
+    });
+
+    it("requires an explicit trust answer even when both affect ratings are complete", () => {
+      renderAt(1);
+      fireEvent.click(within(screen.getByRole("group", { name: /How tense/ })).getByRole("radio", { name: "2" }));
+      fireEvent.change(slider(), { target: { value: "0" } });
+      expect(continueBtn()).toBeDisabled();
+      fireEvent.submit(continueBtn().closest("form")!);
+      expect(mocks.submitBlockSurvey).not.toHaveBeenCalled();
+    });
+
+    it("submits exactly the brief payload and preserves logging/cursor navigation", async () => {
+      renderAt(2);
+      answerBriefLikert();
+      fireEvent.change(slider(), { target: { value: "100" } });
+      fireEvent.click(continueBtn());
+      await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith("/trial/3/1"));
+      expect(mocks.submitBlockSurvey).toHaveBeenCalledWith("sess-1", {
+        blockIndex: 2, questionnaireVersion: "brief-v1", briefTrust: 7,
+        tension: 2, frustrationTlx: 100, frustrationTlxTouched: true,
+      });
+      expect(mocks.log).toHaveBeenCalledWith(expect.objectContaining({ type: "block_survey_submit", condition: "C" }));
+      expect(mocks.flush).toHaveBeenCalled();
+      expect(mocks.dispatch).toHaveBeenCalledWith({ type: "CURSOR_CHANGED", cursor: { blockIndex: 3, positionInBlock: 1, phase: "trial" } });
+    });
+  });
+
+  it.each(["calibrated-brief-v1", "legacy-full-v1", "calibrated-full-v1"] as const)("rejects a non-step slider value for %s", (protocol) => {
+    mocks.protocolVersion = protocol;
+    renderAt(1);
+    if (protocol === "calibrated-brief-v1") {
+      fireEvent.click(within(screen.getByRole("group", { name: /How much did you trust/ })).getByRole("radio", { name: "1, Not at all" }));
+      fireEvent.click(within(screen.getByRole("group", { name: /How tense/ })).getByRole("radio", { name: "2" }));
+    } else answerAllLikert();
+    fireEvent.change(slider(), { target: { value: "32" } });
+    fireEvent.click(continueBtn());
+    expect(screen.getByRole("alert")).toHaveTextContent("slider value is invalid");
+    expect(mocks.submitBlockSurvey).not.toHaveBeenCalled();
+  });
+
+  it.each(["calibrated-brief-v1", "legacy-full-v1", "calibrated-full-v1"] as const)("retains answers and retries after a save failure for %s", async (protocol) => {
+    mocks.protocolVersion = protocol;
+    mocks.submitBlockSurvey.mockRejectedValueOnce(new Error("offline"));
+    renderAt(1);
+    if (protocol === "calibrated-brief-v1") {
+      fireEvent.click(within(screen.getByRole("group", { name: /How much did you trust/ })).getByRole("radio", { name: "1, Not at all" }));
+      fireEvent.click(within(screen.getByRole("group", { name: /How tense/ })).getByRole("radio", { name: "2" }));
+    } else answerAllLikert();
+    fireEvent.change(slider(), { target: { value: "0" } });
+    fireEvent.click(continueBtn());
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("could not be saved"));
+    expect(continueBtn()).toBeEnabled();
+    expect(mocks.dispatch).not.toHaveBeenCalled();
+    expect(mocks.navigate).not.toHaveBeenCalled();
+    fireEvent.click(continueBtn());
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalled());
+    expect(mocks.submitBlockSurvey.mock.calls[1]).toEqual(mocks.submitBlockSurvey.mock.calls[0]);
+  });
+
 });

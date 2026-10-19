@@ -1,6 +1,7 @@
 // Participant session endpoints: /api/sessions/...
 import express from "express";
 import type Database from "better-sqlite3";
+import { CURRENT_PROTOCOL } from "../../shared/types";
 import type { Post, PostBank } from "../../shared/types";
 import type { Cursor, SessionView, TrialSaved } from "../../shared/api";
 import { assignShortFromBank } from "../../shared/counterbalance";
@@ -63,7 +64,7 @@ export function sessionsRouter(deps: SessionsDeps): express.Router {
       participantHash: hashParticipantCode(participantSalt, code),
       staleMinutes,
       assign: (pid) => assignShortFromBank(pid, bank),
-      opts: { consequenceBanner: o.consequenceBanner === true, anxiety: false, postBankHash, appVersion },
+      opts: { protocolVersion: CURRENT_PROTOCOL, consequenceBanner: o.consequenceBanner === true, anxiety: false, postBankHash, appVersion },
     });
     switch (result.kind) {
       case "new": return void res.status(201).json(result.session);
@@ -168,6 +169,9 @@ export function sessionsRouter(deps: SessionsDeps): express.Router {
   router.post("/:id/block-surveys", (req, res) => {
     const s = loadActive(req.params.id);
     const sub = validateBlockSurvey(req.body);
+    const expected = s.protocolVersion === "calibrated-brief-v1" ? "brief-v1" : "full-v1";
+    if ((sub.questionnaireVersion ?? "full-v1") !== expected)
+      throw new ValidationError(`questionnaireVersion must be ${expected} for the stored session protocol`);
     const plan = blockPlan(s, sub.blockIndex);
     const blockTrials = getTrials(db, s.sessionId).filter((t) => t.blockIndex === sub.blockIndex);
     if (blockTrials.length !== plan.postOrder.length)

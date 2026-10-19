@@ -2,6 +2,10 @@
 // The SessionStoreRoot type is legacy (v3 docs used localStorage); the app now persists to SQLite on the server.
 
 // ---------- shared enums ----------
+export type StudyProtocol = "legacy-full-v1" | "calibrated-brief-v1" | "calibrated-full-v1";
+export type QuestionnaireVersion = "full-v1" | "brief-v1";
+export const CURRENT_PROTOCOL: StudyProtocol = "calibrated-full-v1";
+
 export type Condition = "A" | "B" | "C" | "D";
 export type Label = "accurate" | "misleading";       // shown as "Likely accurate" / "Likely misleading"
 export type Truth = "TRUE" | "FALSE";
@@ -104,7 +108,7 @@ export interface SimpleItem {
 }
 
 export interface ScaleItem {
-  id: "tension" | "frustrationTlx" | "confidence";
+  id: "tension" | "frustrationTlx" | "confidence" | "briefTrust";
   text: string;
   min: number;
   max: number;
@@ -124,6 +128,7 @@ export interface SurveyItems {
   tension: ScaleItem;
   frustrationTlx: ScaleItem;
   confidence: ScaleItem;
+  briefTrust?: ScaleItem; // custom single-item perceived trust; not a Jian short form
 }
 
 // ---------- session log (localStorage) ----------
@@ -189,11 +194,13 @@ export interface TrustResponse {
 export interface BlockSurvey {
   blockIndex: 1 | 2 | 3 | 4;
   condition: Condition;
-  trustResponses: TrustResponse[];  // length 12
-  trustMean: number;                // H4
-  fairness1: Likert7;
-  fairness2: Likert7;
-  fairnessMean: number;             // H5
+  questionnaireVersion?: QuestionnaireVersion; // absent means historical full-v1
+  briefTrust?: Likert7 | null;       // brief-v1 only, custom item
+  trustResponses: TrustResponse[];  // 12 full-v1 / empty brief-v1
+  trustMean: number | null;          // Jian score only; null for brief-v1
+  fairness1: Likert7 | null;
+  fairness2: Likert7 | null;
+  fairnessMean: number | null;       // not collected in brief-v1
   tension: Likert7;                 // H3
   frustrationTlx: Tlx100;           // H3; 0-100 in steps of 5
   frustrationTlxTouched: boolean;   // slider moved at least once
@@ -229,6 +236,7 @@ export type Phase =
   | "block_survey" | "exit_survey" | "done";
 
 export interface Session {
+  protocolVersion?: StudyProtocol;
   schemaVersion: 1;
   sessionId: string;
   pid: number;

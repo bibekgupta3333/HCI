@@ -1,5 +1,9 @@
 # Study parts and design defense
 
+**Full questionnaire restored (2026-10-19):** new sessions use `calibrated-full-v1` with `questionnaireVersion=full-v1`. After EACH of four parts, collect the original 12 Jian-based trust items, two fairness items, tension and frustration: 16 ratings per part, 64 total. Keep eight posts (two per part), appropriate reliance as primary, the unchanged paper title and the interface-package limitation. Trust is now measured separately for each explanation condition. Preserve previously started `calibrated-brief-v1` sessions and their brief surveys on resume; do not mix or relabel their data. Dashboard/KPI exports default to the restored full cohort. Earlier brief-default descriptions below document the superseded revision and apply only to saved brief sessions. Schema 4 preserves all earlier responses. Pilot the restored questionnaire burden; no completion-time or power guarantee is established.
+
+**Study title: Do People Trust AI More When It Explains Itself? A Comparative Study of Explanation**
+
 HCI experiment conducted as part of graduate study at Florida Polytechnic University.
 
 This document explains the design, what each part contributes, and which conclusions the measurements can support. It is an internal design rationale and oral-defense guide, not participant recruitment copy: it describes the deliberately wrong labels that participants learn about in the debrief. The design compares four interfaces for judging scripted accuracy labels on fictional social media posts. No model or external fact-checking service runs.
@@ -8,7 +12,7 @@ This document explains the design, what each part contributes, and which conclus
 
 New sessions use **four parts with two posts each**, followed by a survey after each part. Each part contains one correct label and one wrong label. Across the eight posts, each participant encounters four correct labels, two false alarms and two misses. The separate practice post is outside these eight trials.
 
-The full 24-post bank remains available for assignment. Eight posts per participant does not mean deleting 16 stimuli or always taking the first two posts from each six-post set. Selection must preserve the one-correct/one-wrong rule and the assigned error type. Existing saved assignments should retain their original plans; resumed sessions must not be silently shortened or treated as equivalent to new sessions.
+The full 24-post bank remains available for assignment. Eight posts per participant does not mean deleting 16 stimuli or always taking the first two posts from each six-post set. Selection must preserve the one-correct/one-wrong rule and the assigned error type. Existing saved eight-post and 24-post sessions retain their original assignments and full questionnaires. New sessions use `protocolVersion=calibrated-brief-v1` and `questionnaireVersion=brief-v1`; migration/default handling assigns older sessions `legacy-full-v1`. Trial count alone must never select the questionnaire. Resuming does not upgrade a protocol or shorten a saved plan.
 
 | Feature | Earlier full-session design | Chosen design for new sessions |
 |---|---|---|
@@ -17,7 +21,7 @@ The full 24-post bank remains available for assignment. Eight posts per particip
 | Wrong labels per participant | Eight: four of each error type | Four: two of each error type |
 | Wrong-label proportion | One third | One half |
 | Error types within one condition for one person | Both | One only |
-| Block surveys | Four | Four |
+| Block surveys | Four full surveys, 64 ratings total | Four brief surveys, 12 ratings total |
 | Interpretation | More observations per person and condition | Short exploratory comparison with sparse observations |
 
 Shortening the trials reduces repeated judgments, but does not establish a measured completion time or prove that participants feel calmer. Pilot observations are needed to assess pace, comprehension and burden.
@@ -55,17 +59,22 @@ The main manipulated independent variable is **explanation condition: A, B, C or
 
 | Outcome | Measurement | Interpretive boundary |
 |---|---|---|
-| Error detection | Disagreement with a wrong label | A behavioral indicator, not proof of correct reasoning. `detectedError` is null on correct-label trials. |
+| **Appropriate reliance (primary)** | (Correct-label acceptances + wrong-label rejections) / all trials | Behavioral agreement aligned with label correctness; not a validated psychological calibration scale. |
+| Error detection (component) | Disagreement with a wrong label | A behavioral indicator, not proof of correct reasoning. `detectedError` is null on correct-label trials. |
 | Agreement | Agree/disagree on every trial | More agreement is not necessarily better: distinguish correct and wrong labels. Disagreement with a correct label helps identify indiscriminate skepticism. |
 | Confidence | Required 1–7 response after each decision | Confidence is subjective certainty, not accuracy. |
 | Decision time | Time after the label appears, adjusted for hidden time | Longer time could reflect inspection, confusion or difficulty; faster is not automatically better. |
 | Verification and explanation use | Fact-sheet opening/time; C's Why and row interactions | Use is self-selected. People who inspect more may differ before opening anything. |
-| Trust | Twelve Jian-based items after each part; first five reverse scored | A block-level judgment about the labels, not a separate trust measurement for each post. |
-| Fairness | Two 1–7 items after each part | Perceived fairness and consistency, not a demonstration of objective fairness. |
+| Subjective trust (secondary) | One custom `briefTrust` rating, 1–7, after each part | Not validated, not a Jian short form, and not interchangeable with legacy Jian scores. |
+| Fairness (legacy only) | Two 1–7 items in saved `legacy-full-v1` sessions | Not collected in the new protocol; do not impute it. |
 | Tension and frustration | Tension 1–7 and frustration 0–100 after each part | Self-reported affect; the frustration item is not a full weighted NASA-TLX score. |
 | Preference | Exit choice and optional comment | Preference may differ from error detection and is influenced by order and recent experience. |
 
-Each part still requires **16 survey ratings**: twelve trust, two fairness, one tension and one frustration. Four surveys therefore require **64 ratings**, in addition to eight confidence ratings, practice, decisions and exit answers. The trial reduction leaves substantial questionnaire burden. Survey responses now summarize only two posts, so one memorable error may strongly influence the entire part rating.
+New sessions require **3 ratings per part × 4 parts = 12 block-survey ratings**: custom trust, tension and frustration. This replaces 64 ratings in the legacy full protocol; decisions, confidence, practice and exit answers remain additional tasks. Frustration is an integer from 0–100 in steps of 5 and requires `frustrationTlxTouched=true`, including when the final answer is 50. A rating summarizes two posts, so one memorable error may dominate it.
+
+For brief records, store `trustResponses=[]` and `trustMean`, `fairness1`, `fairness2`, `fairnessMean` as NULL. Store `briefTrust` separately and identify `questionnaireVersion=brief-v1`. Legacy sessions keep all 12 Jian items, two fairness items, tension and frustration; their raw answers and scoring remain intact. Missing protocol metadata defaults to `legacy-full-v1`, never the brief protocol.
+
+Report correct acceptance / correct trials, wrong rejection / wrong trials, overreliance (wrong acceptance / wrong trials), and underreliance (correct rejection / correct trials) alongside the primary formula. Every zero-denominator rate is null. Error detection alone could reward rejecting everything; primary appropriate reliance also counts acceptance of correct labels. Agreement remains a behavioral proxy and cannot establish comprehension or a causal mechanism.
 
 ## 5. Matched posts and assignment
 
@@ -92,7 +101,7 @@ If legacy sessions already occupy participant-number slots, 32 additional short 
 
 ## 6. Comparisons the short design supports
 
-The central comparison is error detection across the four explanation conditions, alongside trust, fairness, confidence, affect and inspection behavior. A–B compares label-only presentation with a static reason; A–D compares label-only presentation with a counterfactual reason. B–D compares two short but differently framed explanations. Comparisons involving C evaluate its combined interaction and information package.
+The central comparison is appropriate/calibrated reliance across the four interface packages, decomposed into correct acceptance and wrong rejection. Custom subjective trust, confidence, affect and inspection behavior are secondary; fairness is available only in legacy cohorts. A–B compares label-only presentation with a static reason; A–D compares label-only presentation with a counterfactual reason. B–D compares two short but differently framed explanations. Comparisons involving C evaluate its combined interaction and information package.
 
 Across participants, compare false-alarm and miss detection within conditions once both assignment cycles are represented. **An individual has only one wrong-label trial in a condition.** There is no per-person false-alarm-versus-miss comparison within that condition. The person's condition-level detection value is consequently just 0 or 1. A condition-by-error-type comparison depends on different participants and items contributing those cells.
 
@@ -124,7 +133,7 @@ The fictional setting controls available facts and avoids relying on knowledge o
 
 **Why only two posts per part?** The chosen scope reduces repeated judgments and makes each interface encounter brief. It sacrifices repeated error observations and the ability to compare both error types within one person's experience of one condition. The resulting study is exploratory.
 
-**Does eight posts mean the study is now low burden?** That remains to be tested. The four surveys still require 64 ratings, and each participant also makes decisions, gives confidence ratings and completes the exit questions.
+**Does eight posts mean the study is now low burden?** That remains to be tested. The new protocol requires 12 block ratings, compared with 64 in the legacy full protocol. Decisions, confidence and exit questions add burden. A 6–8-person pilot in a separate database assesses comprehension and burden, not significance; see the [pilot and analysis plan](pilot-and-analysis-plan.md).
 
 **Can we still compare false alarms with misses?** Yes, across participants and the planned 32-slot balance, while accounting for condition, participant and item structure. We cannot claim a paired comparison of both error types within each person's condition.
 
@@ -135,6 +144,8 @@ The fictional setting controls available facts and avoids relying on knowledge o
 **Does 32 participants make the findings conclusive?** No. It completes the proposed joint assignment cycle if the relevant slots complete. Statistical precision depends on effect sizes, variability, missingness and the final analysis; no power calculation is established here.
 
 **What can we claim before collecting data?** We have a controlled design for comparing four scripted explanation interfaces and a documented reduction in trial count. Whether any interface improves detection, changes trust or affects feelings remains an empirical question. The orientation is a presentation feature, not evidence of research novelty.
+
+See [methods and limitations](methods-and-limitations.md) for the report methods and [pilot and analysis plan](pilot-and-analysis-plan.md) for pilot procedures and analysis decisions. N=32 is a balance/feasibility target; this document does not supply evidence of power or novelty.
 
 ## Related documents and implementation checks
 

@@ -77,7 +77,7 @@ describe("LandingScreen", () => {
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1, name: "Post Review Study" })).toBeInTheDocument();
     expect(screen.getByText("Help us understand how people use AI labels on social media posts.")).toBeInTheDocument();
-    for (const name of ["How it works", "Who can take part", "Your privacy", "Questions"]) {
+    for (const name of ["How it works", "What are AI labels?", "Four parts, four explanation styles", "Who can take part", "Your privacy", "Questions"]) {
       expect(screen.getByRole("heading", { level: 2, name })).toBeInTheDocument();
     }
     expect(screen.getByRole("main")).toHaveAttribute("id", "main-content");
@@ -88,7 +88,12 @@ describe("LandingScreen", () => {
     const steps = within(container.querySelector(".landing__steps") as HTMLElement).getAllByRole("listitem");
     expect(steps).toHaveLength(3);
     expect(screen.getByText(/8 short made-up posts across 4 parts/)).toBeInTheDocument();
-    expect(screen.getByText(/short study that works on a phone or computer/)).toBeInTheDocument();
+    expect(screen.getByText(/Use a web browser on a computer or phone/)).toBeInTheDocument();
+    expect(screen.getByText(/4 parts · 2 posts per part · 8 posts total/)).toBeInTheDocument();
+    expect(screen.getByText(/64 ratings total/)).toBeInTheDocument();
+    expect(screen.getByText(/You will see each style once, in an assigned order/)).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "What are AI labels?" })).toHaveTextContent("Likely accurate");
+    expect(screen.getByRole("region", { name: "What are AI labels?" })).toHaveTextContent("Likely misleading");
     expect(screen.getByText(/18 or over who reads English/)).toBeInTheDocument();
     expect(screen.getByText(/scrambled version of your code/)).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/PLACEHOLDER|\bIRB\b|professor|supervisor|contact|anonymous/i);

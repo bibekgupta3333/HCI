@@ -1,14 +1,28 @@
 # Build contract (read before writing code)
 
+**Full questionnaire restored (2026-10-19):** new sessions use `calibrated-full-v1` with `questionnaireVersion=full-v1`. After EACH of four parts, collect the original 12 Jian-based trust items, two fairness items, tension and frustration: 16 ratings per part, 64 total. Keep eight posts (two per part), appropriate reliance as primary, the unchanged paper title and the interface-package limitation. Trust is now measured separately for each explanation condition. Preserve previously started `calibrated-brief-v1` sessions and their brief surveys on resume; do not mix or relabel their data. Dashboard/KPI exports default to the restored full cohort. Earlier brief-default descriptions below document the superseded revision and apply only to saved brief sessions. Schema 4 preserves all earlier responses. Pilot the restored questionnaire burden; no completion-time or power guarantee is established.
+
+## Calibrated-reliance / brief-questionnaire override — 2026-10-18
+
+Paper title stays **Do People Trust AI More When It Explains Itself? A Comparative Study of Explanation**. The operational primary outcome is behavioral appropriate reliance, not maximized trust. Correct-label acceptance and wrong-label rejection are reported separately; an all-agree or all-reject strategy must not appear uniformly successful. A–D compare interface packages; C's additional factual comparison prevents attributing differences to interactivity alone. Stimuli and conditions remain unchanged.
+
+New sessions persist `protocolVersion = calibrated-brief-v1`. Existing sessions migrate to `legacy-full-v1` and retain their questionnaire, even if they already have eight planned posts. Never infer questionnaire from trial count or upgrade on resume. New per-block `questionnaireVersion=brief-v1` collects **briefTrust** (1–7, custom single item), **tension** (1–7) and **frustrationTlx** (0–100 steps of 5 with interaction), for **12 ratings over four parts**. This is not a shortened/validated Jian scale. Fairness is not collected in the new version. Existing full-v1 retains 12 Jian items, 2 fairness items, tension and frustration. Store full-only scores as SQL NULL and raw/scored trust arrays as [] for brief-v1, never fabricated zeros or copied custom trust values. Questionnaire mismatch to stored session protocol is rejected.
+
+`shared/api.ts` defines discriminated FullBlockSurveySubmission/BriefBlockSurveySubmission. Legacy omitted questionnaireVersion means full-v1. `BlockSurvey` full-scale trust/fairness values are nullable, with separate `briefTrust` and questionnaireVersion. Version fields appear in session data and analysis exports. New-session default is calibrated-brief-v1; the source bank still contains 24 posts, assignments contain 8, and existing six-post block plans remain supported.
+
+Primary metrics: correctAcceptanceRate=agreed correct/correct; wrongRejectionRate=disagreed wrong/wrong; appropriateRelianceRate=(agreed correct+disagreed wrong)/all; overrelianceRate=agreed wrong/wrong; underrelianceRate=disagreed correct/correct. A zero denominator yields null. These are behavioral proxies, not a validated psychological calibration scale. Dashboard and KPI export default to the current protocol; do not pool protocol versions. Custom perceived-trust means and historical Jian means are distinct fields.
+
+The eight-trial study remains exploratory. N=32 is a feasibility/assignment-balancing target, not a demonstrated power requirement. A separate usability/data-integrity pilot precedes formal collection; see `../docs/pilot-and-analysis-plan.md` and `../docs/methods-and-limitations.md` for reporting boundaries and transparent scripted-AI methods. These are drafting/protocol artifacts, not edits to a submitted paper or its title.
+
 ## Current short-study override — 2026-10-18
 
 This section supersedes six-trial assumptions in the historical build-round details below. New sessions sample **2 distinct posts per part, 8 overall**, via `assignShortFromBank`; `assignFromBank` remains the legacy six-post planner. One correct and one wrong label per part; two false alarms and two misses per participant. Error types alternate by condition index and flip across consecutive 16-person cycles; 32 participants balance that factor. Keep the 24-post source bank and its validation unchanged.
 
 Stored block plans govern all presentation limits, trial numbering, cursor transitions and survey eligibility. Existing six-post sessions continue unchanged. The final cursor position derives from the last stored block. Do not reset the database.
 
-The client shows compact condition-specific control guidance on each part’s first two posts, without revealing answers or changing the A–D information. Per-block surveys retain all items. This is a shortened exploratory design, not a claim of equivalent statistical precision to 24 trials.
+The client shows compact condition-specific control guidance on each part’s first two posts, without revealing answers or changing the A–D information. New sessions use brief surveys; saved legacy sessions retain all full-survey items. This is a shortened exploratory design, not a claim of equivalent statistical precision to 24 trials.
 
-Admin progress uses stored `plannedTrials`. `participants.csv`, `trials.csv` and `surveys.csv` append `plannedTrials` and `studyVariant` (`short-8`, `legacy-24`, or `custom-N`). Filter by version in analysis; dashboard monitoring totals may contain both lengths and must display a warning.
+Admin progress uses stored `plannedTrials`. `participants.csv`, `trials.csv` and `surveys.csv` append `plannedTrials` and `studyVariant` (`short-8`, `legacy-24`, or `custom-N`). Filter by version in analysis; dashboard outcome totals default to the current protocol and identify their cohort.
 
 Participant screens use “HCI experiment conducted as part of graduate study at Florida Polytechnic University”; no unfinished IRB/contact/professor placeholders, invented approval or withdrawal-contact promises.
 

@@ -14,9 +14,9 @@ import { getStoredSessionId, useStudy } from "../state/StudyContext";
 import LandingIllustration from "../components/LandingIllustration";
 
 const FAQ: ReadonlyArray<{ q: string; a: string }> = [
-  { q: "How long does it take?", a: "A short study with 8 posts across 4 parts and a questionnaire after each part." },
+  { q: "What will I complete?", a: "One practice post, 8 study posts and 4 questionnaires of 16 ratings each (64 ratings total), followed by a few final questions. Take it at your own pace." },
   { q: "Do I need to know about AI?", a: "No. No experience with AI or social media is needed." },
-  { q: "Can I stop?", a: "Yes, at any time, with no penalty." },
+  { q: "Can I stop?", a: "Yes. Use Exit study at any time, with no penalty. Answers already saved remain on the study server." },
   {
     q: "What if I close the tab?",
     a: "You can continue where you left off with the same code within 2 hours.",
@@ -72,6 +72,7 @@ export default function LandingScreen(): JSX.Element {
               Post Review Study
             </h1>
             <p className="landing__pitch">Help us understand how people use AI labels on social media posts.</p>
+            <p className="landing__note">4 parts · 2 posts per part · 8 posts total</p>
             <div className="landing__actions">
               <Link to="/start" className="btn btn--primary landing__cta">
                 Take part
@@ -93,20 +94,37 @@ export default function LandingScreen(): JSX.Element {
           <ol className="landing__steps">
             <li className="landing__step">
               <span className="landing__step-num" aria-hidden="true">1</span>
-              <span className="landing__step-text">Enter a participation code.</span>
+              <span className="landing__step-text">Enter a participation code, read the consent information and try one practice post.</span>
             </li>
             <li className="landing__step">
               <span className="landing__step-num" aria-hidden="true">2</span>
               <span className="landing__step-text">
-                Read 8 short made-up posts across 4 parts and say whether you agree with each AI label.
+                Read 8 short made-up posts across 4 parts. Agree or disagree with each AI label, then rate your confidence from 1 to 7.
               </span>
             </li>
             <li className="landing__step">
               <span className="landing__step-num" aria-hidden="true">3</span>
-              <span className="landing__step-text">Answer a few quick questions.</span>
+              <span className="landing__step-text">After each part, answer 16 ratings about trust, fairness and how you felt. Finish with a few final questions.</span>
             </li>
           </ol>
-          <p className="landing__note">A short study that works on a phone or computer. Take it at your own pace.</p>
+          <p className="landing__note">Use a web browser on a computer or phone. No app installation is needed. Take it at your own pace.</p>
+        </section>
+
+        <section className="landing__section" aria-labelledby="labels-title">
+          <h2 id="labels-title" className="landing__section-title">What are AI labels?</h2>
+          <p>These are badges beneath each post: <strong>Likely accurate</strong> suggests the claim is true; <strong>Likely misleading</strong> suggests the claim may be false or misleading. You decide whether you agree with the label.</p>
+          <p className="landing__note">An optional Fact sheet is available for every post if you want to check the supporting record.</p>
+        </section>
+
+        <section className="landing__section" aria-labelledby="parts-title">
+          <h2 id="parts-title" className="landing__section-title">Four parts, four explanation styles</h2>
+          <ul className="landing__list">
+            <li><strong>Label only:</strong> the AI label without an explanation.</li>
+            <li><strong>Short reason:</strong> the label plus one sentence explaining it.</li>
+            <li><strong>Why? details:</strong> open Source, Claim vs record and Wording details.</li>
+            <li><strong>What-if explanation:</strong> a sentence describing what would change the label.</li>
+          </ul>
+          <p className="landing__note">You will see each style once, in an assigned order. Both posts within a part use the same style.</p>
         </section>
 
         <section className="landing__section" aria-labelledby="who-title">

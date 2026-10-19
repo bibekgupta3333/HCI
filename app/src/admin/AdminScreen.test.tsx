@@ -58,6 +58,8 @@ const cond = (c: string, over: Record<string, unknown> = {}) => ({
 });
 
 const kpis = {
+  cohort: "calibrated-full-v1",
+  primaryOutcome: { trials: 100, correctTrials: 50, wrongTrials: 50, correctAcceptanceRate: 0.8, wrongRejectionRate: 0.6, appropriateRelianceRate: 0.7, overrelianceRate: 0.4, underrelianceRate: 0.2 },
   generatedAt: "2026-10-17T10:00:00Z",
   sessions: { started: 12, inProgress: 2, completed: 8, abandoned: 2, completionRate: 0.6667 },
   target: { n: 32, minimum: 16, completed: 8, cycle1Completed: 8, cycle2Completed: 0 },
@@ -81,6 +83,7 @@ const kpis = {
 
 const nullKpis = {
   ...kpis,
+  primaryOutcome: { trials: 0, correctTrials: 0, wrongTrials: 0, correctAcceptanceRate: null, wrongRejectionRate: null, appropriateRelianceRate: null, overrelianceRate: null, underrelianceRate: null },
   sessions: { started: 0, inProgress: 0, completed: 0, abandoned: 0, completionRate: null },
   target: { n: 32, minimum: 16, completed: 0, cycle1Completed: 0, cycle2Completed: 0 },
   durationMin: { median: null, p90: null },
@@ -133,10 +136,16 @@ describe("AdminScreen", () => {
     render(<AdminScreen />);
     expect(screen.getByRole("heading", { level: 1, name: "Study dashboard" })).toBeInTheDocument();
     const completed = await screen.findByTestId("kpi-completed");
+    expect(within(screen.getByTestId("kpi-appropriate-reliance")).getByText("70%")).toBeInTheDocument();
+    expect(within(screen.getByTestId("kpi-correct-acceptance")).getByText("80%")).toBeInTheDocument();
+    expect(within(screen.getByTestId("kpi-wrong-rejection")).getByText("60%")).toBeInTheDocument();
+    expect(screen.getByText(/KPI cohort: calibrated-full-v1/)).toHaveTextContent(/Exploratory interface package/);
     expect(within(completed).getByText("8 / 32")).toBeInTheDocument();
-    expect(within(completed).getByRole("img", { name: "8 of 32 completed (minimum 16)" })).toBeInTheDocument();
+    expect(within(completed).getByRole("img", { name: "8 of 32 completed; joint balance requires 32 participants" })).toBeInTheDocument();
+    expect(within(completed).getByText("Order/set cycles (16 each): 8/16 · 0/16 · joint balance: 32 participants")).toBeInTheDocument();
     expect(within(screen.getByTestId("kpi-in-progress")).getByText("2")).toBeInTheDocument();
     expect(within(screen.getByTestId("kpi-completion-rate")).getByText("67%")).toBeInTheDocument();
+    expect(within(screen.getByTestId("kpi-completion-rate")).getByText("Completed / (completed + abandoned); excludes in-progress sessions")).toBeInTheDocument();
     const dur = screen.getByTestId("kpi-duration");
     expect(within(dur).getByText("17.4 min")).toBeInTheDocument();
     expect(within(dur).getByText(/p90 22\.9 min/)).toBeInTheDocument();
@@ -155,6 +164,19 @@ describe("AdminScreen", () => {
     expect(screen.getAllByText("6.4 s")).toHaveLength(4);
     expect(screen.getByLabelText("Order BCAD: 3 completed of 8 expected")).toBeInTheDocument();
     expect(screen.getByLabelText("Order DACB: 1 completed of 8 expected")).toBeInTheDocument();
+  });
+
+  it("shows custom brief trust separately from legacy Jian trust", async () => {
+    mocks.getKpis.mockResolvedValue({ ...kpis, byCondition: [cond("C", {
+      briefTrustMean: 6, trustMean: null, fairnessMean: null,
+      correctAcceptanceRate: 0.8, wrongRejectionRate: 0.4, appropriateRelianceRate: 0.6,
+      overrelianceRate: 0.6, underrelianceRate: 0.2,
+    })] });
+    render(<AdminScreen />);
+    expect(await screen.findByRole("img", { name: "Brief trust (custom), condition C: 6.0" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Trust, condition C: no data" })).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Jian-based trust (full)" })).toBeInTheDocument();
+    expect(screen.getByText(/custom, unvalidated 1–7 item/)).toBeInTheDocument();
   });
 
   it("shows — for null values", async () => {
@@ -235,7 +257,7 @@ describe("AdminScreen", () => {
     render(<AdminScreen />);
     await screen.findByTestId("kpi-completed");
     expect(screen.queryByRole("button", { name: /start/i })).not.toBeInTheDocument();
-    expect(screen.queryByText(/new session/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /new session/i })).not.toBeInTheDocument();
   });
 
   it("renders the export panel and refetches the index on each dashboard refresh", async () => {

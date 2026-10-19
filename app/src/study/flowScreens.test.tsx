@@ -249,14 +249,20 @@ describe("ExitSurveyScreen", () => {
     await user.click(within(group(/Education/)).getByRole("radio", { name: "Bachelor's degree" }));
     await user.click(within(group(/use social media/)).getByRole("radio", { name: "Daily" }));
     await user.click(within(group(/fact-check labels/)).getByRole("radio", { name: "Sometimes" }));
-    await user.click(within(group(/prefer/)).getByRole("radio", { name: part }));
+    await user.click(within(group(/prefer/)).getByRole("radio", { name: new RegExp(`^${part}(?: —|$)`) }));
   }
 
   it("uses chip radio groups (no selects) and never shows condition letters", () => {
     const { container } = wrap(<ExitSurveyScreen />);
     expect(container.querySelector("select")).toBeNull();
     expect(screen.getAllByRole("radiogroup")).toHaveLength(6);
-    for (const n of [1, 2, 3, 4]) expect(screen.getByRole("radio", { name: `Part ${n}` })).toBeInTheDocument();
+    for (const label of [
+      "Part 1 — Why? with expandable details",
+      "Part 2 — What-if explanation",
+      "Part 3 — One short reason",
+      "Part 4 — Label only",
+      "No preference",
+    ]) expect(within(group(/prefer/)).getByRole("radio", { name: label })).toBeInTheDocument();
     expect(screen.queryByText(/Condition [ABCD]\b/)).toBeNull();
     expect(screen.queryByRole("radio", { name: /^[ABCD]$/ })).toBeNull();
     expectNoResearcher(container.textContent ?? "");
@@ -335,6 +341,36 @@ describe("ExitSurveyScreen", () => {
 });
 
 describe("DebriefScreen", () => {
+  it.each(["legacy-full-v1", "calibrated-brief-v1"] as const)(
+    "explains appropriate reliance and simulation for the %s protocol",
+    (protocolVersion) => {
+      useShortSession();
+      mocks.session = { ...(mocks.session as SessionView), protocolVersion };
+      const { container } = wrap(<DebriefScreen />);
+      const text = (container.textContent ?? "").replace(/\s+/g, " ");
+      expect(text).toContain("accept correct labels and question wrong ones");
+      expect(text).toContain("More trust is not automatically better.");
+      expect(text).toContain("No AI model or large language model (LLM) generated");
+      expect(text).toContain("4 of the 8 labels were deliberately wrong.");
+    },
+  );
+
+  it("keeps early-exit disclosure, planned counts and saved-data facts", () => {
+    useShortSession();
+    mocks.session = { ...(mocks.session as SessionView), status: "abandoned" };
+    localStorage.setItem("xai-study:activeSessionId", "s-1");
+    localStorage.setItem("other-app:setting", "keep");
+    sessionStorage.setItem("xai-study:adminToken", "tok");
+    const { container } = wrap(<DebriefScreen />);
+    expect(screen.getByRole("heading", { name: "You've left the study" })).toBeInTheDocument();
+    expect(container.textContent).toContain("unfinished answers are not submitted by exiting");
+    expect(container.textContent).toContain("In the planned session, 4 of the 8 labels were deliberately wrong.");
+    expect(container.textContent).toContain("Clearing browser storage does not delete your saved answers.");
+    expect(localStorage.getItem("xai-study:activeSessionId")).toBeNull();
+    expect(localStorage.getItem("other-app:setting")).toBe("keep");
+    expect(sessionStorage.getItem("xai-study:adminToken")).toBe("tok");
+  });
+
   it("describes four wrong labels in eight posts and only shows assigned corrections", async () => {
     useShortSession();
     const { container } = wrap(<DebriefScreen />);

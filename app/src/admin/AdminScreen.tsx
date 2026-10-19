@@ -38,6 +38,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client";
+import { CURRENT_PROTOCOL } from "../../shared/types";
 import type { AdminSessionRow, Assignment, Kpis } from "../../shared/api";
 import ExportPanel from "./ExportPanel";
 import { BarCell, DASH, PairBar, ProgressMeter, Sparkline, fmtNum, fmtPct } from "./KpiCharts";
@@ -258,17 +259,37 @@ export default function AdminScreen() {
       </section>
 
       <section className="admin__section" aria-labelledby="admin-kpi-title">
+        <p className="admin__notice">KPI cohort: {kpis?.cohort ?? CURRENT_PROTOCOL}. Exploratory interface package comparisons; recruitment targets are not a power guarantee. Session management and raw exports include all protocols.</p>
         <h2 id="admin-kpi-title" className="admin__section-title">Progress</h2>
         <div className="admin__cards">
+          <div className="admin__card" data-testid="kpi-appropriate-reliance">
+            <span className="admin__card-label">Appropriate reliance (primary)</span>
+            <span className="admin__card-value">{fmtPct(kpis?.primaryOutcome?.appropriateRelianceRate)}</span>
+            <span className="admin__card-sub">Correct labels accepted + wrong labels rejected / all trials</span>
+          </div>
+          <div className="admin__card" data-testid="kpi-correct-acceptance">
+            <span className="admin__card-label">Correct-label acceptance</span>
+            <span className="admin__card-value">{fmtPct(kpis?.primaryOutcome?.correctAcceptanceRate)}</span>
+            <span className="admin__card-sub">Among correct labels</span>
+          </div>
+          <div className="admin__card" data-testid="kpi-wrong-rejection">
+            <span className="admin__card-label">Wrong-label rejection</span>
+            <span className="admin__card-value">{fmtPct(kpis?.primaryOutcome?.wrongRejectionRate)}</span>
+            <span className="admin__card-sub">Among wrong labels</span>
+          </div>
           <div className="admin__card" data-testid="kpi-completed">
             <span className="admin__card-label">Completed</span>
             <span className="admin__card-value">
               {target ? `${target.completed} / ${target.n}` : DASH}
             </span>
-            {target && <ProgressMeter completed={target.completed} target={target.n} minimum={target.minimum} />}
+            {target && (
+              <span role="img" aria-label={`${target.completed} of ${target.n} completed; joint balance requires 32 participants`}>
+                <span aria-hidden="true"><ProgressMeter completed={target.completed} target={target.n} minimum={16} /></span>
+              </span>
+            )}
             <span className="admin__card-sub">
               {target
-                ? `Minimum ${target.minimum} · cycle 1: ${target.cycle1Completed}/16 · cycle 2: ${target.cycle2Completed}/16`
+                ? `Order/set cycles (16 each): ${target.cycle1Completed}/16 · ${target.cycle2Completed}/16 · joint balance: 32 participants`
                 : DASH}
             </span>
           </div>
@@ -282,6 +303,7 @@ export default function AdminScreen() {
           <div className="admin__card" data-testid="kpi-completion-rate">
             <span className="admin__card-label">Completion rate</span>
             <span className="admin__card-value">{fmtPct(kpis?.sessions.completionRate)}</span>
+            <span className="admin__card-sub">Completed / (completed + abandoned); excludes in-progress sessions</span>
           </div>
           <div className="admin__card" data-testid="kpi-duration">
             <span className="admin__card-label">Session time</span>
@@ -297,20 +319,26 @@ export default function AdminScreen() {
 
       <section className="admin__section" aria-labelledby="admin-cond-title">
         <h2 id="admin-cond-title" className="admin__section-title">By condition (completed sessions)</h2>
-        <p className="admin__notice">The short protocol uses 8 posts; saved legacy sessions retain 24. These monitoring totals may include both versions. For study analysis, filter CSVs by studyVariant and do not pool the versions.</p>
+        <p className="admin__notice">New sessions use 8 posts and the original full questionnaire after each part: 12 Jian-based trust items, 2 fairness items, tension and frustration (64 block ratings total). Existing sessions retain their saved protocol. Analyse protocolVersion and studyVariant separately. Historical brief trust is a custom, unvalidated 1–7 item and is separate from the full trust score.</p>
         <div className="admin__table-wrap">
           <table className="admin__table" aria-labelledby="admin-cond-title">
             <thead>
               <tr>
                 <th scope="col">Condition</th>
                 <th scope="col">Trials</th>
+                <th scope="col">Appropriate reliance</th>
+                <th scope="col">Correct acceptance</th>
+                <th scope="col">Wrong rejection</th>
+                <th scope="col">Overreliance</th>
+                <th scope="col">Underreliance</th>
                 <th scope="col">Agreement</th>
                 <th scope="col">Detection</th>
                 <th scope="col">False alarm vs miss</th>
                 <th scope="col">Fact sheet</th>
                 <th scope="col">Confidence</th>
                 <th scope="col">Median decision</th>
-                <th scope="col">Trust</th>
+                <th scope="col">Brief trust (custom)</th>
+                <th scope="col">Jian-based trust (full)</th>
                 <th scope="col">Fairness</th>
                 <th scope="col">Tension</th>
                 <th scope="col">Frustration</th>
@@ -325,6 +353,11 @@ export default function AdminScreen() {
                       {c.condition} · {CONDITION_NAMES[c.condition] ?? ""}
                     </th>
                     <td>{c.trials}</td>
+                    <td>{fmtPct(c.appropriateRelianceRate)}</td>
+                    <td>{fmtPct(c.correctAcceptanceRate)}</td>
+                    <td>{fmtPct(c.wrongRejectionRate)}</td>
+                    <td>{fmtPct(c.overrelianceRate)}</td>
+                    <td>{fmtPct(c.underrelianceRate)}</td>
                     <td>{fmtPct(c.agreementRate)}</td>
                     <td>
                       <BarCell value={c.detectionRate} label={fmtPct(c.detectionRate)} name={`Detection, ${n}`} />
@@ -335,6 +368,7 @@ export default function AdminScreen() {
                     <td>{fmtPct(c.factSheetOpenRate)}</td>
                     <td>{fmtNum(c.meanConfidence)}</td>
                     <td>{fmtSeconds(c.medianDecisionMs)}</td>
+                    <td><BarCell value={c.briefTrustMean ?? null} min={1} max={7} label={fmtNum(c.briefTrustMean)} name={`Brief trust (custom), ${n}`} /></td>
                     <td>
                       <BarCell value={c.trustMean} min={1} max={7} label={fmtNum(c.trustMean)} name={`Trust, ${n}`} />
                     </td>
@@ -348,7 +382,7 @@ export default function AdminScreen() {
               })}
               {(!kpis || kpis.byCondition.length === 0) && (
                 <tr>
-                  <td colSpan={12}>No completed sessions yet.</td>
+                  <td colSpan={18}>No completed sessions yet.</td>
                 </tr>
               )}
             </tbody>

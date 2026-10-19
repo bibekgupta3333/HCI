@@ -173,11 +173,25 @@ export function validateEvents(raw: unknown): EventSubmission[] {
 
 export function validateBlockSurvey(raw: unknown): BlockSurveySubmission {
   const o = asObject(raw);
-  if (!Array.isArray(o.trustRaw) || o.trustRaw.length !== 12) throw new ValidationError("trustRaw must be 12 answers");
-  const trustRaw = o.trustRaw.map((v, i) => likert(v, `trustRaw[${i}]`));
+  const version = o.questionnaireVersion === undefined ? "full-v1" : o.questionnaireVersion;
+  if (version !== "brief-v1" && version !== "full-v1")
+    throw new ValidationError("questionnaireVersion must be brief-v1 or full-v1");
   const tlx = int(o, "frustrationTlx", 0, 100);
   if (tlx % 5 !== 0) throw new ValidationError("frustrationTlx must be a multiple of 5");
   if (o.frustrationTlxTouched !== true) throw new ValidationError("frustrationTlxTouched must be true");
+  if (version === "brief-v1") {
+    if (["trustRaw", "fairness1", "fairness2", "anxiety"].some((key) => o[key] !== undefined))
+      throw new ValidationError("brief-v1 does not accept full questionnaire fields");
+    return {
+      questionnaireVersion: "brief-v1",
+      blockIndex: int(o, "blockIndex", 1, 4) as BlockSurveySubmission["blockIndex"],
+      briefTrust: likert(o.briefTrust, "briefTrust"),
+      tension: likert(o.tension, "tension"), frustrationTlx: tlx, frustrationTlxTouched: true,
+    };
+  }
+  if (o.briefTrust !== undefined) throw new ValidationError("full-v1 does not accept briefTrust");
+  if (!Array.isArray(o.trustRaw) || o.trustRaw.length !== 12) throw new ValidationError("trustRaw must be 12 answers");
+  const trustRaw = o.trustRaw.map((v, i) => likert(v, `trustRaw[${i}]`));
   let anxiety: number[] | null = null;
   if (o.anxiety !== undefined && o.anxiety !== null) {
     if (!Array.isArray(o.anxiety) || o.anxiety.some((v) => typeof v !== "number" || !Number.isFinite(v)))
@@ -186,6 +200,7 @@ export function validateBlockSurvey(raw: unknown): BlockSurveySubmission {
   }
   return {
     blockIndex: int(o, "blockIndex", 1, 4) as BlockSurveySubmission["blockIndex"],
+    questionnaireVersion: "full-v1",
     trustRaw,
     fairness1: likert(o.fairness1, "fairness1"),
     fairness2: likert(o.fairness2, "fairness2"),
@@ -273,17 +288,27 @@ export function cursorAfterSurvey(blockIndex: Cursor["blockIndex"], postsPerBloc
 export function scoreBlockSurvey(
   s: BlockSurveySubmission, condition: Condition, blockTrials: Trial[], trustItemIds: string[], submittedAt: string,
 ): BlockSurvey {
+  const nWrongDetected = blockTrials.filter((t) => t.detectedError === true).length;
+  if (nWrongDetected > 2) throw new HttpError(500, "invariant", "more than 2 detected errors in one block");
+  if (s.questionnaireVersion === "brief-v1") {
+    return {
+      blockIndex: s.blockIndex, condition, questionnaireVersion: "brief-v1", briefTrust: s.briefTrust,
+      trustResponses: [], trustMean: null, fairness1: null, fairness2: null, fairnessMean: null,
+      tension: s.tension, frustrationTlx: s.frustrationTlx, frustrationTlxTouched: true,
+      nWrongDetected: nWrongDetected as 0 | 1 | 2, anxiety: null, submittedAt,
+    };
+  }
   const trustResponses: TrustResponse[] = s.trustRaw.map((raw, i) => ({
     itemId: trustItemIds[i],
     raw,
     scored: (i < 5 ? 8 - raw : raw) as Likert7,
   }));
   const trustMean = trustResponses.reduce((a, r) => a + r.scored, 0) / 12;
-  const nWrongDetected = blockTrials.filter((t) => t.detectedError === true).length;
-  if (nWrongDetected > 2) throw new HttpError(500, "invariant", "more than 2 detected errors in one block");
+
   return {
     blockIndex: s.blockIndex,
     condition,
+    questionnaireVersion: "full-v1", briefTrust: null,
     trustResponses,
     trustMean,
     fairness1: s.fairness1,

@@ -9,7 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { clearParticipantStorage, useStudy } from "../state/StudyContext";
 import { useLogger } from "../logging/logger";
-import type { ExitSurvey } from "../../shared/types";
+import type { Condition, ExitSurvey } from "../../shared/types";
 import type { ExitSurveySubmission, SessionView } from "../../shared/api";
 
 type Opt<T extends string> = { value: T; label: string };
@@ -57,6 +57,13 @@ export const PART_OPTIONS: Opt<PartChoice>[] = [
   { value: "4", label: "Part 4" },
   { value: "none", label: "No preference" },
 ];
+
+const PART_DESCRIPTIONS: Record<Condition, string> = {
+  A: "Label only",
+  B: "One short reason",
+  C: "Why? with expandable details",
+  D: "What-if explanation",
+};
 
 const COMMENT_MAX = 1000;
 
@@ -168,6 +175,10 @@ export default function ExitSurveyScreen() {
   }
 
   const isMissing = (name: string) => missing.includes(name);
+  const partOptions = PART_OPTIONS.map((option) => option.value === "none" ? option : {
+    ...option,
+    label: `${option.label} — ${PART_DESCRIPTIONS[session.conditionOrder[Number(option.value) - 1]]}`,
+  });
 
   return (
     <main className="screen exit-survey-screen">
@@ -187,7 +198,7 @@ export default function ExitSurveyScreen() {
           options={EXPOSURE_OPTIONS} value={labelExposure} onChange={setExposure}
           invalid={isMissing("Label exposure")} />
         <ChipGroup name="preferredPart" legend="Which part did you prefer?" required
-          options={PART_OPTIONS} value={part} onChange={setPart}
+          options={partOptions} value={part} onChange={setPart}
           invalid={isMissing("Preferred part")} />
 
         <div className="field">

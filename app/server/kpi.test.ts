@@ -157,6 +157,9 @@ describe("computeKpis", () => {
       frustrationMean: 30,
     });
     const c = k.byCondition.find((x) => x.condition === "C")!;
+    expect(c.correctAcceptanceRate).toBeNull();
+    expect(c.underrelianceRate).toBeNull();
+    expect(c.wrongRejectionRate).toBe(1);
     expect(c).toMatchObject({ trials: 1, wrongTrials: 1, detectionRate: 1, missDetection: 1, falseAlarmDetection: null, trustMean: null });
     const b = k.byCondition.find((x) => x.condition === "B")!;
     expect(b.trials).toBe(0);
@@ -193,5 +196,61 @@ describe("computeKpis", () => {
     expect(k.byErrorType.every((e) => e.n === 0)).toBe(true);
     expect(k.balance.every((b) => b.completed === 0)).toBe(true);
     expect(k.dailyCompleted).toEqual([]);
+  });
+});
+
+describe("calibrated reliance and protocol cohorts", () => {
+  it("uses separate correct/wrong denominators and excludes incomplete/pilot sessions", () => {
+    session("current", 1, "completed");
+    db.prepare("UPDATE sessions SET protocol_version = 'calibrated-brief-v1' WHERE session_id = ?").run("current");
+    session("legacy", 2, "completed");
+    session("unfinished", 3, "in_progress");
+    session("pilot", 900, "completed");
+    for (const id of ["current", "legacy", "unfinished", "pilot"]) {
+      trial(id, { condition: "A", correct: true, agreed: true });
+      trial(id, { condition: "A", correct: true, agreed: false });
+      trial(id, { condition: "A", correct: false, agreed: false });
+    }
+    const current = computeKpis(db, undefined, "calibrated-brief-v1");
+    expect(current.cohort).toBe("calibrated-brief-v1");
+    expect(current.sessions.started).toBe(1);
+    expect(current.primaryOutcome).toEqual({ trials: 3, correctTrials: 2, wrongTrials: 1,
+      correctAcceptanceRate: 0.5, wrongRejectionRate: 1, appropriateRelianceRate: 2 / 3,
+      overrelianceRate: 0, underrelianceRate: 0.5 });
+    expect(current.byCondition[0]).toMatchObject(current.primaryOutcome!);
+    expect(computeKpis(db, undefined, "legacy-full-v1").primaryOutcome?.trials).toBe(3);
+    expect(computeKpis(db).primaryOutcome?.trials).toBe(6);
+    expect(current.byCondition[1].appropriateRelianceRate).toBeNull();
+    expect(current.byCondition[1].correctAcceptanceRate).toBeNull();
+    expect(current.byCondition[1].wrongRejectionRate).toBeNull();
+  });
+
+  it.each([true, false])("does not treat always-agree=%s as calibrated behavior", (agreed) => {
+    session("s", 1, "completed");
+    trial("s", { condition: "A", correct: true, agreed });
+    trial("s", { condition: "A", correct: true, agreed });
+    trial("s", { condition: "A", correct: false, agreed });
+    expect(computeKpis(db).primaryOutcome).toMatchObject({
+      appropriateRelianceRate: agreed ? 2 / 3 : 1 / 3,
+      correctAcceptanceRate: agreed ? 1 : 0, wrongRejectionRate: agreed ? 0 : 1,
+      overrelianceRate: agreed ? 1 : 0, underrelianceRate: agreed ? 0 : 1,
+    });
+  });
+
+  it("keeps custom brief trust separate and excludes null scores from means", () => {
+    session("full", 1, "completed");
+    session("brief", 2, "completed");
+    db.prepare("UPDATE sessions SET protocol_version = 'calibrated-brief-v1' WHERE session_id = 'brief'").run();
+    survey("full", "A", 6, 5, 2, 25);
+    db.prepare(`INSERT INTO block_surveys (session_id, block_index, condition, trust_raw, trust_scored,
+      trust_mean, fairness1, fairness2, fairness_mean, tension, frustration_tlx, frustration_tlx_touched,
+      n_wrong_detected, submitted_at, questionnaire_version, brief_trust)
+      VALUES ('brief', 1, 'A', '[]', '[]', NULL, NULL, NULL, NULL, 4, 50, 1, 0, 't', 'brief-v1', 3)`).run();
+    expect(computeKpis(db).byCondition[0]).toMatchObject({ trustMean: 6, fairnessMean: 5, briefTrustMean: 3 });
+    expect(computeKpis(db, undefined, "calibrated-brief-v1").byCondition[0]).toMatchObject({
+      trustMean: null, fairnessMean: null, briefTrustMean: 3, tensionMean: 4, frustrationMean: 50,
+    });
+    expect(mean([null, 6, undefined])).toBe(6);
+    expect(mean([null])).toBeNull();
   });
 });

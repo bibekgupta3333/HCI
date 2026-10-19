@@ -5,7 +5,7 @@ import type { Cursor, SessionView, TrialSubmission, BlockSurveySubmission } from
 import { openDb } from "../db/db";
 import { createApp } from "../app";
 import { assignmentPreview } from "./participant";
-import { assignFromBank } from "../../shared/counterbalance";
+import { assignFromBank, assignShortFromBank } from "../../shared/counterbalance";
 import { createSession, hashParticipantCode, setStatus } from "../db/repo";
 
 // ---------- synthetic post bank (24 posts, 6 per set, 2 wrong labels per set) ----------
@@ -72,8 +72,8 @@ async function newSession(code = `person-${++codeCounter}@uni.edu`): Promise<Ses
 const start = (participantCode: unknown, extra: object = {}) =>
   request(app).post("/api/sessions").send({ participantCode, ...extra });
 
-function legacySession(code = "legacy-session"): SessionView {
-  return createSession(db, assignFromBank(77, bank), {
+function legacySession(code = "legacy-session", short = false): SessionView {
+  return createSession(db, short ? assignShortFromBank(77, bank) : assignFromBank(77, bank), {
     consequenceBanner: false, anxiety: false, postBankHash: "legacy-bank", appVersion: "legacy",
     participantHash: hashParticipantCode("test-salt", code),
   });
@@ -112,6 +112,11 @@ const surveyBody = (block: number): BlockSurveySubmission => ({
   tension: 3,
   frustrationTlx: 35,
   frustrationTlxTouched: true,
+});
+
+const briefSurveyBody = (block: number): BlockSurveySubmission => ({
+  blockIndex: block as BlockSurveySubmission["blockIndex"], questionnaireVersion: "brief-v1",
+  briefTrust: 5, tension: 3, frustrationTlx: 35, frustrationTlxTouched: true,
 });
 
 async function completeBlock(s: SessionView, block: number, agreeFn: (postId: string) => boolean = () => true) {
@@ -441,9 +446,20 @@ describe("events", () => {
 });
 
 describe("block surveys and exit", () => {
-  it.each([2, 6])("completes and resumes the stored %i-post block protocol through HTTP", async (postsPerBlock) => {
-    const code = `protocol-${postsPerBlock}`;
-    const s = postsPerBlock === 6 ? legacySession(code) : await newSession(code);
+  it.each([
+    { postsPerBlock: 2, protocol: "calibrated-full-v1" },
+    { postsPerBlock: 2, protocol: "calibrated-brief-v1" },
+    { postsPerBlock: 2, protocol: "legacy-full-v1" },
+    { postsPerBlock: 6, protocol: "legacy-full-v1" },
+  ])("completes and resumes $protocol with $postsPerBlock posts per block through HTTP", async ({ postsPerBlock, protocol }) => {
+    const code = `protocol-${protocol}-${postsPerBlock}`;
+    const s = protocol === "legacy-full-v1" ? legacySession(code, postsPerBlock === 2)
+      : protocol === "calibrated-brief-v1" ? createSession(db, assignShortFromBank(77, bank), {
+        consequenceBanner: false, anxiety: false, postBankHash: "brief-bank", appVersion: "brief",
+        protocolVersion: "calibrated-brief-v1", participantHash: hashParticipantCode("test-salt", code),
+      }) : await newSession(code);
+    const body = protocol === "calibrated-brief-v1" ? briefSurveyBody : surveyBody;
+    expect(s.protocolVersion).toBe(protocol);
     const plans = s.blocks;
     expect(plans.map((b) => b.postOrder.length)).toEqual(Array(4).fill(postsPerBlock));
     expect((await request(app).post(`/api/sessions/${s.sessionId}/consent`)).status).toBe(200);
@@ -466,17 +482,18 @@ describe("block surveys and exit", () => {
           positionInBlock: pos === postsPerBlock ? pos : pos + 1,
           phase: pos === postsPerBlock ? "block_survey" : "trial" });
         if (pos < postsPerBlock) {
-          expect((await request(app).post(`/api/sessions/${s.sessionId}/block-surveys`).send(surveyBody(block))).status).toBe(400);
+          expect((await request(app).post(`/api/sessions/${s.sessionId}/block-surveys`).send(body(block))).status).toBe(400);
         }
         if (block === 1 && pos === 1) {
           const resumed = await start(code);
           expect(resumed.status).toBe(200);
           expect(resumed.body.sessionId).toBe(s.sessionId);
+          expect(resumed.body.protocolVersion).toBe(protocol);
           expect(resumed.body.blocks).toEqual(plans);
           expect(resumed.body.cursor).toEqual(r.body.cursor);
         }
       }
-      const survey = await request(app).post(`/api/sessions/${s.sessionId}/block-surveys`).send(surveyBody(block));
+      const survey = await request(app).post(`/api/sessions/${s.sessionId}/block-surveys`).send(body(block));
       expect(survey.status).toBe(201);
       expect(survey.body.nWrongDetected).toBe(postsPerBlock === 2 ? 1 : 2);
       expect(survey.body.cursor).toEqual(block < 4
@@ -489,8 +506,46 @@ describe("block surveys and exit", () => {
     expect(done.body.status).toBe("completed");
     expect(done.body.cursor).toEqual({ blockIndex: 4, positionInBlock: postsPerBlock, phase: "done" });
     expect(done.body.blocks).toEqual(plans);
+    expect(done.body.protocolVersion).toBe(protocol);
+    const rows = db.prepare("SELECT * FROM block_surveys WHERE session_id = ?").all(s.sessionId) as Record<string, unknown>[];
+    expect(rows).toHaveLength(4);
+    for (const row of rows) {
+      expect(row.questionnaire_version).toBe(protocol === "calibrated-brief-v1" ? "brief-v1" : "full-v1");
+      if (protocol === "calibrated-brief-v1") {
+        expect(row).toMatchObject({ brief_trust: 5, trust_raw: "[]", trust_scored: "[]",
+          trust_mean: null, fairness1: null, fairness2: null, fairness_mean: null });
+      } else {
+        expect(JSON.parse(row.trust_scored as string)).toEqual([7, 6, 5, 4, 3, 6, 7, 7, 7, 7, 7, 7]);
+        expect(row.brief_trust).toBeNull();
+      }
+    }
     expect((db.prepare("SELECT COUNT(*) AS n FROM trials WHERE session_id = ?").get(s.sessionId) as { n: number }).n).toBe(postsPerBlock * 4);
     expect((await start(code)).status).toBe(409);
+  });
+
+  it("enforces the saved questionnaire protocol and validates brief ratings without saving rejected submissions", async () => {
+    const current = createSession(db, assignShortFromBank(78, bank), {
+      consequenceBanner: false, anxiety: false, postBankHash: "brief-bank", appVersion: "brief",
+      protocolVersion: "calibrated-brief-v1", participantHash: hashParticipantCode("test-salt", "brief-validation"),
+    });
+    const legacy = legacySession("legacy-validation", true);
+    for (const s of [current, legacy]) await completeBlock(s, 1);
+    const submit = (s: SessionView, body: object) =>
+      request(app).post(`/api/sessions/${s.sessionId}/block-surveys`).send(body);
+    await submit(current, surveyBody(1)).expect(400);
+    await submit(legacy, briefSurveyBody(1)).expect(400);
+    for (const invalid of [
+      { briefTrust: 0 }, { briefTrust: 8 }, { briefTrust: 3.5 }, { briefTrust: null },
+      { tension: 0 }, { frustrationTlx: 33 }, { frustrationTlxTouched: false },
+      { questionnaireVersion: "unknown" }, { questionnaireVersion: null }, { trustRaw: Array(12).fill(4) }, { fairness1: 3 },
+    ]) await submit(current, { ...briefSurveyBody(1), ...invalid }).expect(400);
+    expect(db.prepare("SELECT COUNT(*) AS n FROM block_surveys").get()).toEqual({ n: 0 });
+    await submit(current, briefSurveyBody(1)).expect(201);
+    await submit(legacy, surveyBody(1)).expect(201); // absent version remains full-v1
+    await submit(current, briefSurveyBody(1)).expect(409);
+    const resumed = await start("legacy-validation");
+    expect(resumed.body.protocolVersion).toBe("legacy-full-v1");
+    expect(resumed.body.blocks).toEqual(legacy.blocks);
   });
 
   it("rejects positions outside a short stored plan without saving a trial or cursor", async () => {
@@ -532,7 +587,7 @@ describe("block surveys and exit", () => {
   });
 
   it("validates survey fields", async () => {
-    const s = await newSession();
+    const s = legacySession("full-validation", true);
     await completeBlock(s, 1);
     const post = (b: object) => request(app).post(`/api/sessions/${s.sessionId}/block-surveys`).send({ ...surveyBody(1), ...b });
     expect((await post({ frustrationTlx: 33 })).status).toBe(400);

@@ -43,12 +43,14 @@ const presC: Presentation = {
 };
 
 describe("NoExplanationView (A)", () => {
-  it("renders the explanation box with no text", () => {
-    render(<NoExplanationView presentation={base} />);
-    const region = screen.getByRole("region", { name: "Explanation" });
-    expect(region).toHaveClass("explanation");
-    expect(region.textContent).toBe("");
-    expect(region.children).toHaveLength(0);
+  it("preserves the empty layout spacer without an empty screen-reader landmark", () => {
+    const { container } = render(<NoExplanationView presentation={base} />);
+    const spacer = container.firstElementChild;
+    expect(spacer).toHaveClass("explanation", "explanation--none");
+    expect(spacer).toBeEmptyDOMElement();
+    expect(spacer).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByRole("region", { name: "Explanation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });
 
@@ -59,7 +61,8 @@ describe("StaticExplanationView (B)", () => {
     expect(region).toHaveClass("explanation", "explanation--static");
     const ps = region.querySelectorAll("p");
     expect(ps).toHaveLength(1);
-    expect(ps[0]).toHaveTextContent(B);
+    expect(ps[0].textContent).toBe(B);
+    expect(within(region).queryByRole("button")).not.toBeInTheDocument();
   });
 });
 
@@ -69,7 +72,8 @@ describe("CounterfactualView (D)", () => {
     const region = screen.getByRole("region", { name: "Explanation" });
     const ps = region.querySelectorAll("p");
     expect(ps).toHaveLength(1);
-    expect(ps[0]).toHaveTextContent(D);
+    expect(ps[0].textContent).toBe(D);
+    expect(within(region).queryByRole("button")).not.toBeInTheDocument();
   });
 });
 
@@ -161,12 +165,17 @@ describe("conditionRegistry", () => {
     expect(conditionRegistry.D).toBe(CounterfactualView);
   });
 
-  it("every view renders the shared explanation region", () => {
+  it("every view retains the shared layout class and only populated conditions expose a region", () => {
     const pres: Presentation = { ...presC, staticExplanation: B, counterfactualExplanation: D };
     for (const c of ["A", "B", "C", "D"] as Condition[]) {
       const View = conditionRegistry[c];
-      const { unmount } = render(<View presentation={{ ...pres, condition: c }} />);
-      expect(screen.getByRole("region", { name: "Explanation" })).toHaveClass("explanation");
+      const { container, unmount } = render(<View presentation={{ ...pres, condition: c }} />);
+      expect(container.firstElementChild).toHaveClass("explanation");
+      if (c === "A") {
+        expect(screen.queryByRole("region", { name: "Explanation" })).not.toBeInTheDocument();
+      } else {
+        expect(screen.getByRole("region", { name: "Explanation" })).toHaveClass("explanation");
+      }
       unmount();
     }
   });

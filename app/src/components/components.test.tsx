@@ -197,11 +197,21 @@ describe("SliderScale", () => {
   }
 
   it("starts at 50, untouched, with a hint", () => {
-    render(<Harness onTouch={() => {}} onChange={() => {}} />);
+    const onTouch = vi.fn();
+    const onChange = vi.fn();
+    render(<Harness onTouch={onTouch} onChange={onChange} />);
     const input = screen.getByRole("slider", { name: /irritated/ });
     expect(input).toHaveValue("50");
+    expect(input).toHaveAttribute("min", "0");
+    expect(input).toHaveAttribute("max", "100");
     expect(input).toHaveAttribute("step", "5");
-    expect(screen.getByText("Please move the slider to answer")).toBeInTheDocument();
+    expect(screen.getByText("Move the slider to select your answer")).toBeInTheDocument();
+    expect(input).toHaveAccessibleDescription("Move the slider to select your answer");
+    expect(input).toHaveAttribute("aria-valuetext", "Unanswered. Move the slider to select your answer");
+    expect(screen.queryByText(/50/)).toBeNull();
+    fireEvent.focus(input);
+    expect(onTouch).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   it("calls onTouch once on first change and shows the value", () => {
@@ -212,8 +222,10 @@ describe("SliderScale", () => {
     fireEvent.change(input, { target: { value: "65" } });
     expect(onTouch).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenLastCalledWith(65);
-    expect(screen.queryByText("Please move the slider to answer")).toBeNull();
+    expect(screen.queryByText("Move the slider to select your answer")).toBeNull();
     expect(screen.getByText("65")).toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-valuetext", "65");
+    expect(input).toHaveAccessibleDescription("65");
     fireEvent.change(input, { target: { value: "70" } });
     expect(onTouch).toHaveBeenCalledTimes(1);
   });
@@ -223,7 +235,47 @@ describe("SliderScale", () => {
     render(<Harness onTouch={onTouch} onChange={() => {}} />);
     fireEvent.keyDown(screen.getByRole("slider"), { key: "ArrowRight" });
     expect(onTouch).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText("Please move the slider to answer")).toBeNull();
+    expect(screen.queryByText("Move the slider to select your answer")).toBeNull();
+  });
+
+  it.each(["{Enter}", " "])("allows intentional keyboard selection of 50 with %s", async (key) => {
+    const user = userEvent.setup();
+    const onTouch = vi.fn();
+    const onChange = vi.fn();
+    render(<Harness onTouch={onTouch} onChange={onChange} />);
+    await user.tab();
+    expect(onTouch).not.toHaveBeenCalled();
+    await user.keyboard(key);
+    expect(onTouch).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(50);
+    expect(screen.getByText("50")).toBeInTheDocument();
+    expect(screen.getByRole("slider")).toHaveAttribute("aria-valuetext", "50");
+    expect(screen.getByRole("slider")).toHaveAccessibleDescription("50");
+    await user.keyboard(key);
+    expect(onTouch).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows intentional pointer selection of 50 without a value-change event", async () => {
+    const user = userEvent.setup();
+    const onTouch = vi.fn();
+    const onChange = vi.fn();
+    render(<Harness onTouch={onTouch} onChange={onChange} />);
+    await user.pointer({ target: screen.getByRole("slider"), keys: "[MouseLeft]" });
+    expect(onTouch).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(50);
+    expect(screen.getByText("50")).toBeInTheDocument();
+    expect(screen.getByRole("slider")).toHaveAccessibleDescription("50");
+  });
+
+  it("counts touch input at the current position as an intentional answer", async () => {
+    const user = userEvent.setup();
+    const onTouch = vi.fn();
+    const onChange = vi.fn();
+    render(<Harness onTouch={onTouch} onChange={onChange} />);
+    await user.pointer({ target: screen.getByRole("slider"), keys: "[TouchA]" });
+    expect(onTouch).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(50);
+    expect(screen.getByText("50")).toBeInTheDocument();
   });
 
   it("ignores non-movement keys", () => {

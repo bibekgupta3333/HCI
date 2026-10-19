@@ -1,5 +1,7 @@
 # Shared design decisions (source of truth for all docs) — v3
 
+**Full questionnaire restored (2026-10-19):** new sessions use `calibrated-full-v1` with `questionnaireVersion=full-v1`. After EACH of four parts, collect the original 12 Jian-based trust items, two fairness items, tension and frustration: 16 ratings per part, 64 total. Keep eight posts (two per part), appropriate reliance as primary, the unchanged paper title and the interface-package limitation. Trust is now measured separately for each explanation condition. Preserve previously started `calibrated-brief-v1` sessions and their brief surveys on resume; do not mix or relabel their data. Dashboard/KPI exports default to the restored full cohort. Earlier brief-default descriptions below document the superseded revision and apply only to saved brief sessions. Schema 4 preserves all earlier responses. Pilot the restored questionnaire burden; no completion-time or power guarantee is established.
+
 Every doc in `docs/` must agree with these decisions. Sources:
 - `proposal.txt` and `literature.txt` (sections 8–9)
 - Deepthi's v3 proposal (the team discussion, 2026-10-17)
@@ -7,11 +9,19 @@ Every doc in `docs/` must agree with these decisions. Sources:
 
 The previous design (v2.1, approving an AI agent's actions) is archived in `archive/v2.1-agent-permission/`.
 
+## Current measurement revision — 2026-10-18
+
+Paper title remains **Do People Trust AI More When It Explains Itself? A Comparative Study of Explanation**. Primary outcome is behavioral appropriate reliance: accepting correct labels plus rejecting wrong labels divided by trials, with both component rates and over/underreliance reported separately. Subjective trust is secondary; maximizing it is not the goal.
+
+NEW sessions use `protocolVersion=calibrated-brief-v1`, eight posts and `questionnaireVersion=brief-v1`: custom `briefTrust` 1–7, tension 1–7, frustration 0–100 in steps of 5, for 3 ratings/part and 12 overall. This is NOT a Jian shortform or validated three-item scale. Fairness/Jian are not collected in this protocol. Old sessions stay `legacy-full-v1` with full 16 ratings/part, including old eight-post sessions. Migrate safely; store uncollected legacy scores NULL/empty arrays, never fabricated values. Protocol and questionnaire version accompany exports and cohort filtering.
+
+A–D remain unchanged **interface packages**. C's additional factual comparison means findings cannot isolate interactivity or ordinal explanation depth. Treat the sparse eight-trial study as exploratory; N=32 is a balance/feasibility target, not proven power. Run the separate pilot before formal collection. See [pilot and analysis plan](pilot-and-analysis-plan.md), [methods and limitations](methods-and-limitations.md), and [study defense](parts-and-study-defense.md). Older measures/hypotheses below are historical unless retained explicitly for the revised primary/secondary analysis.
+
 ## Active short-study override — 2026-10-18
 
 NEW sessions use four parts of **two distinct posts each (8 total)**. The 24-post bank below is retained for sampling and legacy sessions, not shown in full to new participants. Each part selects one correct and one wrong label. Each person sees two false alarms and two misses; each condition’s wrong type flips in the next 16-person cycle, giving a 32-person condition-by-error balance. Shuffle the two positions; the legacy rule barring both wrong posts from positions 1–2 does not apply to the short design.
 
-Existing saved six-post plans remain intact. Derive progress, eligibility and counts from the saved plans; do not pool short and legacy outcomes. Exports append `plannedTrials` and `studyVariant`. Keep the full block questionnaires, acknowledge 64 ratings remain, and describe duration/power cautiously.
+Existing saved six-post plans remain intact. Derive progress, eligibility and counts from the saved plans; do not pool short and legacy outcomes. Exports append `plannedTrials` and `studyVariant`. Use the current brief questionnaire for newly created sessions and retain full questionnaires only for saved legacy sessions; describe duration/power cautiously.
 
 Add compact first-two-post guidance explaining each part’s existing interaction, without answers or compulsory verification. See [parts-and-study-defense.md](parts-and-study-defense.md). Participant attribution is an HCI experiment conducted as part of graduate study at Florida Polytechnic University. Remove visible approval/contact/professor placeholders without inventing substitutes.
 
@@ -156,7 +166,17 @@ That gives 16 correct and 8 wrong labels overall. Each set has one `clear` and o
 
 Both are listed as optional and not built unless the team adds them.
 
-## Research questions and hypotheses (v3)
+## Current research questions and outcome hierarchy
+
+- **RQ1 (primary):** How does appropriate reliance differ across A–D interface packages? Report correct acceptance and wrong rejection separately, alongside overreliance and underreliance. More agreement or subjective trust alone is not success.
+- **RQ2 (exploratory component):** How does wrong-label rejection differ for false alarms versus misses? One wrong trial per person per condition limits precision; report counts and realized assignment balance.
+- **RQ3 (secondary):** How do custom perceived trust, tension and frustration differ across packages, and how do they relate descriptively to behavior?
+- Confidence, verification, explanation use, timing and preference are supporting descriptive outcomes. Self-selected interaction does not establish a causal mechanism.
+- A–D are categorical packages. Any apparent C advantage combines factual access and interaction. Directional expectations are exploratory, not confirmatory hypotheses supported by power calculations. Freeze any future confirmatory hypotheses and sample justification before data review.
+
+See [pilot and analysis plan](pilot-and-analysis-plan.md) for denominators, uncertainty, participant/item dependence and version-specific cohorts. The earlier hypotheses below explain design history and do not govern the new protocol.
+
+## Historical v3 research questions and hypotheses (legacy full protocol)
 - **RQ1:** do explanations help people catch wrong labels, and does it differ for false alarms vs misses?
   - H1: detection of wrong labels differs by condition.
   - H1a (headline): misses are caught less often than false alarms, because "Likely accurate" invites no scrutiny.
@@ -172,7 +192,7 @@ Both are listed as optional and not built unless the team adds them.
 - **H6 (time/clicks):** decisions take longest in C and D, and opening the fact sheet or expanding rows predicts detection.
 
 ## Doc conventions
-- GitHub Markdown, with Mermaid in ```mermaid blocks (no semicolons, quote labels with special characters, no HTML).
+- GitHub Markdown, with Mermaid in fenced blocks marked `mermaid` (no semicolons, quote labels with special characters, no HTML).
 - Each doc has an H1, a purpose paragraph and a "Related docs" list:
   - `architecture.md`, `system-design.md`, `sequence-diagrams.md`, `data-model.md`, `ai-design.md`
   - `research-positioning.md`, `implementation-plan.md`, `study-protocol.md`, `stimuli.md`, `wireframes.md`

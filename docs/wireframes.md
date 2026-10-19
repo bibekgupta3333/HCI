@@ -1,12 +1,16 @@
 # Wireframes: AI label study app (low fidelity)
 
-This document gives a low-fidelity ASCII wireframe for every screen in the v3 study app, where participants judge made-up social media posts from the fictional town of Riverton and decide whether to agree with an AI accuracy label. The goal is that every team member builds the same layout, and that the report can show the planned interface next to screenshots of the running app. Wireframes prioritize readable content and order; attribution wraps across lines on narrow screens. The real app works from 360 px phones to 1280 px laptops (see `architecture.md`); on wide screens the trial puts the post and the label side by side, and on phones it stacks them (§15). Treat these as content and order, not pixel layout. **v2:** the study is self-guided and once-only (public landing page at `/`, §0a, then the participation-code screen at `/start`, §0b), each post takes two taps (decision, then an inline confidence chip, §9), a progress bar and keyboard hints sit on every trial, the block survey is one matrix screen (§10), and `/admin` is a read-only KPI dashboard (§13). Under each wireframe, 2–4 notes say what is logged and which interaction rules apply. Field and event names follow `data-model.md`. Participant-facing wording (instructions, the practice post, post cards, fact sheets, B/C/D text) is copied from `stimuli.md`, which wins if the two ever differ; `_shared-decisions.md` is binding on the post bank and condition rules.
+**Study title: Do People Trust AI More When It Explains Itself? A Comparative Study of Explanation**
+
+Use this exact title wherever the study title appears; wrap it across lines on narrow screens without changing its wording.
+
+This document gives a low-fidelity ASCII wireframe for every screen in the v3 study app, where participants judge made-up social media posts from the fictional town of Riverton and decide whether to agree with an AI accuracy label. The goal is that every team member builds the same layout, and that the report can show the planned interface next to screenshots of the running app. Wireframes prioritize readable content and order; attribution wraps across lines on narrow screens. Desktop and laptop browsers are the primary interface; responsive support remains available from 360 px phones to wide desktop screens (see `architecture.md`); on wide screens the trial puts the post and the label side by side, and on phones it stacks them (§15). Treat these as content and order, not pixel layout. **v2:** the study is self-guided and once-only (public landing page at `/`, §0a, then the participation-code screen at `/start`, §0b), each post takes two taps (decision, then an inline confidence chip, §9), a progress bar and keyboard hints sit on every trial, the block survey is one protocol-specific brief/full screen (§10), and `/admin` is a read-only KPI dashboard (§13). Under each wireframe, 2–4 notes say what is logged and which interaction rules apply. Field and event names follow `data-model.md`. Participant-facing wording (instructions, the practice post, post cards, fact sheets, B/C/D text) is copied from `stimuli.md`, which wins if the two ever differ; `_shared-decisions.md` is binding on the post bank and condition rules.
 
 Conventions: `[ Button ]` is a button, `[1]` a tappable chip, `○`/`●` an empty/filled matrix cell, `▓░` the progress bar, `( )` is a radio option, `▸` is a collapsed row, `▾` an expanded one, `✓`/`⚠` are the two label icons, and `♡`/`↻` are likes and reposts.
 
 HCI experiment conducted as part of graduate study at Florida Polytechnic University.
 
-**Active flow:** new sessions have **8 analysed posts**, four parts of two posts, plus one practice post. Each part has one correct and one wrong label; each participant sees two false alarms and two misses. Across 32 new-session completers, each condition must receive 16 false alarms and 16 misses. These are assignment constraints for the team, not participant-facing disclosures. Saved legacy sessions keep six posts per part and 24 overall, their saved assignment, cursor and completion requirements. Render progress and debrief from the session version; do not pool eight-post and 24-post responses in analysis. The diagrams below describe new sessions unless explicitly marked otherwise. Implementation must be verified separately.
+**Active flow:** new sessions have **8 analysed posts**, four parts of two posts, plus one practice post. Each part has one correct and one wrong label; each participant sees two false alarms and two misses. Across 32 new-session completers, each condition must receive 16 false alarms and 16 misses. These are assignment constraints for the team, not participant-facing disclosures. New sessions use `protocolVersion=calibrated-full-v1` and `questionnaireVersion=full-v1` (16 ratings per part, 64 total). Previously started `calibrated-brief-v1` sessions keep `brief-v1` and three ratings per part (12 total). Older full-questionnaire eight-post and 24-post sessions keep their saved assignment, cursor and full questionnaire under `legacy-full-v1`; absent legacy protocol metadata defaults to legacy. Trial count does not select the questionnaire or upgrade a resumed session. Render progress and debrief from the session version; keep restored eight/full, saved eight/brief, older eight/full and older 24/full cohorts separate in analysis. The diagrams below describe new sessions unless explicitly marked otherwise. Implementation must be verified separately.
 
 The previous design (v2.1, approving an AI agent's actions) has its own wireframes in `archive/v2.1-agent-permission/wireframes.md`.
 
@@ -21,7 +25,10 @@ The public page that the recruitment link and QR code open. Desktop (about 1280 
 │ You have a session in progress.          │
 │                             [ Continue ] │
 ├──────────────────────────────────────────┤
-│ Post Review Study       ┌──────────────┐ │
+│ Do People Trust AI More When It         │
+│ Explains Itself? A Comparative Study of  │
+│ Explanation                             │
+│                         ┌──────────────┐ │
 │                         │ ▭ post       │ │
 │ Help us understand how  │ ✓ AI label   │ │
 │ people use AI labels on │ [Agree] [..] │ │
@@ -34,7 +41,7 @@ The public page that the recruitment link and QR code open. Desktop (about 1280 
 │   code.      made-up posts;    few quick │
 │              agree or not      questions.│
 │              with each label             │
-│ Four parts · phone or computer  │
+│ Four parts · desktop or laptop  │
 ├──────────────────────────────────────────┤
 │ Who can take part   │ Your privacy       │
 │ • Anyone aged 18+   │ • Pseudonymous     │
@@ -62,7 +69,10 @@ Phone (360 px; one column, full-width buttons, the illustration under the call t
 │ Session in progress            │
 │ [         Continue           ] │
 ├────────────────────────────────┤
-│ Post Review Study              │
+│ Do People Trust AI More When   │
+│ It Explains Itself? A           │
+│ Comparative Study of           │
+│ Explanation                    │
 │ Help us understand how people  │
 │ use AI labels on social media  │
 │ posts.                         │
@@ -76,7 +86,7 @@ Phone (360 px; one column, full-width buttons, the illustration under the call t
 │   and say whether you agree    │
 │   with each AI label.          │
 │ ③ Answer a few quick questions.│
-│ Four parts · phone or PC  │
+│ Four parts · desktop or laptop  │
 ├────────────────────────────────┤
 │ Who can take part              │
 │ • Anyone aged 18 or over who   │
@@ -112,13 +122,15 @@ Phone (360 px; one column, full-width buttons, the illustration under the call t
 ```
 ┌──────────────────────────────────────────┐
 │ ← Back                                   │
-│ Judging AI labels on social media posts  │
+│ Do People Trust AI More When It         │
+│ Explains Itself? A Comparative Study of  │
+│ Explanation                             │
 ├──────────────────────────────────────────┤
 │ Read 8 made-up posts, each with an AI   │
 │ label, and decide if you agree. Short    │
 │ questions after each part.               │
 │                                          │
-│ Four parts · desktop or phone   │
+│ Four parts · desktop or laptop   │
 │                                          │
 │ Participation code                       │
 │ ┌──────────────────────────────────────┐ │
@@ -141,7 +153,9 @@ Phone (360 px; one column, full-width buttons, the illustration under the call t
 
 ```
 ┌──────────────────────────────────────────┐
-│ Judging AI labels on social media posts  │
+│ Do People Trust AI More When It         │
+│ Explains Itself? A Comparative Study of  │
+│ Explanation                             │
 ├──────────────────────────────────────────┤
 │ You've already taken part. Thank you!    │
 │                                          │
@@ -484,36 +498,52 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 
 ## 10. Block survey (`BlockSurveyScreen`)
 
-```
+New `calibrated-full-v1` sessions show the original full questionnaire after each of the four parts: 12 Jian-based trust items, two fairness items, tension and frustration, **16 ratings per part / 64 total**. The participant sees the part number, not the condition letter. Desktop/laptop browsers are primary; vertical scrolling keeps the section headings, anchors, answer count and Continue easy to locate. Exact item wording and order remain from `surveyItems.json`.
+
+```text
 ┌──────────────────────────────────────────┐
-│ About the AI labels in Part 2            │
+│ Part 2 of 4: Your ratings               │
+│ Rate the AI labeling system in this     │
+│ part, not the post authors or the       │
+│ website design. There are no right      │
+│ or wrong answers.                       │
 ├──────────────────────────────────────────┤
+│ Trust                                   │
 │ 1 = Not at all · 7 = Extremely           │
-│                      1 2 3 4 5 6 7       │
-│  1 Deceptive         ○ ○ ○ ● ○ ○ ○       │
-│  2 Underhanded       ○ ○ ● ○ ○ ○ ○       │
-│ ▶3 Suspicious        ○ ○ ○ ○ ○ ○ ○       │
-│  ⋮ items 4–11                            │
-│ 12 Familiar          ○ ○ ○ ○ ○ ○ ○       │
+│ [Canonical item text, unchanged]         │
+│ [1] [2] [3] [4] [5] [6] [7]             │
+│ … remaining trust items                 │
 ├──────────────────────────────────────────┤
-│ 1 Strongly disagree · 7 Strongly agree   │
-│ 13 Fair to posters   ○ ○ ○ ○ ○ ○ ○       │
-│ 14 Consistent        ○ ○ ○ ○ ○ ○ ○       │
+│ Fairness                                │
+│ 1 = Strongly disagree                   │
+│ 7 = Strongly agree                      │
+│ [Canonical item text, unchanged]         │
+│ [1] [2] [3] [4] [5] [6] [7]             │
+│ … second fairness item                  │
 ├──────────────────────────────────────────┤
-│ 15 How tense did you feel in this part?  │
-│    [1][2][3][4][5][6][7]                 │
-│ 16 How irritated, stressed or annoyed?   │
-│    Very low ├─────●─────┤ Very high      │
-│             50 (not yet set)             │
+│ How you felt                            │
+│ Tension — canonical question unchanged  │
+│ 1 = Not at all tense                    │
+│ 7 = Extremely tense                     │
+│ [1] [2] [3] [4] [5] [6] [7]             │
+│ Frustration — canonical question        │
+│ unchanged                              │
+│ Very low (0) ├─────●─────┤ (100) Very high│
+│ Move the slider to select your answer   │
 ├──────────────────────────────────────────┤
-│ 2 of 16 answered · keys 1–7 answer ▶ row │
-│                       [ Continue ] (off) │
+│ 0 of 16 answered     [ Continue ] (off)  │
 └──────────────────────────────────────────┘
 ```
 
-- One compact screen. The 12 Jian items are a matrix (rows = items, columns = 1–7); the short stems here stand for the full item text from `surveyItems.json`, which the app shows. Then the 2 fairness items, `tension` (1–7 chips) and `frustrationTlx` (NASA-TLX frustration, 0–100 in steps of 5). Items 1–5 are reverse-scored by the server.
-- Keyboard: `▶` marks the focused row; a number key answers it and moves focus to the next row. The counter "x of 16 answered" updates live, and Continue enables only at 16 of 16.
-- The slider starts at 50 but only counts once moved (`frustrationTlxTouched`). Logs `block_survey_submit`; `nWrongDetected` is computed by the server. Across all four parts this remains **64 required ratings**: 48 trust, 8 fairness, 4 tension and 4 frustration, in addition to decisions, confidence, practice and exit questions. Pilot this burden and total duration; fewer posts alone do not establish a short study. The heading says "Part N" and never names the condition. On phones each trust item becomes its own chip row (§15).
+- Show the neutral instruction **“Rate the AI labeling system in this part, not the post authors or the website design. There are no right or wrong answers.”** It describes questionnaire ratings, not post decisions. It must not reveal planted errors or encourage a particular rating. These are UI clarity changes, not psychometric validation, canonical item revisions or scoring changes.
+- The h1 is “Part {b} of 4: Your ratings”; h2 sections are “Trust”, “Fairness” and “How you felt”. Keep the appropriate anchors next to each scale; trust uses “Not at all” / “Extremely”, not agreement anchors. Retain full item wording, item order and visible keyboard focus. Use the same guidance across conditions.
+- All 16 ratings are required. Until slider interaction, display **“Move the slider to select your answer”** rather than presenting 50 as a completed answer. The unanswered accessible value text is “Unanswered. Move the slider to select your answer”. The underlying start remains 50, range 0–100, step 5, with `frustrationTlxTouched=true` required. Intentional selection of 50 via Enter/Space on the focused slider or pointer-up counts without first changing the value; value changes also count. Moving away and back to 50 remains valid. Show the selected numeric value after interaction; the untouched slider does not advance the answer count or enable Continue. The single frustration item is not a full weighted NASA-TLX score.
+- The desktop survey has a scoped maximum width of 1000 px; each seven-chip rating row uses 44 px chips. A fixed footer holds the answer count and Continue. Scroll margins keep focused questions visible above the footer; preserve responsive wrapping and keyboard focus.
+- Retain raw twelve-item trust responses, reverse-score items 1–5 and calculate the full trust mean on the server. Fairness has its separate two-item mean. `briefTrust` is NULL for full surveys. Confidence and exit questions are additional tasks; total burden and duration need pilot evidence.
+- **Saved brief branch:** `calibrated-brief-v1` / `brief-v1` keeps custom trust, tension and frustration (three ratings per part, 12 total), its original anchors, and “x of 3 answered”. Its custom trust item is not validated or a Jian short form. Retain `trustResponses=[]` and NULL full trust/fairness fields. The neutral instruction and untouched-slider prompt do not add items or change validation.
+- Saved `legacy-full-v1` sessions retain the full screen and saved eight- or 24-post plan. Do not infer questionnaire from post count, upgrade on resume, relabel existing responses or pool brief and full trust.
+- The server checks the saved block is complete, enforces the session's questionnaire version and derives detected-error counts. Failed saves remain retryable. Preserve keyboard access, responsive layouts, existing timing and event semantics.
+- See [methods](methods-and-limitations.md) and [pilot/analysis plan](pilot-and-analysis-plan.md).
 
 ## 11. Exit survey (`ExitSurveyScreen`)
 
@@ -532,7 +562,11 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 │   [never][rarely][sometimes][often]      │
 │                                          │
 │ Which part did you prefer? *             │
-│   [Part 1][Part 2][Part 3][Part 4][none] │
+│ [Part 1 — Why? with expandable details] │
+│ [Part 2 — What-if explanation]          │
+│ [Part 3 — One short reason]             │
+│ [Part 4 — Label only]                   │
+│ [No preference]                        │
 │                                          │
 │ Any comments? (no personal info)         │
 │ ┌──────────────────────────────────────┐ │
@@ -543,7 +577,7 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 └──────────────────────────────────────────┘
 ```
 
-- One screen. Questions with 6 or fewer options are chips or radios; only education (more options) stays a select. Required: social media use, label exposure and preferred part. Parts are shown in the session's own order, and the export maps them back to A/B/C/D.
+- One screen. Questions with 6 or fewer options are chips or radios; only education (more options) stays a select. Required: social media use, label exposure and preferred part. Parts include a short neutral reminder of their interface, derived from the session's actual `conditionOrder`; the example above uses C–D–B–A. Full-width options wrap on narrow screens. Stored values still map to A/B/C/D, with No preference saved as `none`.
 - The comment is capped at 1000 characters.
 - Logs `exit_survey_submit` and sets `status = completed` and `completedAt`. Once the server has saved the survey and the last events are flushed, the client removes every `xai-study:` key from `localStorage` and `sessionStorage` (except `xai-study:adminToken`) and then shows the debrief. Participant storage keys are removed; the debrief uses session state in memory.
 
@@ -583,7 +617,7 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 ```
 
 - Self-guided: the participant number identifies the displayed assignment, but a reused pid is not a unique session identifier. No verified remote deletion-request channel or self-service deletion control is established; do not promise one. Stopping remains voluntary and does not erase saved responses.
-- "Show the real facts" lists the four wrong-label posts actually assigned from the bank (p03, p04, p09, p10, p15, p16, p21, p22) in a new session, or all eight in a legacy session, so each assigned wrong label receives a correction. Logs `session_complete`.
+- "Show the real facts" lists the four wrong-label posts actually assigned from the bank (p03, p04, p09, p10, p15, p16, p21, p22) in a new session, or all eight in a saved 24-post session; existing eight-post/full-questionnaire sessions also show their four assigned errors, so each assigned wrong label receives a correction. Logs `session_complete`.
 - No back button. A declined consent lands here too, with only a thank-you and the right to stop; do not imply trials were completed.
 - The debrief is drawn from data already in memory (pid, wrong-label facts); browser storage has been cleared by the time it shows. **Next participant** returns to the landing page (`/`) with no **Continue** banner, and the next person taps **Take part** for an empty code field; a reload of the page does the same.
 
@@ -595,15 +629,15 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 ├──────────────────────────────────────────┤
 │ ┌─────────┐┌─────────┐┌───────┐┌──────┐  │
 │ │Completed││In prog. ││Compl. ││Median│  │
-│ │ 11 / 32 ││    2    ││ 85 %  ││17 min│  │
+│ │  — / 32 ││    —    ││   —   ││  —   │  │
 │ └─────────┘└─────────┘└───────┘└──────┘  │
 │ Cycle 1: 11/16 · Cycle 2: 0/16           │
 ├──────────────────────────────────────────┤
-│ Cond Detect   FA/Miss  Trust  Tension    │
-│ A    ██░░ 41% 55/27%   ████   ██░        │
-│ B    ██░░ 45% 59/32%   █████  █░░        │
-│ C    ███░ 64% 68/59%   ████   ██░        │
-│ D    ██░░ 50% 64/36%   ████   █░░        │
+│ Cond Reliance  Accept Reject Trust      │
+│ A       —        —      —      —        │
+│ B       —        —      —      —        │
+│ C       —        —      —      —        │
+│ D       —        —      —      —        │
 ├──────────────────────────────────────────┤
 │ Balance ABDC 3 · BCAD 3 · CDBA 3 · DACB 2│
 ├──────────────────────────────────────────┤
@@ -628,8 +662,8 @@ p10 is a `miss` (`difficulty: clear`): the post is FALSE (downtown parking remai
 ```
 
 - **Data and KPIs only: there is no start-session form.** Refreshes every 15 s from `GET /api/admin/kpis` and `GET /api/admin/sessions`. KPI definitions are in `data-model.md` §8.6; they use completed sessions only and exclude pilot pids ≥ 900.
-- Dashboard numbers above are illustrative, not study findings. Show cohort/version explicitly and keep eight-post and 24-post outcomes separate. The condition table uses small inline SVG bars (no chart library): detection, false-alarm vs miss detection, trust and tension. The balance row shows completed sessions per Williams order.
-- Sessions table: pid, status, order, progress x/8 (x/24 for legacy sessions), last activity, with **Mark abandoned** (`[Ab]`) and **Delete (withdrawal)** (`[Del]`, typed confirmation). The export panel lists all seven files from `GET /api/admin/export`, each with a one-line description, its current row count and a download link (`[↓]`). `participants.csv` is marked **Start here** (one row per session) and `kpis.csv` **Dashboard numbers**. **Download all CSVs** fetches the six CSVs one after another; ticking "Include raw JSON" adds `sessions.json`. If the index fails to load, the seven links still show, without counts.
+- Dashboard numbers above are illustrative placeholders, not study findings or validated timing. Outcome labels and columns must follow the selected cohort. Show protocol/questionnaire and trial-count cohort explicitly; keep restored eight/full, saved eight/brief, older eight/full and older 24/full outcomes separate. The condition table leads with appropriate reliance and shows correct acceptance, wrong rejection, overreliance and underreliance, then secondary Jian-based trust, fairness and affect for the restored full cohort. Saved brief custom trust and legacy full scores appear in their separately identified cohorts; uncollected values are blank, not zero. The balance row shows completed sessions per Williams order.
+- Sessions table: pid, status, order, progress x/8 or x/24 according to the saved plan, last activity, with **Mark abandoned** (`[Ab]`) and **Delete (withdrawal)** (`[Del]`, typed confirmation). The export panel lists all seven files from `GET /api/admin/export`, each with a one-line description, its current row count and a download link (`[↓]`). `participants.csv` is marked **Start here** (one row per session) and `kpis.csv` **Dashboard numbers**. **Download all CSVs** fetches the six CSVs one after another; ticking "Include raw JSON" adds `sessions.json`. If the index fails to load, the seven links still show, without counts.
 - Without `ADMIN_TOKEN` the page works only on the server machine (loopback); from anywhere else the API returns 403 and the page asks for the token. "Preview pid" shows any pid's assignment without creating anything.
 
 ## 14. Consequence banner (optional, off by default)
@@ -686,25 +720,8 @@ The trial on a phone. Everything stacks in one column; the progress bar stays at
 
 - Same content and order as §4; only the layout changes. Touch targets are at least 44 px. The confidence chips (§9) slide in under the buttons as on desktop.
 - The bottom sheet closes with the handle, a tap outside or `Esc`, and logs the same `fact_sheet_open` / `fact_sheet_close` events as the side panel.
-- The block survey matrix becomes one chip row per item:
-
-```
-┌──────────────────────────────────────────┐
-│ About the AI labels in Part 2            │
-├──────────────────────────────────────────┤
-│ 3. I am suspicious of the AI labels'     │
-│    intent, action, or outputs.           │
-│ [1] [2] [3] [4] [5] [6] [7]              │
-│ not at all            extremely          │
-│                                          │
-│ 4. I am wary of the AI labels.           │
-│ [1] [2] [3] [4] [5] [6] [7]              │
-│                                          │
-│ ⋮                                        │
-├──────────────────────────────────────────┤
-│ 5 of 16 answered    [ Continue ] (off)   │
-└──────────────────────────────────────────┘
-```
+- Responsive full questionnaires retain all 16 ratings, with one readable chip row per trust/fairness item, separate feelings controls, section headings, nearby anchors and “x of 16 answered”. The neutral instruction and untouched-slider prompt match §10. Labels wrap without clipping at 360 px; preserve visible focus, approximately 44 px touch targets and accessible Continue.
+- Saved brief questionnaires retain their three questions, original anchors and “x of 3 answered”. Both branches require slider interaction. Desktop/laptop use is primary; responsive layout does not change protocol, item wording, scoring or required answers.
 
 ---
 
@@ -740,6 +757,12 @@ flowchart TD
 ```
 
 ---
+
+## Outcome interpretation
+
+Primary appropriate reliance is `(correct & agree + wrong & disagree) / all trials`. Report correct acceptance / correct trials, wrong rejection / wrong trials, wrong acceptance / wrong trials (overreliance), and correct rejection / correct trials (underreliance); zero denominators yield null. Jian-based trust and fairness are secondary in the restored full protocol; custom trust applies only to saved brief sessions. Agree always means agreement with the label, including a misleading label.
+
+A–D are categorical interface packages, not ordinal depths. C preserves true Claim vs record evidence and Why?/row controls, providing an extra route to decisive information. A C difference cannot isolate interactivity; an equal-content static control is proposed for follow-up only. Pilot 6–8 people in a separate database for comprehension, burden and technical feasibility, not significance. N=32 targets balance/feasibility and does not establish power or novelty.
 
 ## Related docs
 

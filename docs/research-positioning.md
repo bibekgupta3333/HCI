@@ -1,141 +1,78 @@
 # Research positioning
 
-This document explains where the v3 study (AI accuracy labels on made-up social media posts) sits in the research literature and how the course study could become a publishable paper. It covers the decision history (loan approval → agent permission prompts → content labels), an honest assessment of how crowded the area is, the specific combination the novelty rests on, the research questions and hypotheses, candidate contributions, ways to strengthen the design, threats to validity, the study plan, target venues, and what the team must do before claiming a gap. It follows `_shared-decisions.md`, which wins on any conflict. Items marked **(partially verified)** have not been fully checked against the primary source and must be confirmed before anything is submitted. The v2.1 version of this document, with the full earlier domain comparison, is in `archive/v2.1-agent-permission/research-positioning.md`.
+**Full questionnaire restored (2026-10-19):** new sessions use `calibrated-full-v1` with `questionnaireVersion=full-v1`. After EACH of four parts, collect the original 12 Jian-based trust items, two fairness items, tension and frustration: 16 ratings per part, 64 total. Keep eight posts (two per part), appropriate reliance as primary, the unchanged paper title and the interface-package limitation. Trust is now measured separately for each explanation condition. Preserve previously started `calibrated-brief-v1` sessions and their brief surveys on resume; do not mix or relabel their data. Dashboard/KPI exports default to the restored full cohort. Earlier brief-default descriptions below document the superseded revision and apply only to saved brief sessions. Schema 4 preserves all earlier responses. Pilot the restored questionnaire burden; no completion-time or power guarantee is established.
 
-## 1. Decision history
+**Study title: Do People Trust AI More When It Explains Itself? A Comparative Study of Explanation**
 
-```mermaid
-flowchart LR
-  V1["v1: loan approval (proposal.txt)"] -->|"saturated, reads as a replication"| V2["v2 / v2.1: agent permission prompts"]
-  V2 -->|"harder story, unfamiliar attack scenarios"| V3["v3: AI accuracy labels on made-up posts"]
-  V3 --> N1["False alarm vs miss"]
-  V3 --> N2["Four explanation depths A-D"]
-  V3 --> N3["Affect: tension and TLX frustration"]
-```
+HCI experiment conducted as part of graduate study at Florida Polytechnic University.
 
-### v1: loan approval (the approved proposal)
-Loan approval is one of the most heavily used tasks in XAI research. The closest prior study is **He, Aishwarya & Gadiraju, IUI 2025, "Is Conversational XAI All You Need? Human-AI Decision Making With a Conversational XAI Assistant"** (DOI 10.1145/3708359.3712133). It used a loan task with N = 306 and found that a richer, conversational explainer raised trust but made overreliance worse. A three-level explanation study on loans would read as a smaller replication of it. Students also have little feel for underwriting.
+The title is retained exactly. The operational question is whether explanation interface packages support **appropriate/calibrated reliance** on scripted accuracy labels for fictional social media posts. Increasing subjective trust is not itself a success criterion. This is an exploratory course study; no outcome, verified novelty claim or power guarantee is established.
 
-### v2 / v2.1: AI agent permission prompts
-v2 moved to supervising a scripted assistant agent that proposed purchases, emails and file shares and approved or refused each one against a short set of user rules. It scored best in the v2 domain comparison (26/30), because the area was new and the planted errors could be checked on screen. v2.1 added a counterfactual condition D, an error-type comparison (wrongly approved vs wrongly refused actions) and affect measures. Its weaknesses were practical: the story took longer to explain to participants, some planted errors relied on attack scenarios most students had never heard of, and fairness had to be replaced with "perceived control".
+## 1. Scope and decision history
 
-### v3: AI accuracy labels on social media posts (Deepthi's proposal)
-The team chose v3 on 2026-10-17 for four reasons:
+`proposal.txt` and `literature.txt` preserve the submitted loan-approval proposal and review. The intermediate agent-permission design remains in [the archive](archive/v2.1-agent-permission/research-positioning.md). The current domain is fictional Riverton/Alder County posts with scripted labels and optional fact sheets. The app uses Wizard-of-Oz simulation: no AI model, live feed or external fact-check service runs. Methods and debrief must disclose that simulation; public landing and recruitment copy must not reveal planted errors.
 
-1. **Clear story.** "An AI labels a post as accurate or misleading, and sometimes it's wrong" needs no tutorial. Everyone has seen platform labels.
-2. **Fits XAI and HCI.** It's a human-AI decision task with explanations, trust, reliance and error detection, the core of the course and of `literature.txt`. Fairness (to the people who posted) comes back as a natural measure.
-3. **Reuses planned work.** The Wizard-of-Oz engine, allow-listed payloads, counterbalancing, logging, block surveys, the C factor rows and the D counterfactual all carry over from v2.1 with new content.
-4. **Enough parts for 6 people.** Four condition views, the post bank and fact sheets, the shared post and fact-sheet components, the survey layer, and the study infrastructure and analysis split cleanly across the team.
+New sessions use `protocolVersion=calibrated-brief-v1`: four parts, two distinct posts per part, eight analysed trials drawn from the retained 24-post bank, plus one unanalysed practice post. Each part has one correct and one wrong label; each person sees two false alarms and two misses. Existing eight-post and 24-post sessions keep their saved plans and full questionnaires under `legacy-full-v1`. Missing legacy protocol metadata defaults to that version. Protocol and trial-count variants are separate cohort dimensions.
 
-## 2. Saturation: an honest assessment
+## 2. Research questions and outcomes
 
-Misinformation and fact-check labels are a **crowded** area, and so is the effect of LLM explanations on reliance. A reviewer will know this work, and the paper must not claim that "explanations on AI labels" is new.
+| Role | Question | Operational measure |
+|---|---|---|
+| Primary | How does appropriate reliance differ across A–D interface packages? | `(correct & agree + wrong & disagree) / all trials` |
+| Component | Do packages change acceptance of correct labels or rejection of wrong ones? | Correct acceptance / correct trials; wrong rejection / wrong trials |
+| Error patterns | How do overreliance, underreliance and false-alarm/miss rejection differ? | Wrong acceptance / wrong trials; correct rejection / correct trials; error-type counts and rejection rates |
+| Secondary | How do subjective trust and affect differ, and how do they relate to behavior? | Custom `briefTrust` 1–7, tension 1–7, frustration 0–100 after each part |
+| Supporting | How are verification use, explanation use, confidence, timing and preference associated with reliance? | Trial/event records and exit responses; inspection is self-selected |
 
-- **Si et al., NAACL 2024, "Large Language Models Help Humans Verify Truthfulness – Except When They Are Convincingly Wrong."** Fluent LLM explanations led people to over-trust wrong answers in a claim-verification task. This is the nearest result to our B and D conditions on wrong labels.
-- **Kim et al., CHI 2025, "Fostering Appropriate Reliance on Large Language Models: The Role of Explanations, Sources, and Inconsistencies"** (DOI 10.1145/3706598.3714020). Explanations increased reliance on both correct and incorrect answers, while sources and visible inconsistencies reduced reliance on incorrect ones. This is the basis for condition C's "Claim vs record" row.
-- **Epstein et al., ICWSM**, on whether explanations make AI-generated fake-news warnings more effective. It shows that explained warning labels are already studied. **(partially verified: confirm the authors, year and title in the primary source.)**
-- **CISPA study of AI content labels, CHI 2026.** **(partially verified: the title, authors and findings have not been checked against the paper. Do not cite it until someone has read it.)**
-- Supporting work already in the archived reading list: **Steyvers et al., 2025, *Nature Machine Intelligence* 7:221–231** (longer explanations raise confidence without improving accuracy) and **Spatharioti et al., CHI 2025** (overreliance on LLM search when the model is wrong).
+Every rate with a zero denominator is null. Correct and wrong refer to the **label**, not the underlying post alone. Rejecting every label detects every planted error but also rejects every correct label; appropriate reliance retains both components. The measure describes behavior, not proof of understanding or a validated latent calibration construct.
 
-**Where the novelty rests.** No single element of the design is new. The contribution is the **combination** Deepthi identified, tested in one within-subjects study:
+Directional expectations about C helping rejection or persuasive reasons increasing wrong-label acceptance remain predictions. A block-level trust or affect association cannot establish that an explanation caused belief, reassurance or distress. The [shared decisions](_shared-decisions.md) and [pilot and analysis plan](pilot-and-analysis-plan.md) govern the final question/hypothesis hierarchy and analysis choices.
 
-1. **False alarms vs misses compared directly.** A TRUE post labelled "Likely misleading" and a FALSE post labelled "Likely accurate" appear in every condition for every participant, so the two error types can be compared head to head rather than across studies.
-2. **Four explanation depths in one design**: none (A), static reason (B), interactive "Why?" breakdown (C) and counterfactual (D, after Wachter, Mittelstadt & Russell, 2017).
-3. **Affect alongside trust and accuracy.** Tension and the NASA-TLX frustration item (Hart & Staveland, 1988) are measured per block next to Jian et al. trust [15], agreement and detection.
+## 3. Measurement tradeoff
 
-**The new question:** *Do explanations help people catch the AI's errors, or do they just make wrong labels feel more believable and less stressful?* That second outcome (B and D raise agreement with wrong labels and lower tension at the same time) would be a harmful kind of comfort, and existing work hasn't measured it.
+The new `brief-v1` questionnaire has three required ratings per part: one custom subjective trust item, tension and frustration. Four parts require **12 block ratings**, replacing the legacy protocol's **64**. This count excludes trial decisions, confidence, practice and exit answers. Frustration remains 0–100 in steps of 5 and requires an explicit touch/interaction before saving.
 
-The gap is **provisional** until the literature search in section 10 is done.
+The custom trust item is **not validated and is not a Jian short form**. Brief records store `trustResponses=[]`; `trustMean`, `fairness1`, `fairness2` and `fairnessMean` are NULL. Fairness is not collected in new sessions. Never reconstruct full trust or fairness scores from the brief response. Legacy full sessions retain 12 Jian items, two fairness items, tension and frustration with their original scoring. Report legacy full trust and custom brief trust separately, even when both cohorts have eight trials.
 
-## 3. Research questions and hypotheses (v3)
+The reduction is a burden decision, not psychometric validation. Each rating summarizes just two posts, and the protocol change limits comparability to earlier sessions. Duration and comprehension need pilot evidence.
 
-Agreement, trust, error detection and fairness from `proposal.txt` are kept. Tension and frustration are new.
+## 4. What the interface comparison can establish
 
-| ID | Research question | Hypothesis | Measures |
-|---|---|---|---|
-| RQ1 | Do explanations help people catch wrong labels, and does it differ for false alarms vs misses? | **H1:** detection of wrong labels differs by condition. | `detectedError` by condition |
-| | | **H1a (headline):** misses are caught less often than false alarms, because "Likely accurate" invites no scrutiny. | `detectedError` by `errorType` |
-| | | **H1b:** the gap between the two error types is smallest in C. | condition × `errorType` |
-| RQ2 | Which explanation type gives the best error detection? | **H2:** detection is highest in C (the checkable claim-vs-record row) and lowest in B (a persuasive static reason). D is exploratory and could go either way. | `detectedError` by condition |
-| RQ3 | Do wrong labels create tension, and does explanation type make it better or worse? | **H3:** tension and frustration rise with the number of wrong labels noticed in a block. | `tension`, `frustrationTlx`, `nWrongDetected` |
-| | | **H3a:** B and D lower tension even on wrong labels (the "less stressful but more believable" risk). | `tension` by condition |
-| | | **H3b (exploratory):** C raises tension when the ✗ row is visible. | `tension`, `factorsExpanded[]` |
-| — | Trust and agreement | **H4:** overall agreement and Jian trust are higher in B, C and D than in A, whether or not the label is correct. | `agreed`, Jian scale |
-| — | Fairness | **H5:** fairness is rated highest in C and D and lowest in A. | 2 fairness items |
-| — | Time and clicks | **H6:** decisions take longest in C and D, and opening the fact sheet or expanding rows predicts detection. | `decisionTimeMs`, `factSheetOpened`, `factorsExpanded[]` |
+| Package | Supplied explanation | Interpretation |
+|---|---|---|
+| A | Label only; common optional fact sheet | Baseline with verification access |
+| B | One static scripted reason | Static rationale package |
+| C | Why? with Source, Claim vs record and Wording rows | Interactive package with additional access to true factual comparison |
+| D | One scripted counterfactual sentence | Counterfactual framing package |
 
-H3a draws on Langer, Blank & Chanowitz's "placebic because" [18] and Eiband et al. [11]: a reason that sounds right can increase compliance whatever its content.
+These are categorical **interface packages**, not ordered explanation depths. C's Claim vs record row shows the true comparison even when it contradicts the label; Why? and the independent row controls remain unchanged. B, C's rationale text and D may support a deliberately wrong label. The common fact sheet stays available in every condition.
 
-## 4. Candidate contributions
+C therefore differs in evidence access as well as interaction, format and amount of information. Any difference involving C applies to that combined package and cannot be attributed solely to interactivity. A static presentation with equivalent factual content is a **proposed follow-up**, not an implemented control or fifth arm.
 
-1. **C1.** A direct, within-subjects comparison of detection for false alarms and misses on AI content labels (H1a, H1b).
-2. **C2.** Four explanation depths (none, static, interactive, counterfactual) compared in one design, with wrong labels that participants can check against a fact sheet (H1, H2).
-3. **C3.** Evidence on whether explanations make wrong labels less stressful as well as more believable, from tension and frustration measured beside trust and detection (H3, H3a).
-4. **C4.** Behavioural evidence of verification (fact-sheet opens and C-row expansions) linked to detection, rather than self-report alone (H6).
-5. **C5.** Open materials: the 24-post bank with fact sheets, the explanation texts (`stimuli.md`) and the static React app, so others can replicate the study or run it online.
+## 5. What the short design can support
 
-## 5. What would make it stronger
+There is only **one wrong trial per person per condition**, so within-person error detection for that condition is binary. Both error types cannot be compared within that person's condition. The condition-index plus 16-slot-cycle parity schedule flips error type in the next cycle; a complete 32-slot schedule balances condition × error type. N=32 is a balance and feasibility target, not a power analysis. Report completed cell counts and incomplete balance explicitly.
 
-- **Treat C's "Claim vs record" row as a verification aid, and say so.** It shows the true comparison (✓/✗), so C tests whether people *look*, not whether they can work it out. Frame it as a design intervention (a cheap check built into the explanation), not as "the AI explaining itself honestly". The team still has to confirm this rule (`_shared-decisions.md`).
-- **Report fact-sheet use as behavioural verification.** Split detection by `factSheetOpened` and `factSheetOpenMs` per condition. If B and D lower fact-sheet use on wrong labels, that is direct evidence that explanations replace checking.
-- **Report everything by `errorType`.** Every detection, agreement and time result should be shown separately for false alarms and misses, not pooled.
-- **Difficulty is balanced across error types (resolved).** An earlier bank had 3 of the 4 false alarms `clear` and 3 of the 4 misses `subtle`, so H1a couldn't tell "misses are harder to catch" from "the misses are subtler". The S3 difficulty swap (p15 now `subtle`, p16 now `clear`) fully crosses error type and difficulty: false alarms p03, p21 `clear` and p09, p15 `subtle`; misses p10, p16 `clear` and p04, p22 `subtle`. H1a is no longer confounded with difficulty. `difficulty` stays in the model as a covariate, and the 2 × 2 crossing must be kept if pilot edits change any item.
-- **Pre-register** the hypotheses, the mixed-effects models and the exclusion rules before the main study.
+Each person contributes repeated trials and posts recur across people. Eight trials are not eight independent participants. Error type is also tied to assignment cycle within a condition; recruitment differences between cycles can resemble error-type effects. Bank-level difficulty balance does not prove equivalence of individual items or balance in an incomplete sample.
 
-## 6. Threats to validity
+Learning, fatigue, carryover from C, neutral guidance, item selection, fictional stakes and convenience recruitment limit interpretation. Williams orders distribute positions and immediate transitions over complete cycles; they do not eliminate these threats. Old eight-post/full, new eight-post/brief and legacy 24-post/full cohorts must remain distinguishable and analysed separately.
 
-- **The fact sheet makes detection too easy or too hard.** If the key fact jumps out, detection hits ceiling in every condition and the explanation effects disappear. If it's buried, detection hits floor. The pilot (section 7) must check that detection on wrong labels is roughly between 30% and 80% in A.
-- **Made-up posts.** Fictional Riverton posts carry no prior beliefs or partisan identity, which helps internal validity but means real-world misinformation (which is emotional, political and repeated) is likely to be harder to catch. Detection rates are a best case.
-- **Students as participants.** Students are heavy social media users but aren't representative of all platform users, and recruiting from the course may add demand effects (for example, guessing that some labels are wrong).
-- **30–35 minute session.** Twenty-four posts plus four block surveys may cause fatigue in later blocks. Counterbalancing spreads this across conditions, but block position should be tested as a covariate. A single session also measures first impressions, not long-term trust.
-- **Cue confounds.** Wrong labels might be told apart by something other than the fact sheet: the author's verified badge, sensational wording, engagement counts, topic, or explanation length. The C rows also expose Source and Wording, which partly reveal the answer. Keep source, wording and engagement balanced across correct and wrong labels within each set, keep B and D text lengths in their fixed ranges, and keep the error type × difficulty crossing from section 5.
-- **Within-subjects carry-over.** Seeing an AI error lowers trust for the rest of the session [10], and seeing C may teach people to check in later blocks. The Williams design balances first-order carry-over, but order effects should still be tested.
+## 6. Candidate contribution and evidence still needed
 
-## 7. Study plan
+A possible contribution is a reproducible exploratory comparison of reliance and affect across four precisely documented interface packages, using checkable correct labels and both error types. The post bank, canonical explanations, versioned questionnaire, scripted-label method and server-side scoring support methodological transparency. They do not establish novelty, superiority or readiness for a full paper.
 
-- **Pilot.** 3–5 people outside the team run the full session. Check the session length, that the fact sheet and its key fact are understood, the A-condition detection range (section 6), the timing logs and the CSV export. Fix the materials before the main study and don't include pilot data.
-- **Main study.** A moderated lab session, 4 conditions × 6 posts = 24 trials plus 1 practice post. Condition order uses the 4×4 Williams design, and set rotation completes a balanced cycle every 16 participants.
-  - **Target N = 32** (2 full cycles).
-  - **Minimum N = 16** (1 cycle). Deepthi's "20 or more" rounds up to 32, because 20 doesn't complete a cycle.
-- **Analysis** in R or Python. Trial-level outcomes (`agreed`, `detectedError`) use mixed-effects logistic models with condition, `errorType` and their interaction as fixed effects, and random intercepts for participant and post. Block-level ratings (trust, fairness, tension, frustration) use linear mixed models with a random intercept for participant.
-- **Power caveat.** Each participant sees only 2 wrong labels per condition (1 of each type), so N = 32 gives 32 trials per condition × error-type cell. The interaction (H1b) is underpowered. Report the course study as a pilot, with effect sizes and confidence intervals, and use the estimates to plan a larger online replication.
+Earlier named-paper summaries in this working document were not a verified literature review. Before making a gap claim, verify primary sources and record search dates, queries and coverage of label correctness, false alarms/misses, explanation content, evidence access, behavioral reliance and affect. Treat candidate references in historical material as leads until checked. No claim that prior work has omitted this combination is justified here.
 
-## 8. Target venues
+The planned **6–8-person pilot uses a separate database** and reviews burden, comprehension, accessibility, saves/resume and export integrity. Team members with stimulus knowledge are technical testers; their performance cannot establish difficulty. Pilot significance and a favorable detection band are not selection criteria. See the [pilot and analysis plan](pilot-and-analysis-plan.md) for procedures rather than deriving thresholds from a tiny sample.
 
-- **Near term (the course study as a pilot):** CHI Late-Breaking Work, IUI posters or short papers, CSCW posters.
-- **Content-label angle:** ICWSM.
-- **Later (with a larger replication):** a CHI or IUI full paper.
+Institutional approval status is unknown. Attribution to Florida Polytechnic University does not establish authorization or endorsement. Voluntary participation, adult eligibility, truthful data handling and corrective debrief remain required; no invented contacts or approval identifiers should appear.
 
-Check the current calls for papers for each venue before planning around a deadline, because dates and formats change every year. Work backwards from the chosen deadline, and allow time for instructor approval, ethics review, the pilot, data collection, analysis and internal review.
+## Related documents
 
-## 9. Ethics
-
-- **Deception.** Participants aren't told in advance that some labels are deliberately wrong. The debrief has to reveal this and show the facts for every wrong label.
-- **Stress.** The tension and frustration items ask about emotional state, and wrong labels may be mildly upsetting. The consent form must name these measures, participants can skip any item, and the debrief should address any stress.
-- **Content.** All people, accounts, places and agencies are fictional. There are no health-risk claims that would be harmful if believed, and no real brands.
-- **Ask Prof. Hamam** whether the course study needs IRB review or an exemption, and whether publishing (and any later online recruiting or payment) needs full review.
-
-## 10. Before claiming the gap: must-do list
-
-1. **Topic-change approval.** The domain change, the fourth condition and the tension and frustration measures depart from the approved `proposal.txt`. Get written sign-off from Prof. Hamam before building.
-2. **Ethics approval** for the deception and the stress measures (section 9).
-3. **Literature search.** Search Google Scholar and the ACM Digital Library with at least these queries, and record what was found (query, date, relevant hits):
-   - "false positive vs false negative AI labels explanation" (Deepthi's term, for C1 and H1a)
-   - "emotional response to incorrect AI labels" (Deepthi's term, for C3 and H3)
-   - "counterfactual explanation misinformation label" (for condition D)
-   - "explanation depth content moderation overreliance" (for C2 and H2)
-4. **Verify the partially verified items.** Confirm Epstein et al. (ICWSM) and the CISPA CHI 2026 study in the primary sources, and drop either one if it can't be confirmed. If either already compares false alarms with misses, or measures affect, revise the claimed combination in section 2.
-5. **Update the literature review** for content labels, adding only papers that someone has read in the primary source. Until then, the only new references beyond those above are Wachter, Mittelstadt & Russell (2017, *Harvard Journal of Law & Technology*) and Hart & Staveland (1988).
-6. **Keep difficulty crossed with error type** (section 5, now resolved): re-check the 2 clear / 2 subtle split per error type after any pilot wording change.
-
-## Related docs
-
-- [architecture.md](architecture.md)
-- [system-design.md](system-design.md)
-- [sequence-diagrams.md](sequence-diagrams.md)
-- [data-model.md](data-model.md)
-- [ai-design.md](ai-design.md)
-- [implementation-plan.md](implementation-plan.md)
-- [study-protocol.md](study-protocol.md)
-- [stimuli.md](stimuli.md)
-- [wireframes.md](wireframes.md)
+- [Methods and limitations](methods-and-limitations.md): report methods and interpretation limits.
+- [Pilot and analysis plan](pilot-and-analysis-plan.md): pilot, cohort rules and analysis decisions.
+- [Study protocol](study-protocol.md): self-guided participation and data handling.
+- [Study parts and defense](parts-and-study-defense.md): design rationale and defense questions.
+- [System design](system-design.md) and [wireframes](wireframes.md): behavior and screen specifications.
+- [Stimuli](stimuli.md): canonical post, explanation and fact-sheet wording.
+- [Shared decisions](_shared-decisions.md) and [current app contract](../app/CONTRACT.md): study decisions and API/persistence requirements.

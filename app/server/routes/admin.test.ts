@@ -106,11 +106,29 @@ describe("admin access without ADMIN_TOKEN (loopback only)", () => {
 });
 
 describe("GET /kpis", () => {
+  it("defaults to the current cohort and validates explicit cohort queries", async () => {
+    const legacy = createSession(db, assignment(1), OPTS);
+    const current = createSession(db, assignment(2), { ...OPTS, protocolVersion: "calibrated-full-v1" });
+    for (const s of [legacy, current]) setStatus(db, s.sessionId, "completed", new Date().toISOString());
+    const app = makeApp(db);
+    const res = await request(app).get("/api/admin/kpis").expect(200);
+    expect(res.body.cohort).toBe("calibrated-full-v1");
+    expect(res.body.sessions.completed).toBe(1);
+    expect((await request(app).get("/api/admin/kpis?protocolVersion=all").expect(200)).body.sessions.completed).toBe(2);
+    expect((await request(app).get("/api/admin/kpis?protocolVersion=legacy-full-v1").expect(200)).body.sessions.completed).toBe(1);
+    for (const query of ["invalid", "all&protocolVersion=legacy-full-v1", "", "all%27"]) {
+      await request(app).get(`/api/admin/kpis?protocolVersion=${query}`).expect(400);
+    }
+    const csv = await request(app).get("/api/admin/export/kpis.csv").expect(200);
+    expect(csv.text).toContain("meta,all,protocolVersion,calibrated-full-v1");
+    expect(csv.text).toContain("summary,all,completed,1");
+  });
+
   it("returns the Kpis shape", async () => {
     const s = createSession(db, assignment(1), OPTS);
     setStatus(db, s.sessionId, "completed", new Date().toISOString());
     createSession(db, assignment(901), OPTS);
-    const res = await request(makeApp(db)).get("/api/admin/kpis").expect(200);
+    const res = await request(makeApp(db)).get("/api/admin/kpis?protocolVersion=all").expect(200);
     expect(res.body.sessions).toMatchObject({ started: 1, completed: 1, inProgress: 0, completionRate: 1 });
     expect(res.body.byCondition).toHaveLength(4);
     expect(res.body.byErrorType).toHaveLength(2);

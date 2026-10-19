@@ -1,5 +1,9 @@
 # Data Model
 
+**Full questionnaire restored (2026-10-19):** new sessions use `calibrated-full-v1` with `questionnaireVersion=full-v1`. After EACH of four parts, collect the original 12 Jian-based trust items, two fairness items, tension and frustration: 16 ratings per part, 64 total. Keep eight posts (two per part), appropriate reliance as primary, the unchanged paper title and the interface-package limitation. Trust is now measured separately for each explanation condition. Preserve previously started `calibrated-brief-v1` sessions and their brief surveys on resume; do not mix or relabel their data. Dashboard/KPI exports default to the restored full cohort. Earlier brief-default descriptions below document the superseded revision and apply only to saved brief sessions. Schema 4 preserves all earlier responses. Pilot the restored questionnaire burden; no completion-time or power guarantee is established.
+
+**Current schema 3 / measurement override:** `sessions.protocol_version` distinguishes new `calibrated-brief-v1` from migrated `legacy-full-v1`. `block_surveys.questionnaire_version` distinguishes brief-v1/full-v1, and `brief_trust` stores a custom 1–7 item. Legacy Jian/fairness score columns are nullable; brief rows store null there and [] in trust arrays. Retain full scores for historical data. New survey payload is discriminated by questionnaireVersion and must match stored session protocol. New exports identify protocol, questionnaire and separate custom trust/appropriate-reliance outcomes. The older full 16-item examples below describe legacy data only; consult implemented TypeScript/schema and current contract.
+
 **Short-session update (2026-10-18):** new `blocks.post_order` arrays contain two post IDs; legacy saved arrays retain six. The 24-post source bank and SQLite schema remain unchanged. Progress, trial offsets, survey eligibility and debrief totals derive from saved plans. `participants.csv`, `trials.csv` and `surveys.csv` append `plannedTrials` and `studyVariant` (`short-8` / `legacy-24`), derived from saved block lengths even for unfinished sessions. The TypeScript position range 1–6 remains for legacy compatibility. Analyse versions separately. See [study defense](parts-and-study-defense.md) and the current app contract; older six-post session examples below describe legacy data.
 
 This document is the data model ("DB diagram") for the v3 XAI study app. Participants read made-up social media posts from the fictional town of Riverton (Alder County). Each post carries a scripted AI label, **"Likely accurate"** or **"Likely misleading"**, and the participant clicks **Agree with label** or **Disagree with label**. The data model has two parts. The first is **read-only static content**: `shared/data/posts.json` (the 24-post bank, each post with its embedded author, key fact, fact sheet and condition C factors) and `shared/data/surveyItems.json` (trust, fairness, tension, frustration and confidence items). The post bank is loaded only by the local server, which sends the browser allow-listed presentations without the correctness fields; the client imports only `surveyItems.json`. The second is a **session log**, written by the local Express server to a single SQLite file (`app/data/study.db`) as each trial, event batch and survey arrives, and exported from `/admin` as CSV and JSON for analysis in R or Python (§7–§8). The stimuli stay a JSON file, as the proposal suggests; SQLite holds only the responses. The diagram, field dictionaries, TypeScript interfaces and export formats below are the contract between `labelEngine.ts`, `counterbalance.ts`, `logger.ts`, the server's `repo.ts` and exporters, and the analysis scripts. Each field is tied to the hypothesis (RQ1–RQ3, H1–H6) it serves. This document is the authority on field names and types. [stimuli.md](stimuli.md) is the authority on all participant-facing wording (the practice post and all 24 posts). The three JSON examples in §4 (p03, p04, p15) are copied from `stimuli.md`; if they ever differ from it, `stimuli.md` wins and this document is corrected.
@@ -18,7 +22,7 @@ erDiagram
     POST ||--|{ FACTOR : "has exactly 3"
     POST ||--o{ TRIAL : "shown in"
     SESSION ||--|{ BLOCK : "has 4"
-    BLOCK ||--|{ TRIAL : "has 6"
+    BLOCK ||--|{ TRIAL : "2 current or 6 legacy"
     BLOCK ||--o| BLOCK_SURVEY : "followed by"
     SURVEY_ITEM ||--o{ BLOCK_SURVEY : "answered in"
     SURVEY_ITEM ||--o{ TRIAL : "confidence item"
@@ -90,6 +94,7 @@ erDiagram
         int resumeCount
         string lastActivityAt "ISO 8601, every participant write"
         string appVersion
+        string protocolVersion "calibrated-brief-v1 or legacy-full-v1"
         string postBankHash
         string submittedAt "optional add-on, else null"
     }
@@ -98,7 +103,7 @@ erDiagram
         int blockIndex PK "1 to 4"
         string condition "A B C D"
         string set "S1 S2 S3 S4"
-        string postOrder "6 post ids, shuffled"
+        string postOrder "2 current or 6 legacy post ids"
         string startedAt
         string endedAt
     }
@@ -107,8 +112,8 @@ erDiagram
         string sessionId FK
         int blockIndex FK
         string postId FK
-        int positionInBlock "1 to 6"
-        int trialIndex "1 to 24"
+        int positionInBlock "1 to 2 current, 1 to 6 legacy"
+        int trialIndex "1 to 8 current, 1 to 24 legacy"
         string condition
         boolean agreed "true = went with AI label"
         boolean detectedError "wrong labels only"
@@ -141,10 +146,12 @@ erDiagram
         string sessionId FK
         int blockIndex PK "1 to 4"
         string condition
-        float trustMean "after reverse scoring"
-        int fairness1 "1 to 7"
-        int fairness2 "1 to 7"
-        float fairnessMean
+        string questionnaireVersion "brief-v1 or full-v1"
+        int briefTrust "1 to 7, brief only, otherwise null"
+        float trustMean "legacy reverse scored, null in brief"
+        int fairness1 "legacy only, null in brief"
+        int fairness2 "legacy only, null in brief"
+        float fairnessMean "legacy only, null in brief"
         int tension "1 to 7"
         int frustrationTlx "0 to 100, steps of 5"
         boolean frustrationTlxTouched

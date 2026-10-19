@@ -8,8 +8,9 @@ import {
   hashParticipantCode, participantSalt, startOrResumeSession, abandonStaleSessions, nextFreePid, touchActivity,
 } from "./repo";
 import BetterSqlite from "better-sqlite3";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import type { Assignment, EventSubmission } from "../../shared/api";
 import type { BlockSurvey, ExitSurvey, Trial } from "../../shared/types";
@@ -68,7 +69,7 @@ describe("repo", () => {
     const s = createSession(db, assignment, opts);
     expect(s.sessionId).toMatch(/^[0-9a-f-]{36}$/);
     expect(s).toMatchObject({
-      pid: 7, status: "in_progress", conditionOrder: ["C", "D", "B", "A"], setRotation: 1,
+      pid: 7, status: "in_progress", protocolVersion: "legacy-full-v1", conditionOrder: ["C", "D", "B", "A"], setRotation: 1,
       consequenceBanner: false, anxiety: true, resumeCount: 0, consentAt: null, completedAt: null,
       cursor: { blockIndex: 1, positionInBlock: 1, phase: "consent" },
     });
@@ -131,11 +132,25 @@ describe("repo", () => {
     });
   });
 
+  it("round trips brief scores and protocol metadata without inventing full questionnaire values", () => {
+    const s = createSession(db, assignment, { ...opts, protocolVersion: "calibrated-brief-v1" });
+    const brief: BlockSurvey = { ...survey, questionnaireVersion: "brief-v1", briefTrust: 6,
+      trustResponses: [], trustMean: null, fairness1: null, fairness2: null, fairnessMean: null };
+    insertBlockSurvey(db, s.sessionId, brief);
+    expect(listSessions(db)[0].protocolVersion).toBe("calibrated-brief-v1");
+    expect(allSurveyRows(db)[0]).toMatchObject({ questionnaireVersion: "brief-v1", briefTrust: 6,
+      trust_01: null, trust_12: null, trust_01_s: null, trust_12_s: null,
+      trustMean: null, fairness1: null, fairness2: null, fairnessMean: null });
+    const full = allSessionsFull(db)[0] as any;
+    expect(full.protocolVersion).toBe("calibrated-brief-v1");
+    expect(full.blocks[0].survey).toEqual(brief);
+  });
+
   it("inserts an exit survey once", () => {
     const { sessionId } = createSession(db, assignment, opts);
     insertExitSurvey(db, sessionId, exitSurvey);
     expect(() => insertExitSurvey(db, sessionId, exitSurvey)).toThrow(ConflictError);
-    expect(allExitRows(db)).toEqual([{ ...exitSurvey, pid: 7, sessionId, conditionOrder: "CDBA", setRotation: 1, status: "in_progress" }]);
+    expect(allExitRows(db)).toEqual([{ ...exitSurvey, pid: 7, sessionId, conditionOrder: "CDBA", setRotation: 1, status: "in_progress", protocolVersion: "legacy-full-v1" }]);
   });
 
   it("export rows join session columns and full sessions nest everything", () => {
@@ -301,7 +316,7 @@ describe("migration from the v1 schema", () => {
       expect(cols).toEqual(expect.arrayContaining(["participant_hash", "last_activity_at"]));
       const idx = db.prepare("SELECT sql FROM sqlite_master WHERE name = 'idx_sessions_participant_hash'").get() as { sql: string };
       expect(idx.sql).toMatch(/UNIQUE[\s\S]*WHERE participant_hash IS NOT NULL/);
-      expect((db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as { value: string }).value).toBe("2");
+      expect((db.prepare("SELECT value FROM meta WHERE key = 'schema_version'").get() as { value: string }).value).toBe("4");
       const row = db.prepare("SELECT participant_hash, last_activity_at FROM sessions WHERE session_id = 'old-1'").get();
       expect(row).toEqual({ participant_hash: null, last_activity_at: "2026-01-01T00:00:00.000Z" });
       expect(listSessions(db)[0]).toMatchObject({ sessionId: "old-1", lastActivityAt: "2026-01-01T00:00:00.000Z" });
@@ -319,6 +334,86 @@ describe("migration from the v1 schema", () => {
       const again = openDb(path);
       expect((again.prepare("SELECT COUNT(*) AS n FROM sessions").get() as { n: number }).n).toBe(2);
       again.close();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+
+describe("schema 4 migration retention", () => {
+  it.each([2, 3])("preserves schema %i full/brief scores, plans, responses and identities across migration and reopen", (version) => {
+    const dir = mkdtempSync(join(tmpdir(), "xai-v3-retention-"));
+    const path = join(dir, "old-v2.db");
+    try {
+      // Construct an actual schema-2 file, rather than using openDb before the migration.
+      const currentSchema = readFileSync(fileURLToPath(new URL("./schema.sql", import.meta.url)), "utf8");
+      const schema = version === 3 ? currentSchema.replace(",'calibrated-full-v1'", "") : currentSchema
+        .replace(/^  protocol_version.*\n/m, "")
+        .replace(/^  questionnaire_version.*\n/m, "")
+        .replace(/^  brief_trust.*\n/m, "")
+        .replace("trust_mean               REAL,", "trust_mean               REAL NOT NULL,")
+        .replace("fairness1                INTEGER,", "fairness1                INTEGER NOT NULL,")
+        .replace("fairness2                INTEGER,", "fairness2                INTEGER NOT NULL,")
+        .replace("fairness_mean            REAL,", "fairness_mean            REAL NOT NULL,");
+      const old = new BetterSqlite(path);
+      old.exec(schema);
+      old.prepare("INSERT INTO meta VALUES ('schema_version', ?), ('participant_salt', 'keep-salt')").run(String(version));
+      old.prepare(`INSERT INTO sessions (session_id, pid, condition_order, set_rotation, seed,
+        post_bank_hash, app_version, started_at, participant_hash, last_activity_at, cursor_phase)
+        VALUES ('saved', 7, 'CDBA', 1, 7, 'hash', 'old', ?, 'keep-hash', ?, 'block_survey')`)
+        .run(survey.submittedAt, survey.submittedAt);
+      for (const block of assignment.blocks) {
+        old.prepare("INSERT INTO blocks (session_id, block_index, condition, set_id, post_order) VALUES ('saved', ?, ?, ?, ?)")
+          .run(block.blockIndex, block.condition, block.set, JSON.stringify(block.postOrder));
+      }
+      insertTrial(old, "saved", trial());
+      insertEvents(old, "saved", [ev(4), ev(5)]);
+      const raw = JSON.stringify(survey.trustResponses.map((r) => r.raw));
+      const scored = JSON.stringify(survey.trustResponses.map((r) => r.scored));
+      old.prepare(`INSERT INTO block_surveys (session_id, block_index, condition, trust_raw, trust_scored,
+        trust_mean, fairness1, fairness2, fairness_mean, tension, frustration_tlx, frustration_tlx_touched,
+        n_wrong_detected, anxiety, submitted_at) VALUES ('saved', 1, 'C', ?, ?, ?, 4, 5, 4.5, 3, 35, 1, 1, NULL, ?)`)
+        .run(raw, scored, survey.trustMean, survey.submittedAt);
+      if (version === 3) {
+        const briefSession = createSession(old, { ...assignment, pid: 8 }, { ...opts, protocolVersion: "calibrated-brief-v1" });
+        insertBlockSurvey(old, briefSession.sessionId, { ...survey, questionnaireVersion: "brief-v1", briefTrust: 6,
+          trustResponses: [], trustMean: null, fairness1: null, fairness2: null, fairnessMean: null });
+      }
+      const saved = Object.fromEntries(["sessions", "blocks", "trials", "events", "block_surveys"].map((table) =>
+        [table, old.prepare(`SELECT * FROM ${table}`).all()]));
+      old.close();
+
+      for (let pass = 0; pass < 2; pass++) {
+        const migrated = openDb(path);
+        for (const [table, rows] of Object.entries(saved)) {
+          const actual = migrated.prepare(`SELECT * FROM ${table}`).all();
+          expect(actual).toHaveLength(rows.length);
+          rows.forEach((row, i) => expect(actual[i]).toMatchObject(row as object));
+        }
+        expect(getSession(migrated, "saved")).toMatchObject({
+          protocolVersion: "legacy-full-v1", nextEventSeq: 6, blocks: assignment.blocks,
+          cursor: { phase: "block_survey" },
+        });
+        const full = (allSessionsFull(migrated) as any[]).find((s) => s.sessionId === "saved");
+        expect(full.blocks[0].survey).toEqual({ ...survey, questionnaireVersion: "full-v1", briefTrust: null });
+        expect(migrated.prepare("SELECT value FROM meta WHERE key='participant_salt'").get()).toEqual({ value: "keep-salt" });
+        expect(migrated.prepare("SELECT value FROM meta WHERE key='schema_version'").get()).toEqual({ value: "4" });
+        expect(migrated.pragma("foreign_key_check")).toEqual([]);
+        if (pass === 1) {
+          expect(migrated.pragma("foreign_keys", { simple: true })).toBe(1);
+          const restored = createSession(migrated, { ...assignment, pid: 9 }, { ...opts, protocolVersion: "calibrated-full-v1" });
+          insertBlockSurvey(migrated, restored.sessionId, survey);
+          expect(getSession(migrated, restored.sessionId)?.protocolVersion).toBe("calibrated-full-v1");
+          const current = createSession(migrated, { ...assignment, pid: 10 }, { ...opts, protocolVersion: "calibrated-brief-v1" });
+          const brief: BlockSurvey = { ...survey, questionnaireVersion: "brief-v1", briefTrust: 7,
+            trustResponses: [], trustMean: null, fairness1: null, fairness2: null, fairnessMean: null };
+          insertBlockSurvey(migrated, current.sessionId, brief);
+          expect(() => migrated.prepare("UPDATE block_surveys SET brief_trust=8 WHERE session_id=?").run(current.sessionId)).toThrow(/CHECK/);
+          expect(() => migrated.prepare("UPDATE block_surveys SET brief_trust=0 WHERE session_id=?").run(current.sessionId)).toThrow(/CHECK/);
+        }
+        migrated.close();
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

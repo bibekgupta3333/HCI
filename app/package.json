@@ -1,7 +1,7 @@
 {
   "name": "xai-label-study",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.1",
   "type": "module",
   "description": "Wizard-of-Oz study app: AI accuracy labels on made-up social media posts (CEN5728 Group 4, v3).",
   "scripts": {

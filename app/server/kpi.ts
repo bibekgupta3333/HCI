@@ -2,10 +2,10 @@
 // Rules: pilot pids >= 900 are excluded everywhere; condition / error-type KPIs use completed sessions only;
 // rates are 0–1 numbers, or null when the denominator is 0.
 import type Database from "better-sqlite3";
-import type { Condition } from "../shared/types";
+import type { Condition, StudyProtocol } from "../shared/types";
 import { WILLIAMS } from "../shared/counterbalance";
 
-import type { Kpis } from "../shared/api";
+import type { Kpis, RelianceSummary } from "../shared/api";
 
 export type { Kpis };
 
@@ -34,8 +34,9 @@ export function percentile(values: readonly number[], p: number): number | null 
   return s[lo] + (s[hi] - s[lo]) * (rank - lo);
 }
 
-export function mean(values: readonly number[]): number | null {
-  return values.length === 0 ? null : values.reduce((a, b) => a + b, 0) / values.length;
+export function mean(values: readonly (number | null | undefined)[]): number | null {
+  const present = values.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  return present.length === 0 ? null : present.reduce((a, b) => a + b, 0) / present.length;
 }
 
 /** num / den, or null when den is 0. */
@@ -55,19 +56,37 @@ interface TrialRow {
 }
 interface SurveyRow {
   condition: Condition;
-  trust_mean: number;
-  fairness_mean: number;
+  trust_mean: number | null;
+  fairness_mean: number | null;
+  brief_trust: number | null;
   tension: number;
   frustration_tlx: number;
 }
 
-const COMPLETED_SESSIONS = `SELECT session_id FROM sessions WHERE status = 'completed' AND pid < ${PILOT_PID_MIN}`;
+/** Behavioral reliance: correct acceptance and wrong rejection use separate denominators. */
+export function relianceSummary(rows: readonly { is_ai_correct: number; agreed: number }[]): RelianceSummary {
+  const correct = rows.filter((t) => t.is_ai_correct === 1);
+  const wrong = rows.filter((t) => t.is_ai_correct === 0);
+  const accepted = correct.filter((t) => t.agreed === 1).length;
+  const rejected = wrong.filter((t) => t.agreed === 0).length;
+  return {
+    trials: rows.length, correctTrials: correct.length, wrongTrials: wrong.length,
+    correctAcceptanceRate: rate(accepted, correct.length),
+    wrongRejectionRate: rate(rejected, wrong.length),
+    appropriateRelianceRate: rate(accepted + rejected, rows.length),
+    overrelianceRate: rate(wrong.length - rejected, wrong.length),
+    underrelianceRate: rate(correct.length - accepted, correct.length),
+  };
+}
 
-export function computeKpis(db: Database.Database, now: Date = new Date()): Kpis {
+export function computeKpis(db: Database.Database, now: Date = new Date(), protocolVersion: StudyProtocol | "all" = "all"): Kpis {
+  const cohortFilter = "(? = 'all' OR protocol_version = ?)";
+  const cohortArgs = [protocolVersion, protocolVersion];
+  const completedSessions = `SELECT session_id FROM sessions WHERE status = 'completed' AND pid < ${PILOT_PID_MIN} AND ${cohortFilter}`;
   // ---- sessions
   const counts = db
-    .prepare(`SELECT status, COUNT(*) AS n FROM sessions WHERE pid < ? GROUP BY status`)
-    .all(PILOT_PID_MIN) as { status: string; n: number }[];
+    .prepare(`SELECT status, COUNT(*) AS n FROM sessions WHERE pid < ? AND ${cohortFilter} GROUP BY status`)
+    .all(PILOT_PID_MIN, ...cohortArgs) as { status: string; n: number }[];
   const byStatus = (s: string) => counts.find((c) => c.status === s)?.n ?? 0;
   const inProgress = byStatus("in_progress");
   const completed = byStatus("completed");
@@ -79,14 +98,14 @@ export function computeKpis(db: Database.Database, now: Date = new Date()): Kpis
     .prepare(
       `SELECT COUNT(DISTINCT CASE WHEN pid BETWEEN 1 AND 16 THEN pid END) AS c1,
               COUNT(DISTINCT CASE WHEN pid BETWEEN 17 AND 32 THEN pid END) AS c2
-         FROM sessions WHERE status = 'completed' AND pid < ?`,
+         FROM sessions WHERE status = 'completed' AND pid < ? AND ${cohortFilter}`,
     )
-    .get(PILOT_PID_MIN) as { c1: number; c2: number };
+    .get(PILOT_PID_MIN, ...cohortArgs) as { c1: number; c2: number };
 
   // ---- durations (completed only)
   const times = db
-    .prepare(`SELECT started_at, completed_at FROM sessions WHERE status = 'completed' AND pid < ? AND completed_at IS NOT NULL`)
-    .all(PILOT_PID_MIN) as { started_at: string; completed_at: string }[];
+    .prepare(`SELECT started_at, completed_at FROM sessions WHERE status = 'completed' AND pid < ? AND ${cohortFilter} AND completed_at IS NOT NULL`)
+    .all(PILOT_PID_MIN, ...cohortArgs) as { started_at: string; completed_at: string }[];
   const durations = times
     .map((t) => (Date.parse(t.completed_at) - Date.parse(t.started_at)) / 60000)
     .filter((d) => Number.isFinite(d) && d >= 0);
@@ -95,15 +114,15 @@ export function computeKpis(db: Database.Database, now: Date = new Date()): Kpis
   const trials = db
     .prepare(
       `SELECT condition, is_ai_correct, error_type, agreed, detected_error, confidence, decision_time_ms, fact_sheet_opened
-         FROM trials WHERE session_id IN (${COMPLETED_SESSIONS})`,
+         FROM trials WHERE session_id IN (${completedSessions})`,
     )
-    .all() as TrialRow[];
+    .all(...cohortArgs) as TrialRow[];
   const surveys = db
     .prepare(
-      `SELECT condition, trust_mean, fairness_mean, tension, frustration_tlx
-         FROM block_surveys WHERE session_id IN (${COMPLETED_SESSIONS})`,
+      `SELECT condition, trust_mean, fairness_mean, brief_trust, tension, frustration_tlx
+         FROM block_surveys WHERE session_id IN (${completedSessions})`,
     )
-    .all() as SurveyRow[];
+    .all(...cohortArgs) as SurveyRow[];
 
   const detection = (rows: TrialRow[]) => {
     const wrong = rows.filter((t) => t.is_ai_correct === 0);
@@ -116,6 +135,7 @@ export function computeKpis(db: Database.Database, now: Date = new Date()): Kpis
     const wrong = detection(ts);
     return {
       condition,
+      ...relianceSummary(ts),
       trials: ts.length,
       agreementRate: rate(ts.filter((t) => t.agreed === 1).length, ts.length),
       wrongTrials: wrong.n,
@@ -125,6 +145,7 @@ export function computeKpis(db: Database.Database, now: Date = new Date()): Kpis
       factSheetOpenRate: rate(ts.filter((t) => t.fact_sheet_opened === 1).length, ts.length),
       meanConfidence: mean(ts.map((t) => t.confidence)),
       medianDecisionMs: median(ts.map((t) => t.decision_time_ms)),
+      briefTrustMean: mean(ss.map((s) => s.brief_trust)),
       trustMean: mean(ss.map((s) => s.trust_mean)),
       fairnessMean: mean(ss.map((s) => s.fairness_mean)),
       tensionMean: mean(ss.map((s) => s.tension)),
@@ -139,8 +160,8 @@ export function computeKpis(db: Database.Database, now: Date = new Date()): Kpis
 
   // ---- balance: always the four Williams orders, plus any unexpected order present in the data
   const orderRows = db
-    .prepare(`SELECT condition_order AS o, COUNT(*) AS n FROM sessions WHERE status = 'completed' AND pid < ? GROUP BY condition_order`)
-    .all(PILOT_PID_MIN) as { o: string; n: number }[];
+    .prepare(`SELECT condition_order AS o, COUNT(*) AS n FROM sessions WHERE status = 'completed' AND pid < ? AND ${cohortFilter} GROUP BY condition_order`)
+    .all(PILOT_PID_MIN, ...cohortArgs) as { o: string; n: number }[];
   const orders: string[] = [...WILLIAMS];
   for (const r of orderRows) if (!orders.includes(r.o)) orders.push(r.o);
   const balance = orders.map((conditionOrder) => ({
@@ -153,14 +174,16 @@ export function computeKpis(db: Database.Database, now: Date = new Date()): Kpis
     db
       .prepare(
         `SELECT substr(completed_at, 1, 10) AS date, COUNT(*) AS n FROM sessions
-          WHERE status = 'completed' AND pid < ? AND completed_at IS NOT NULL
+          WHERE status = 'completed' AND pid < ? AND ${cohortFilter} AND completed_at IS NOT NULL
           GROUP BY date ORDER BY date`,
       )
-      .all(PILOT_PID_MIN) as { date: string; n: number }[]
+      .all(PILOT_PID_MIN, ...cohortArgs) as { date: string; n: number }[]
   ).map((r) => ({ date: r.date, n: r.n }));
 
   return {
     generatedAt: now.toISOString(),
+    cohort: protocolVersion,
+    primaryOutcome: relianceSummary(trials),
     sessions: {
       started,
       inProgress,

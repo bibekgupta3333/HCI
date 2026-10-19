@@ -416,6 +416,8 @@ export default function TrialScreen() {
   keyHandlerRef.current = (e: KeyboardEvent) => {
     if (e.defaultPrevented || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
     if (isTypingTarget(e.target)) return;
+    // Dialog actions (including Exit study) must not answer the trial behind them.
+    if (e.target instanceof Element && e.target.closest('dialog, [role="dialog"], [role="alertdialog"]')) return;
     if (!labelReady || phase === "submitting" || phase === "loading" || phase === "checking") return;
     const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (key === "Escape") {

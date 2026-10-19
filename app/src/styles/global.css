@@ -643,7 +643,7 @@ fieldset.field > legend {
 
 .factor-row__toggle {
   display: grid;
-  grid-template-columns: 1.25rem minmax(8.5rem, auto) 1fr auto;
+  grid-template-columns: 1.25rem minmax(8.5rem, auto) minmax(0, 1fr) auto;
   align-items: center;
   justify-items: start;
   gap: var(--space-2);
@@ -669,6 +669,8 @@ fieldset.field > legend {
 }
 
 .factor-row__value {
+  min-width: 0;
+  overflow-wrap: anywhere;
   font-size: var(--fs-sm);
 }
 
@@ -698,6 +700,7 @@ fieldset.field > legend {
   padding: 0 var(--space-2) var(--space-1) calc(1.25rem + var(--space-4));
   color: var(--color-text-muted);
   font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
 }
 
 /* ---------- Fact sheet: toggle + side panel ---------- */
@@ -1383,10 +1386,20 @@ fieldset.field > legend {
     grid-template-columns: 1fr;
   }
   .factor-row__toggle {
-    grid-template-columns: 1.25rem 1fr auto;
+    grid-template-columns: 1.25rem minmax(0, 1fr) auto;
+  }
+  .factor-row__label {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
   .factor-row__value {
     grid-column: 2 / -1;
+    grid-row: 2;
+  }
+  .factor-row__mark {
+    /* Keep the mark beside the label, rather than auto-placing it after the value. */
+    grid-column: 3;
+    grid-row: 1;
   }
 }
 
@@ -2957,3 +2970,72 @@ td.admin__status--in_progress::before {
 .study-exit__dialog::backdrop { background: rgb(15 23 42 / 45%); }
 .study-exit__dialog .button-row { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .study-exit__dialog button { min-height: 44px; }
+
+/* Questionnaire-only readability; common trial and A–D layouts remain unchanged. */
+.survey.survey--compact {
+  max-width: 1000px;
+}
+.survey .survey__title {
+  max-width: 46rem;
+  line-height: 1.35;
+}
+.survey .survey__intro {
+  max-width: 48rem;
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+  border-left: 3px solid var(--color-border-strong);
+  background: var(--color-surface);
+  line-height: 1.6;
+}
+.survey .survey__section-title {
+  color: var(--color-text);
+  font-size: var(--fs-lg);
+  letter-spacing: normal;
+  text-transform: none;
+}
+.survey .survey__section-note {
+  margin-bottom: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.6;
+}
+.survey .matrix__item {
+  line-height: 1.6;
+}
+.survey .matrix__row,
+.survey .matrix__chip,
+.survey .likert,
+.survey .slider {
+  scroll-margin-top: 5rem;
+  scroll-margin-bottom: 7rem;
+}
+.survey .matrix__chip[aria-checked="true"] {
+  outline: 2px solid var(--color-text);
+  outline-offset: -4px;
+  font-weight: 800;
+}
+.survey .slider__input {
+  min-height: var(--control-height);
+}
+@media (min-width: 900px) {
+  .survey.survey--compact .survey__section {
+    padding: var(--space-5);
+  }
+  .survey .matrix__row {
+    min-height: 4.25rem;
+  }
+}
+@media (forced-colors: active) {
+  .survey .matrix__chip[aria-checked="true"] {
+    outline: 2px solid Highlight;
+  }
+}
+
+/* Preference reminders follow each participant's assigned part order. */
+.exit-survey-screen label.chip:has(input[name="preferredPart"]) {
+  width: 100%;
+  max-width: 100%;
+  justify-content: flex-start;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+}

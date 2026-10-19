@@ -439,6 +439,30 @@ describe("TrialScreen", () => {
     expect(loggedTypes()).toContain("decision_agree");
   });
 
+  it.each(["dialog", "alertdialog", "native dialog"])("ignores trial shortcuts inside a %s", async (role) => {
+    await showLabel("C");
+    const dialog = document.createElement(role === "native dialog" ? "dialog" : "div");
+    if (role === "native dialog") dialog.setAttribute("open", "");
+    else dialog.setAttribute("role", role);
+    const button = document.createElement("button");
+    button.textContent = "Keep participating";
+    dialog.appendChild(button);
+    document.body.appendChild(dialog);
+    try {
+      button.focus();
+      for (const shortcut of ["f", "w", "a", "d", "5"]) key(shortcut, button);
+      expect(loggedTypes()).toEqual(["trial_shown"]);
+      expect(mocks.timer.snapshot).not.toHaveBeenCalled();
+      expect(mocks.timer.onFactSheet).not.toHaveBeenCalled();
+      expect(mocks.timer.onWhy).not.toHaveBeenCalled();
+      expect(mocks.api.submitTrial).not.toHaveBeenCalled();
+    } finally {
+      dialog.remove();
+    }
+    key("a");
+    expect(loggedTypes()).toContain("decision_agree");
+  });
+
   it("shows part/post text, the overall progress bar and a key hint", async () => {
     await showLabel("A");
     expect(screen.getByRole("heading", { name: "Part 2 of 4 · Post 3 of 6" })).toBeInTheDocument();

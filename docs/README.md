@@ -1,18 +1,22 @@
 # Design docs
 
+**Full questionnaire restored (2026-10-19):** new sessions use `calibrated-full-v1` with `questionnaireVersion=full-v1`. After EACH of four parts, collect the original 12 Jian-based trust items, two fairness items, tension and frustration: 16 ratings per part, 64 total. Keep eight posts (two per part), appropriate reliance as primary, the unchanged paper title and the interface-package limitation. Trust is now measured separately for each explanation condition. Preserve previously started `calibrated-brief-v1` sessions and their brief surveys on resume; do not mix or relabel their data. Dashboard/KPI exports default to the restored full cohort. Earlier brief-default descriptions below document the superseded revision and apply only to saved brief sessions. Schema 4 preserves all earlier responses. Pilot the restored questionnaire burden; no completion-time or power guarantee is established.
+
+**Measurement revision:** current new sessions prioritize appropriate reliance and collect 12 block ratings rather than 64. The questionnaire is versioned; legacy sessions retain original full items. A–D are interface packages, not a pure interactivity test. The paper title stays unchanged. Start with [methods and limitations](methods-and-limitations.md), [pilot and analysis plan](pilot-and-analysis-plan.md), and [study defense](parts-and-study-defense.md).
+
 **Current short version:** new participants see 2 posts per part (8 total), sampled from the 24-post bank. Existing six-post-per-part sessions remain supported. See [parts-and-study-defense.md](parts-and-study-defense.md) and [study-protocol.md](study-protocol.md) for the current rationale and procedure. Older diagrams/PDFs may still depict the full-length design; do not treat them as current session-count specifications.
 
 These are the design docs for the Group 4 CEN5728 study app. The code is in [`../app/`](../app/README.md), and its run guide is [`app/README.md`](../app/README.md). All diagrams are Mermaid and render on GitHub.
 
 **Stack:** React 18 + TypeScript + Vite client, served by a local Node server (Express 5) that stores all responses in one SQLite file (`better-sqlite3`, `app/data/study.db`) and exports CSV/JSON from `/admin`. Ground truth stays on the server; the browser keeps only the active session id. This replaced the earlier plan of a static SPA with `localStorage` persistence (see [architecture.md](architecture.md), ADR-4).
 
-**v3 domain: AI accuracy labels on social media posts** (Deepthi's proposal). Participants read 24 made-up posts from a fictional town. Each post carries an AI label, "Likely accurate" or "Likely misleading", and a fact sheet that proves the post true or false. 8 of the labels are deliberately wrong: 4 false alarms and 4 misses. There are four explanation conditions:
+**v3 domain: AI accuracy labels on social media posts** (Deepthi's proposal). New participants read eight made-up posts sampled from a 24-post bank in a fictional town. Each post carries an AI label, "Likely accurate" or "Likely misleading", and a fact sheet that proves the post true or false. The bank contains eight wrong labels; new participants see four (two false alarms and two misses). There are four explanation conditions:
 - A: no explanation
 - B: a static reason
 - C: an interactive "Why?"
 - D: a counterfactual ("would be labeled … if …")
 
-The study measures error detection, agreement, trust, fairness, tension, NASA-TLX frustration, confidence, time and clicks.
+The primary behavioral measure is appropriate reliance, decomposed into correct acceptance and wrong rejection. Custom trust, tension, single-item frustration, confidence, time and clicks are secondary; Jian trust and fairness remain legacy-only measures.
 
 Main question: *When the AI label is wrong, do explanations help people catch it, and how do they make people feel?*
 
@@ -37,6 +41,6 @@ Main question: *When the AI label is wrong, do explanations help people catch it
 - **Approvals:** Professor Hamam's approval of the topic change, and ethics approval for the deception and stress measures.
 - **The full literature search:** Google Scholar and the ACM DL, before the gap is claimed. Someone needs to be assigned this week.
 - **Made-up posts only.** Is the team happy with that?
-- **What C's "Claim vs record" row shows on wrong labels.** The recommendation is the true comparison.
+- **C content confound:** the implemented true comparison remains; report interface-package effects, with equal-content comparison proposed only as follow-up.
 - **Optional extras:** the consequence banner and the anxiety scale are off by default; drop them if the session runs too long.
-- **Sample size:** N = 32 (two full counterbalancing cycles) is the target, and 16 is the minimum.
+- **Sample size:** N=32 is the exploratory balance/resource target; pilot burden and report realized balance, without claiming established power.
